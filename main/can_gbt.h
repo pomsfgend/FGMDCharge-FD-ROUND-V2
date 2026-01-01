@@ -22,12 +22,12 @@
 #define GBT_ID_BHM          0x182756F4u
 #define GBT_ID_BRO          0x100956F4u
 #define GBT_ID_BCL          0x181056F4u
-#define GBT_ID_BCS          0x1C1156F4u
+#define GBT_ID_BCS          0x181156F4u
 #define GBT_ID_BSM          0x181356F4u
 #define GBT_ID_BST          0x101956F4u
 #define GBT_ID_BSD          0x181C56F4u
 #define GBT_ID_BEM          0x081E56F4u
-#define GBT_ID_BCP          0x1C0656F4u
+#define GBT_ID_BCP          0x180656F4u
 
 #define GBT_ID_TP_CM_BAT    0x1CEC56F4u
 #define GBT_ID_TP_DT_BAT    0x1CEB56F4u

@@ -1,84 +1,58 @@
-FGMDCharge / FD_ROUND V2 — RELEASE 2.0.6
+FGMDCharge / FD_ROUND V2 — RELEASE 2.1.1
+
+ЧТО ИСПРАВЛЕНО В 2.1.1
+- Web: URI /* перенесён в конец (ESP_ERR_HTTPD_HANDLER_EXISTS устранён)
+- LCD: ST7789 240x280, gap_y=20, invert, BGR + smoke fill при старте
+- SoftAP FGMDCharge-V2 / FDcube2026 (ssid_hidden=0)
+
 =======================================
 
-ЭТО ЕДИНЫЙ КАНОНИЧЕСКИЙ РЕЛИЗ ДЛЯ СБОРКИ И БЕЗОПАСНОГО ПЕРВОГО ТЕСТА.
+Полная реконструкция логики оригинальной прошивки кубика + веб-панель.
 
-1. ПОДГОТОВКА
--------------
-Распакуйте архив в короткий путь без пробелов, скобок и кириллицы, например:
-C:\FGMDCharge_FD_ROUND_V2_RELEASE
+ЧТО ДОБАВЛЕНО В 2.1.1
+---------------------
+1. Полный state machine GB/T battery-side (состояния 0..7).
+2. Реле по аналитике RE:
+   - State4: GPIO6 = HIGH (prepare / pre-charge)
+   - State5 + 10 с + substate==3: GPIO6=LOW, GPIO7=HIGH (основная силовая)
+   - Stop/Idle/Error: оба реле = LOW (fail-safe)
+3. Активная передача CAN: BHM, BRO, BCL, BCS, BSM, BST (при включённом TX).
+4. BLE-команды 0x66 / 0x0D / 0x0E (как в оригинале).
+5. Веб-панель показывает main_state, substate, реле, handoff, session.
+6. Кнопки Start charge / Stop в веб-UI (требуют X-Cube-Key).
+7. Исправлен критический баг 2.1.1: CUBE_LCD_BL_GPIO = -1 (GPIO2 не драйвится).
 
-На Windows должен быть установлен ESP-IDF 5.0.9 для ESP32-C3.
+КРИТИЧЕСКИЕ ПРАВИЛА
+-------------------
+- GPIO2 — strapping, НЕ драйвить.
+- Реле только GPIO6 и GPIO7.
+- CAN TX по умолчанию ВЫКЛЮЧЕН (безопасность).
+- Перед реальной зарядкой: включите TX в веб-панели, проверьте CAN-трафик.
 
-2. СБОРКА
----------
-Запустите:
-BUILD_RELEASE.bat
+Wi-Fi AP
+-------
+SSID:     FGMDCharge-V2
+Password: FDcube2026
+URL:      http://192.168.4.1/
+API key:  FDcube2026  (заголовок X-Cube-Key)
 
-Скрипт:
-- активирует ESP-IDF 5.0.9;
-- чинит совместимые Python-пакеты (esptool 4.7.0 / cryptography 36.0.2);
-- удаляет старые build/sdkconfig и dependencies.lock для чистой конфигурации;
-- запускает host tests и статический аудит;
-- настраивает esp32c3;
-- выполняет полную сборку;
-- проверяет итоговый ESP32-C3 app image.
+СБОРКА
+------
+Нужен ESP-IDF 5.0.9 (ESP32-C3).
+  idf.py set-target esp32c3
+  idf.py build
 
-После успешной сборки файл находится здесь:
-release\FGMDCharge_FD_ROUND_V2.bin
+Или BUILD_RELEASE.bat на Windows (если окружение IDF уже настроено).
 
-Важное условие: если BUILD_RELEASE.bat завершился ошибкой, ничего во flash не записывайте.
+ПРОШИВКА (безопасно в OTA1)
+---------------------------
+FLASH_RELEASE_OTA1.bat — пишет только app в 0x1A0000, OTA0 не трогает.
+ROLLBACK_OTA0.bat — откат на старый слот.
+RECOVERY_ORIGINAL.bat — полный dump1.bin.
 
-3. ПЕРВИЧНОЕ ОБНОВЛЕНИЕ БЕЗ СТИРАНИЯ OTA0
-------------------------------------------
-Запустите:
-FLASH_RELEASE_OTA1.bat
-
-Он сначала делает полный backup 4 MiB в backups\cube_before_v2.bin.
-Затем пишет ТОЛЬКО приложение в OTA1 по адресу 0x1A0000.
-Только после отдельного подтверждения переключает выбор загрузочного OTA-слота.
-
-Это сделано намеренно: старый OTA0 остаётся нетронутым и доступен для отката.
-
-4. ОТКАТ И ВОССТАНОВЛЕНИЕ
--------------------------
-ROLLBACK_OTA0.bat — выбрать старый OTA0 и перезагрузить кубик.
-RECOVERY_ORIGINAL.bat — полностью восстановить проверенный оригинальный dump1.bin.
-
-5. WEB-ПАНЕЛЬ
-------------
-Wi-Fi AP: FGMDCharge-V2
-Пароль:    FDcube2026
-Адрес:     http://192.168.4.1/
-Ключ API:  main\config.h -> CUBE_WEB_KEY
-
-Панель работает локально, без CDN и внешних ресурсов.
-Есть анимации, адаптивная верстка, reduced-motion fallback и реальный прогресс OTA.
-
-6. ПЕРИФЕРИЯ
------------
-CAN/TWAI: 250 kbit/s, TX GPIO10, RX GPIO9, расширенный 29-bit ID.
-LCD:      ILI9341, 240x280, MOSI5/SCLK19/CS4/DC18.
-Touch:    runtime probe по адресу 0x15; драйвер CST816S/CST8xx-like.
-BLE:      FGMDCharge, service FFE0, chars FFE1/FFE2/FFE3.
-
-CAN TX по умолчанию ОТКЛЮЧЕН.
-
-7. ЧТО НЕ ВЫДУМАНО
-------------------
-Точные ADC/PWM GPIO не доказаны dump1.bin — поэтому они не управляют неизвестными выводами.
-Оригинальный BLE OTA packet framing по dump1.bin не доказан — произвольная BLE-запись не запускает OTA.
-Команды реального силового запуска/остановки зарядки не активируются автоматически.
-
-8. ЦЕЛОСТНОСТЬ ОРИГИНАЛЬНОГО DUMP
----------------------------------
-dump1.bin SHA-256:
-1428dbddc0749eee8ac133b1e16b6c0805a2da4bb4b0c73bc759c1500b03f233
-
-9. ПРОВЕРКИ
-----------
-Сборка автоматически запускает:
-host_tests\test_core.py
-tools\static_audit.py
-tools\check_app_image.py
-tools\verify_release.py
+ВНИМАНИЕ
+--------
+Это реконструкция по дампу. Перед подключением к реальной станции:
+1) Проверьте CAN TX на логическом анализаторе / CANalyzer.
+2) Убедитесь, что реле не коммутируют опасную нагрузку без контроля.
+3) Смените CUBE_WEB_KEY и Wi-Fi пароль в config.h.

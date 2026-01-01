@@ -1,17 +1,26 @@
 #include "app_state.h"
 #include <string.h>
-#include <limits.h>
 #include "freertos/FreeRTOS.h"
 #include "freertos/semphr.h"
 #include "esp_timer.h"
 #include "config.h"
 
-static cube_state_snapshot_t s_state;
 static SemaphoreHandle_t s_lock;
+static cube_state_snapshot_t s_state;
 
 static uint32_t now_ms(void)
 {
     return (uint32_t)(esp_timer_get_time() / 1000ULL);
+}
+
+static void lock_state(void)
+{
+    if (s_lock) xSemaphoreTake(s_lock, portMAX_DELAY);
+}
+
+static void unlock_state(void)
+{
+    if (s_lock) xSemaphoreGive(s_lock);
 }
 
 void app_state_init(void)
@@ -19,52 +28,53 @@ void app_state_init(void)
     s_lock = xSemaphoreCreateMutex();
     memset(&s_state, 0, sizeof(s_state));
     s_state.tx_enabled = CUBE_TX_DEFAULT_ENABLED != 0;
-    s_state.cml_max_voltage_raw = 0;
-    s_state.cml_min_voltage_raw = 0;
-    s_state.cml_max_current_0p1a = INT16_MIN;
-    s_state.cml_min_current_0p1a = INT16_MIN;
-    s_state.ccs_output_current_0p1a = INT16_MIN;
-    s_state.ccs_charge_permit = 0xFF;
-    s_state.charger_stage = CUBE_STAGE_NO_DATA;
+    s_state.main_state = ST_IDLE;
+    s_state.bcl_requested_voltage_raw = CUBE_DEFAULT_REQ_VOLTAGE_0P1V;
+    s_state.bcl_requested_current_0p1a = CUBE_DEFAULT_REQ_CURRENT_0P1A;
+    s_state.bcl_mode = 0x01; /* constant current preferred */
+    s_state.battery_voltage_0p1v = 480; /* placeholder 48.0 V */
+    s_state.soc_percent = 50;
 }
 
-static void lock_state(void)
+void app_state_set_main_state(uint8_t s)
 {
-    if (s_lock) {
-        (void)xSemaphoreTake(s_lock, portMAX_DELAY);
-    }
-}
-
-static void unlock_state(void)
-{
-    if (s_lock) {
-        (void)xSemaphoreGive(s_lock);
-    }
-}
-
-void app_state_can_rx(const cube_can_frame_t *f, bool charger_frame)
-{
-    if (!f) return;
     lock_state();
-    s_state.last = *f;
-    s_state.rx_count++;
-    if (charger_frame) {
-        s_state.last_charger_rx_ms = f->timestamp_ms;
+    s_state.main_state = s;
+    s_state.state_entry_ms = now_ms();
+    s_state.handoff_done = false;
+    if (s == ST_IDLE || s == ST_STOP || s == ST_FINALIZE) {
+        s_state.session_active = false;
     }
     unlock_state();
 }
 
-void app_state_can_tx_ok(void)
+void app_state_set_substate(uint8_t s)
 {
     lock_state();
-    s_state.tx_count++;
+    s_state.substate = s;
     unlock_state();
 }
 
-void app_state_can_tx_drop(void)
+void app_state_set_relays(uint8_t a, uint8_t b)
 {
     lock_state();
-    s_state.dropped_count++;
+    s_state.relay_a = a ? 1 : 0;
+    s_state.relay_b = b ? 1 : 0;
+    unlock_state();
+}
+
+void app_state_set_handoff(bool done)
+{
+    lock_state();
+    s_state.handoff_done = done;
+    unlock_state();
+}
+
+void app_state_set_session(bool active)
+{
+    lock_state();
+    s_state.session_active = active;
+    if (active) s_state.session_start_ms = now_ms();
     unlock_state();
 }
 
@@ -78,6 +88,7 @@ void app_state_set_cml(uint16_t max_v, uint16_t min_v, int16_t max_i_0p1a, int16
     s_state.last_cml_ms = now_ms();
     s_state.charger_stage = CUBE_STAGE_PARAMETER;
     s_state.charger_stage_ms = s_state.last_cml_ms;
+    s_state.last_charger_rx_ms = s_state.last_cml_ms;
     unlock_state();
 }
 
@@ -90,6 +101,7 @@ void app_state_set_ccs(uint16_t out_v, int16_t out_i_0p1a, uint16_t charge_time_
     s_state.ccs_charge_permit = (uint8_t)(permit_raw & 0x03U);
     s_state.ccs_status_raw = permit_raw;
     s_state.last_ccs_ms = now_ms();
+    s_state.last_charger_rx_ms = s_state.last_ccs_ms;
     if ((permit_raw & 0x03U) == 0x01U) {
         s_state.charger_stage = CUBE_STAGE_CHARGING;
     } else if ((permit_raw & 0x03U) == 0x00U) {
@@ -113,6 +125,7 @@ void app_state_set_cro(uint8_t status)
     lock_state();
     s_state.cro_status_raw = status;
     s_state.last_cro_ms = now_ms();
+    s_state.last_charger_rx_ms = s_state.last_cro_ms;
     s_state.charger_stage = (status == 0xAAU) ? CUBE_STAGE_READY : CUBE_STAGE_PARAMETER;
     s_state.charger_stage_ms = s_state.last_cro_ms;
     unlock_state();
@@ -123,6 +136,7 @@ void app_state_set_cst(uint8_t status)
     lock_state();
     s_state.cst_status_raw = status;
     s_state.last_cst_ms = now_ms();
+    s_state.last_charger_rx_ms = s_state.last_cst_ms;
     s_state.charger_stage = CUBE_STAGE_SUSPENDED;
     s_state.charger_stage_ms = s_state.last_cst_ms;
     unlock_state();
@@ -134,6 +148,7 @@ void app_state_set_csd(uint16_t time_min, uint16_t energy_0p1kwh)
     s_state.csd_time_min = time_min;
     s_state.csd_energy_0p1kwh = energy_0p1kwh;
     s_state.last_csd_ms = now_ms();
+    s_state.last_charger_rx_ms = s_state.last_csd_ms;
     s_state.charger_stage = CUBE_STAGE_COMPLETED;
     s_state.charger_stage_ms = s_state.last_csd_ms;
     unlock_state();
@@ -147,6 +162,7 @@ void app_state_set_cem(const uint8_t *data, uint8_t len)
     memset(s_state.cem_data, 0, sizeof(s_state.cem_data));
     memcpy(s_state.cem_data, data, len);
     s_state.last_cem_ms = now_ms();
+    s_state.last_charger_rx_ms = s_state.last_cem_ms;
     s_state.charger_stage = CUBE_STAGE_ERROR;
     s_state.charger_stage_ms = s_state.last_cem_ms;
     unlock_state();
@@ -157,6 +173,13 @@ void app_state_set_charger_stage(cube_charge_stage_t stage)
     lock_state();
     s_state.charger_stage = stage;
     s_state.charger_stage_ms = now_ms();
+    unlock_state();
+}
+
+void app_state_note_charger_rx(void)
+{
+    lock_state();
+    s_state.last_charger_rx_ms = now_ms();
     unlock_state();
 }
 
@@ -215,6 +238,36 @@ void app_state_set_ble_rx(const uint8_t *data, uint16_t len)
     unlock_state();
 }
 
+void app_state_set_battery_vi(uint16_t v_0p1v, int16_t i_0p1a)
+{
+    lock_state();
+    s_state.battery_voltage_0p1v = v_0p1v;
+    s_state.battery_current_0p1a = i_0p1a;
+    unlock_state();
+}
+
+void app_state_set_soc(uint8_t soc)
+{
+    lock_state();
+    s_state.soc_percent = soc > 100 ? 100 : soc;
+    unlock_state();
+}
+
+const char *cube_main_state_name(uint8_t s)
+{
+    switch (s) {
+        case ST_IDLE: return "IDLE";
+        case ST_HANDSHAKE_INIT: return "HANDSHAKE_INIT";
+        case ST_WAIT_CRM: return "WAIT_CRM";
+        case ST_PARAM_CONFIG: return "PARAM_CONFIG";
+        case ST_READY_WAIT_CRO: return "READY_WAIT_CRO";
+        case ST_CHARGING: return "CHARGING";
+        case ST_STOP: return "STOP";
+        case ST_FINALIZE: return "FINALIZE";
+        default: return "UNKNOWN";
+    }
+}
+
 const char *cube_charge_stage_name(cube_charge_stage_t stage)
 {
     switch (stage) {
@@ -232,6 +285,7 @@ const char *cube_charge_stage_name(cube_charge_stage_t stage)
 void app_state_housekeeping(void)
 {
     lock_state();
+    s_state.uptime_ms = now_ms();
     if (s_state.last_charger_rx_ms != 0U) {
         uint32_t now = now_ms();
         if ((uint32_t)(now - s_state.last_charger_rx_ms) > 5000U &&
@@ -250,4 +304,26 @@ void app_state_snapshot(cube_state_snapshot_t *out)
     lock_state();
     *out = s_state;
     unlock_state();
+}
+
+void app_state_can_rx(const cube_can_frame_t *f, bool charger_frame)
+{
+    if (!f) return;
+    lock_state();
+    s_state.last = *f;
+    s_state.rx_count++;
+    if (charger_frame) s_state.last_charger_rx_ms = now_ms();
+    unlock_state();
+}
+
+void app_state_can_tx_ok(void)
+{
+    lock_state();
+    s_state.tx_count++;
+    unlock_state();
+}
+
+void app_state_can_tx_drop(void)
+{
+    /* counted as soft fail; no separate field required */
 }

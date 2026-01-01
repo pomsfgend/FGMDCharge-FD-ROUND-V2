@@ -15,6 +15,7 @@ idf_component_register(
         "safe_ota.c"
         "settings.c"
         "adc_pwm.c"
+        "sm_relay.c"
     INCLUDE_DIRS "."
     REQUIRES
         driver

@@ -11,6 +11,7 @@
 #include "web.h"
 #include "settings.h"
 #include "config.h"
+#include "sm_relay.h"
 
 static const char *TAG = "MAIN";
 void adc_pwm_init(void);
@@ -21,6 +22,15 @@ static void myTask_Timer(void *arg)
     for (;;) {
         app_state_housekeeping();
         vTaskDelay(pdMS_TO_TICKS(1000));
+    }
+}
+
+static void myTask_SM(void *arg)
+{
+    (void)arg;
+    for (;;) {
+        sm_relay_tick();
+        vTaskDelay(pdMS_TO_TICKS(CUBE_SM_TIMEBASE_MS));
     }
 }
 
@@ -42,6 +52,10 @@ void app_main(void) {
     err = settings_init();
     if (err != ESP_OK) ESP_LOGW(TAG, "settings init failed: %s", esp_err_to_name(err));
 
+    err = sm_relay_init();
+    if (err != ESP_OK) ESP_LOGE(TAG, "sm_relay init failed: %s", esp_err_to_name(err));
+    else ESP_LOGW(TAG, "stage: relays OK (both OFF)");
+
     adc_pwm_init();
     ESP_LOGW(TAG, "stage: adc/pwm done");
 
@@ -52,6 +66,12 @@ void app_main(void) {
         ESP_LOGE(TAG, "CAN task creation failed");
     } else {
         ESP_LOGW(TAG, "stage: CAN task ok");
+    }
+
+    if (xTaskCreate(myTask_SM, "myTask_SM", 4096, NULL, 5, NULL) != pdPASS) {
+        ESP_LOGE(TAG, "SM task creation failed");
+    } else {
+        ESP_LOGW(TAG, "stage: SM 10ms task ok");
     }
 
     err = touch_init();
@@ -84,7 +104,7 @@ void app_main(void) {
     if (err != ESP_OK) ESP_LOGE(TAG, "Web init failed: %s", esp_err_to_name(err));
     else ESP_LOGW(TAG, "stage: Web AP ok");
 
-    ESP_LOGW(TAG, "READY %s CAN_TX=%d WiFi=%s", CUBE_FW_VERSION,
-             gbt_can_get_tx_enabled(), CUBE_WIFI_SSID);
+    ESP_LOGW(TAG, "READY %s CAN_TX=%d WiFi=%s key=%s", CUBE_FW_VERSION,
+             gbt_can_get_tx_enabled(), CUBE_WIFI_SSID, CUBE_WEB_KEY);
     for (;;) vTaskDelay(pdMS_TO_TICKS(1000));
 }

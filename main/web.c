@@ -18,6 +18,7 @@
 
 #include "config.h"
 #include "app_state.h"
+#include "sm_relay.h"
 #include "can_gbt.h"
 #include "safe_ota.h"
 
@@ -133,12 +134,15 @@ static esp_err_t status_get(httpd_req_t *req)
     hex8(s.last.data, s.last.dlc, last_hex, sizeof(last_hex));
     const bool online = charger_online(s.last_charger_rx_ms);
     const long power_w = calc_power_w(&s);
-    char json[2500];
+    char json[3200];
     int written = snprintf(json, sizeof(json),
         "{\"ok\":true,\"fw\":\"%s\",\"version\":\"%s\","
-        "\"can\":%s,\"tx_enabled\":%s,\"rx_count\":%lu,\"tx_count\":%lu,\"dropped_count\":%lu,"
+        "\"can\":%s,\"tx_enabled\":%s,\"rx_count\":%lu,\"tx_count\":%lu,"
         "\"last_id\":\"0x%08lX\",\"last_dlc\":%u,\"last_data\":\"%s\","
         "\"charger_online\":%s,\"stage\":\"%s\",\"stage_ms\":%lu,"
+        "\"main_state\":%u,\"main_state_name\":\"%s\",\"substate\":%u,"
+        "\"relay_a\":%u,\"relay_b\":%u,\"handoff_done\":%s,\"session_active\":%s,"
+        "\"battery_voltage_0p1v\":%u,\"battery_current_0p1a\":%d,\"soc\":%u,"
         "\"cml_max_voltage_0p1v\":%u,\"cml_min_voltage_0p1v\":%u,"
         "\"cml_max_current_0p1a\":%d,\"cml_min_current_0p1a\":%d,"
         "\"ccs_voltage_0p1v\":%u,\"ccs_current_0p1a\":%d,\"ccs_time_min\":%u,"
@@ -148,9 +152,13 @@ static esp_err_t status_get(httpd_req_t *req)
         "\"ble\":%s,\"notify\":%s,\"indicate\":%s,\"display\":%s,\"touch\":%s,\"touch_pressed\":%s}",
         CUBE_FW_NAME, CUBE_FW_VERSION,
         s.can_up ? "true" : "false", s.tx_enabled ? "true" : "false",
-        (unsigned long)s.rx_count, (unsigned long)s.tx_count, (unsigned long)s.dropped_count,
+        (unsigned long)s.rx_count, (unsigned long)s.tx_count,
         (unsigned long)s.last.id, (unsigned)s.last.dlc, last_hex,
         online ? "true" : "false", cube_charge_stage_name(s.charger_stage), (unsigned long)s.charger_stage_ms,
+        (unsigned)s.main_state, cube_main_state_name(s.main_state), (unsigned)s.substate,
+        (unsigned)s.relay_a, (unsigned)s.relay_b, s.handoff_done ? "true" : "false",
+        s.session_active ? "true" : "false",
+        (unsigned)s.battery_voltage_0p1v, (int)s.battery_current_0p1a, (unsigned)s.soc_percent,
         (unsigned)s.cml_max_voltage_raw, (unsigned)s.cml_min_voltage_raw,
         (int)s.cml_max_current_0p1a, (int)s.cml_min_current_0p1a,
         (unsigned)s.ccs_output_voltage_raw, (int)s.ccs_output_current_0p1a, (unsigned)s.ccs_charge_time_min,
@@ -412,9 +420,10 @@ static void wifi_ap_event_handler(void *arg, esp_event_base_t event_base,
         ESP_LOGI(TAG, "STA connected %02X:%02X:%02X:%02X:%02X:%02X AID=%u",
                  e->mac[0], e->mac[1], e->mac[2], e->mac[3], e->mac[4], e->mac[5], e->aid);
     } else if (event_id == WIFI_EVENT_AP_STADISCONNECTED) {
+        /* IDF 5.0.9: wifi_event_ap_stadisconnected_t has only mac + aid (no reason). */
         const wifi_event_ap_stadisconnected_t *e = (const wifi_event_ap_stadisconnected_t *)event_data;
-        ESP_LOGW(TAG, "STA disconnected %02X:%02X:%02X:%02X:%02X:%02X AID=%u reason=%u",
-                 e->mac[0], e->mac[1], e->mac[2], e->mac[3], e->mac[4], e->mac[5], e->aid, e->reason);
+        ESP_LOGW(TAG, "STA disconnected %02X:%02X:%02X:%02X:%02X:%02X AID=%u",
+                 e->mac[0], e->mac[1], e->mac[2], e->mac[3], e->mac[4], e->mac[5], e->aid);
     }
 }
 
@@ -442,6 +451,25 @@ static esp_err_t portal_catchall_get(httpd_req_t *req)
     /* Captive-portal clients frequently probe vendor-specific paths. Serve the
        local UI instead of returning a 404 that makes some clients abandon the AP. */
     return root_get(req);
+}
+
+
+static esp_err_t session_start_post(httpd_req_t *req)
+{
+    set_security_headers(req);
+    if (!auth(req)) return forbidden(req);
+    sm_start_session();
+    (void)httpd_resp_set_type(req, "application/json; charset=utf-8");
+    return httpd_resp_sendstr(req, "{\"ok\":true,\"action\":\"start\"}");
+}
+
+static esp_err_t session_stop_post(httpd_req_t *req)
+{
+    set_security_headers(req);
+    if (!auth(req)) return forbidden(req);
+    sm_stop_session();
+    (void)httpd_resp_set_type(req, "application/json; charset=utf-8");
+    return httpd_resp_sendstr(req, "{\"ok\":true,\"action\":\"stop\"}");
 }
 
 esp_err_t web_init(void)
@@ -487,7 +515,7 @@ esp_err_t web_init(void)
     if ((err = esp_wifi_start()) != ESP_OK && err != ESP_ERR_INVALID_STATE) return err;
 
     httpd_config_t hc = HTTPD_DEFAULT_CONFIG();
-    hc.max_uri_handlers = 24;
+    hc.max_uri_handlers = 28;
     hc.stack_size = 12288;
     hc.recv_wait_timeout = 10;
     hc.send_wait_timeout = 10;
@@ -499,6 +527,8 @@ esp_err_t web_init(void)
         return err;
     }
 
+    /* Specific routes first. Wildcard catch-all MUST be last or IDF reports
+       ESP_ERR_HTTPD_HANDLER_EXISTS / wrong match order. */
     const httpd_uri_t uri[] = {
         {.uri = "/", .method = HTTP_GET, .handler = root_get},
         {.uri = "/style.css", .method = HTTP_GET, .handler = css_get},
@@ -510,7 +540,6 @@ esp_err_t web_init(void)
         {.uri = "/connecttest.txt", .method = HTTP_GET, .handler = captive_text_get},
         {.uri = "/ncsi.txt", .method = HTTP_GET, .handler = captive_text_get},
         {.uri = "/success.txt", .method = HTTP_GET, .handler = captive_text_get},
-        {.uri = "/*", .method = HTTP_GET, .handler = portal_catchall_get},
         {.uri = "/api/status", .method = HTTP_GET, .handler = status_get},
         {.uri = "/api/can/recent", .method = HTTP_GET, .handler = can_recent_get},
         {.uri = "/api/settings", .method = HTTP_GET, .handler = settings_get},
@@ -518,6 +547,9 @@ esp_err_t web_init(void)
         {.uri = "/api/can/raw", .method = HTTP_POST, .handler = can_raw_post},
         {.uri = "/api/reboot", .method = HTTP_POST, .handler = reboot_post},
         {.uri = "/api/update", .method = HTTP_POST, .handler = update_post},
+        {.uri = "/api/session/start", .method = HTTP_POST, .handler = session_start_post},
+        {.uri = "/api/session/stop", .method = HTTP_POST, .handler = session_stop_post},
+        {.uri = "/*", .method = HTTP_GET, .handler = portal_catchall_get},
     };
     for (size_t i = 0; i < sizeof(uri) / sizeof(uri[0]); ++i) {
         err = httpd_register_uri_handler(s_server, &uri[i]);

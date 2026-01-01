@@ -11,6 +11,7 @@
 #include "esp_gatts_api.h"
 #include "esp_gatt_common_api.h"
 #include "app_state.h"
+#include "sm_relay.h"
 #include "config.h"
 #include "settings.h"
 #include "freertos/FreeRTOS.h"
@@ -91,8 +92,21 @@ static void on_write(uint16_t handle, const uint8_t *data, uint16_t len) {
     app_state_set_ble_rx(data, len);
     ESP_LOGI(TAG, "RX handle=%u len=%u", (unsigned)handle, (unsigned)len);
     ESP_LOG_BUFFER_HEXDUMP(TAG, data, len > 64 ? 64 : len, ESP_LOG_INFO);
-    /* The original BLE OTA framing is not proven. Arbitrary BLE writes never
-       trigger firmware updates; web OTA is the controlled update path. */
+
+    /* Application commands recovered from original dump */
+    if (len >= 1) {
+        uint8_t cmd = data[0];
+        if (cmd == 0x66 && len >= 2) {
+            sm_ble_cmd_0x66(data[1]);
+        } else if (cmd == 0x0D) {
+            sm_ble_cmd_0x0D();
+        } else if (cmd == 0x0E && len >= 3) {
+            /* voltage related: value /10 -> battery voltage 0.1V units */
+            uint16_t raw = (uint16_t)data[1] | ((uint16_t)data[2] << 8);
+            app_state_set_battery_vi(raw / 10, 0);
+        }
+    }
+    /* Original BLE OTA framing not proven — use web OTA only. */
 }
 
 static void gap_cb(esp_gap_ble_cb_event_t event, esp_ble_gap_cb_param_t *param) {
