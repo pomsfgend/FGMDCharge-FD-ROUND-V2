@@ -256,14 +256,14 @@ void app_state_set_soc(uint8_t soc)
 const char *cube_main_state_name(uint8_t s)
 {
     switch (s) {
-        case ST_IDLE: return "ПРОСТОЙ";
-        case ST_HANDSHAKE_INIT: return "СВЯЗЬ";
-        case ST_WAIT_CRM: return "ЖДЁМ CRM";
-        case ST_PARAM_CONFIG: return "ПАРАМЕТРЫ";
-        case ST_READY_WAIT_CRO: return "ГОТОВ";
-        case ST_CHARGING: return "ЗАРЯДКА";
-        case ST_STOP: return "СТОП";
-        case ST_FINALIZE: return "ФИНИШ";
+        case ST_IDLE: return "IDLE";
+        case ST_HANDSHAKE_INIT: return "HANDSHAKE";
+        case ST_WAIT_CRM: return "WAIT_CRM";
+        case ST_PARAM_CONFIG: return "PARAM";
+        case ST_READY_WAIT_CRO: return "READY";
+        case ST_CHARGING: return "CHARGING";
+        case ST_STOP: return "STOP";
+        case ST_FINALIZE: return "FINALIZE";
         default: return "UNKNOWN";
     }
 }
@@ -271,10 +271,10 @@ const char *cube_main_state_name(uint8_t s)
 const char *cube_charge_stage_name(cube_charge_stage_t stage)
 {
     switch (stage) {
-        case CUBE_STAGE_HANDSHAKE: return "СВЯЗЬ";
+        case CUBE_STAGE_HANDSHAKE: return "HANDSHAKE";
         case CUBE_STAGE_PARAMETER: return "PARAMETER";
-        case CUBE_STAGE_READY: return "ГОТОВ";
-        case CUBE_STAGE_CHARGING: return "ЗАРЯДКА";
+        case CUBE_STAGE_READY: return "READY";
+        case CUBE_STAGE_CHARGING: return "CHARGING";
         case CUBE_STAGE_SUSPENDED: return "SUSPENDED";
         case CUBE_STAGE_COMPLETED: return "COMPLETED";
         case CUBE_STAGE_ERROR: return "ERROR";

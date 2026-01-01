@@ -1,12 +1,12 @@
 #pragma once
 
 #define CUBE_FW_NAME                 "FD_ROUND_V2"
-#define CUBE_FW_VERSION              "2.1.8"
+#define CUBE_FW_VERSION              "2.1.9"
 
 /* Web API protection. Change before installing on a real vehicle/charging setup. */
-#define CUBE_WEB_KEY                 "FDcube2026"
-#define CUBE_WIFI_SSID               "FGMDCube"
-#define CUBE_WIFI_PASSWORD           ""  /* open AP — as in working 2.0.5 */
+#define CUBE_WEB_KEY                 ""  /* no API key on local AP */
+#define CUBE_WIFI_SSID               "FGMDCharge-V2"
+#define CUBE_WIFI_PASSWORD           ""  /* open — as 2.0.5 working */
 #define CUBE_WIFI_CHANNEL            1
 #define CUBE_WIFI_MAX_CONNECTIONS    4
 

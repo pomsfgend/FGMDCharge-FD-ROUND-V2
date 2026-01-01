@@ -493,14 +493,12 @@ esp_err_t web_init(void)
     ap.ap.ssid_len = (uint8_t)strlen(CUBE_WIFI_SSID);
     ap.ap.channel = CUBE_WIFI_CHANNEL;
     ap.ap.max_connection = CUBE_WIFI_MAX_CONNECTIONS;
-    ap.ap.ssid_hidden = 0;          /* always broadcast beacon */
-    ap.ap.beacon_interval = 100; /* TU */
+    ap.ap.ssid_hidden = 0;
+    ap.ap.beacon_interval = 100;
     ap.ap.pmf_cfg.capable = false;
     ap.ap.pmf_cfg.required = false;
     if (strlen(CUBE_WIFI_PASSWORD) >= 8U) {
-        /* WPA2-PSK/CCMP is deterministic and avoids mixed-mode roaming quirks. */
-        ap.ap.authmode = WIFI_AUTH_WPA2_PSK;
-        ap.ap.pairwise_cipher = WIFI_CIPHER_TYPE_CCMP;
+        ap.ap.authmode = WIFI_AUTH_WPA_WPA2_PSK;
         (void)snprintf((char *)ap.ap.password, sizeof(ap.ap.password), "%s", CUBE_WIFI_PASSWORD);
     } else {
         ap.ap.authmode = WIFI_AUTH_OPEN;
@@ -508,21 +506,18 @@ esp_err_t web_init(void)
     }
     if ((err = esp_wifi_set_mode(WIFI_MODE_AP)) != ESP_OK) return err;
     if ((err = esp_wifi_set_config(WIFI_IF_AP, &ap)) != ESP_OK) return err;
+    /* Exact path from 2.0.5 where client got 192.168.4.2 — no country/protocol overrides. */
     (void)esp_wifi_set_ps(WIFI_PS_NONE);
-    /* Prefer b/g for maximum phone scan compatibility; 11n optional. */
-    (void)esp_wifi_set_protocol(WIFI_IF_AP, WIFI_PROTOCOL_11B | WIFI_PROTOCOL_11G | WIFI_PROTOCOL_11N);
     (void)esp_wifi_set_bandwidth(WIFI_IF_AP, WIFI_BW_HT20);
-    (void)esp_wifi_set_country_code("01", true);
     if ((err = esp_wifi_start()) != ESP_OK && err != ESP_ERR_INVALID_STATE) return err;
-    (void)esp_wifi_set_max_tx_power(84);
-    ESP_LOGW(TAG, "AP SSID=%s ch=%u auth=%s",
-             CUBE_WIFI_SSID, (unsigned)CUBE_WIFI_CHANNEL,
-             (strlen(CUBE_WIFI_PASSWORD) >= 8U) ? "WPA2" : "OPEN");
     {
         uint8_t mac[6] = {0};
         (void)esp_wifi_get_mac(WIFI_IF_AP, mac);
-        ESP_LOGW(TAG, "AP MAC %02X:%02X:%02X:%02X:%02X:%02X — scan for SSID '%s' (OPEN)",
-                 mac[0], mac[1], mac[2], mac[3], mac[4], mac[5], CUBE_WIFI_SSID);
+        ESP_LOGW(TAG, "SoftAP UP SSID=%s OPEN ch=%u MAC=%02X:%02X:%02X:%02X:%02X:%02X",
+                 CUBE_WIFI_SSID, (unsigned)CUBE_WIFI_CHANNEL,
+                 mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
+        ESP_LOGW(TAG, "Connect phone to '%s' (no password), open http://192.168.4.1/",
+                 CUBE_WIFI_SSID);
     }
 
 
@@ -533,7 +528,7 @@ esp_err_t web_init(void)
     hc.send_wait_timeout = 10;
     hc.lru_purge_enable = true;
     hc.uri_match_fn = httpd_uri_match_wildcard;
-    hc.max_open_sockets = 4;
+    hc.max_open_sockets = 7;
     if ((err = httpd_start(&s_server, &hc)) != ESP_OK) {
         ESP_LOGE(TAG, "httpd_start failed: %s", esp_err_to_name(err));
         return err;
@@ -571,6 +566,6 @@ esp_err_t web_init(void)
             return err;
         }
     }
-    ESP_LOGI(TAG, "Wi-Fi AP=%s OPEN ch=%u UI=http://192.168.4.1/", CUBE_WIFI_SSID, (unsigned)CUBE_WIFI_CHANNEL);
+    ESP_LOGI(TAG, "Wi-Fi AP=%s UI=http://192.168.4.1/", CUBE_WIFI_SSID);
     return ESP_OK;
 }

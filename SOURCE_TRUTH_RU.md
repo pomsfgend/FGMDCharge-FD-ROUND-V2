@@ -1,4 +1,4 @@
-Release 2.1.8
+Release 2.1.9
 # FGMDCharge / FD_ROUND V2 — SOURCE TRUTH
 
 Этот проект является реконструкцией прошивки на основании полного 4 MiB dump `original/dump1.bin`, дизассемблирования извлечённого OTA-образа и проверяемой документации GB/T 27930.
