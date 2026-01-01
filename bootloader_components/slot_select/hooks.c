@@ -4,10 +4,9 @@
 #include "bootloader_flash_priv.h"
 
 void bootloader_reset(void);
+int esp_rom_get_reset_reason(int cpu_no);
 
 #define OTADATA 0xD000
-#define STORE0  0x600080B0u
-#define MAGIC_OLD 0x01D0F00Du
 
 static int entry_ok(const uint8_t *e, uint32_t *seq_out)
 {
@@ -61,13 +60,11 @@ void bootloader_after_init(void)
 {
     int slot = 0;
     uint32_t seq = active_seq(&slot);
-    uint32_t scratch = *(volatile uint32_t *)STORE0;
-    esp_rom_printf("BOOT scratch %08x seq %u slot %d\n", (unsigned)scratch, (unsigned)seq, slot);
-    if (scratch == MAGIC_OLD) {
-        esp_rom_printf("BOOT keep old until power off\n");
-        return;
-    }
-    if (slot != 1) {
+    int reason = esp_rom_get_reset_reason(0);
+    esp_rom_printf("BOOT reason %d seq %u slot %d\n", reason, (unsigned)seq, slot);
+    /* 1 = power on. Only then force our menu. A software reset keeps the slot
+       the button just wrote, so old firmware can actually start. */
+    if (reason == 1 && slot != 1) {
         write_slot(1, seq);
         esp_rom_printf("BOOT power -> menu, reset\n");
         bootloader_reset();

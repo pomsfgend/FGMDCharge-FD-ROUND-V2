@@ -857,9 +857,8 @@ esp_err_t web_init(void)
     ap.ap.beacon_interval = 100;
     ap.ap.pmf_cfg.capable = false; /* phones fail PMF on C3 softAP */
     ap.ap.pmf_cfg.required = false;
-    ap.ap.authmode = WIFI_AUTH_WPA2_PSK;
-    ap.ap.pairwise_cipher = WIFI_CIPHER_TYPE_CCMP;
-    (void)snprintf((char *)ap.ap.password, sizeof(ap.ap.password), "%s", "12345678");
+    ap.ap.authmode = WIFI_AUTH_OPEN;
+    ap.ap.password[0] = 0;
     if ((err = esp_wifi_set_mode(WIFI_MODE_AP)) != ESP_OK) return err;
     if ((err = esp_wifi_set_config(WIFI_IF_AP, &ap)) != ESP_OK) return err;
     { wifi_config_t sta0 = {0}; (void)esp_wifi_set_config(WIFI_IF_STA, &sta0); }
@@ -868,7 +867,7 @@ esp_err_t web_init(void)
     (void)esp_wifi_set_bandwidth(WIFI_IF_AP, WIFI_BW_HT20);
         if ((err = esp_wifi_start()) != ESP_OK && err != ESP_ERR_INVALID_STATE) return err;
     (void)esp_wifi_set_max_tx_power(78);
-    ESP_LOGW(TAG, "AP only SSID=%s ch=%u key=12345678",
+    ESP_LOGW(TAG, "AP only SSID=%s ch=%u open",
              CUBE_WIFI_SSID, (unsigned)CUBE_WIFI_CHANNEL);
     /* AP only, no scan */
 
@@ -928,7 +927,7 @@ esp_err_t web_init(void)
             return err;
         }
     }
-    ESP_LOGW(TAG, "softAP started SSID:%s password:12345678 channel:%d", CUBE_WIFI_SSID, s_ap_channel);
+    ESP_LOGW(TAG, "softAP started SSID:%s password:(open) channel:%d", CUBE_WIFI_SSID, s_ap_channel);
     ESP_LOGI(TAG, "Wi-Fi AP=%s UI=http://192.168.4.1/", CUBE_WIFI_SSID);
     return ESP_OK;
 }
