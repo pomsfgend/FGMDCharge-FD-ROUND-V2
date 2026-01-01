@@ -51,7 +51,7 @@ static int s_brightness = CUBE_LCD_BL_PWM_DUTY_DEFAULT;
 static lv_obj_t *s_scr_chg, *s_scr_ses, *s_scr_set, *s_scr_sys, *s_scr_wifi, *s_scr_log;
 static lv_obj_t *s_ses_kwh, *s_ses_soc, *s_ses_min, *s_ses_req, *s_log_lbl, *s_can_lbl;
 static int s_pending_boot;
-static int s_edge = 28;
+static int s_edge = 20;
 static lv_obj_t *s_voltage, *s_current, *s_power, *s_stage, *s_status;
 static lv_obj_t *s_soc, *s_relay, *s_cml, *s_can;
 static lv_obj_t *s_sys_temp, *s_sys_cpu, *s_sys_load, *s_sys_heap, *s_sys_wifi, *s_sys_touch;
@@ -231,6 +231,7 @@ static void session_go_cb(lv_event_t *e)
 {
     (void)e;
     sm_start_session();
+    /* auto: no start button required */
 }
 
 static void br_cb(lv_event_t *e)
@@ -269,6 +270,7 @@ static lv_obj_t *s_pass_box;
 static lv_obj_t *s_pass_title;
 static lv_obj_t *s_ip_box;
 static lv_obj_t *s_ip_msg;
+static int s_ip_shown;
 static lv_obj_t *s_ota_box;
 static lv_obj_t *s_ota_bar;
 static lv_obj_t *s_ota_txt;
@@ -279,6 +281,7 @@ static void pad_key_cb(lv_event_t *e)
     const char *k = (const char *)lv_event_get_user_data(e);
     lv_obj_t *ta = s_active_ta ? s_active_ta : s_wifi_ta;
     if (!ta || !k) return;
+    if (strcmp(k, "<") == 0) { lv_textarea_del_char(ta); return; }
     if (strcmp(k, "C") == 0) { lv_textarea_set_text(ta, ""); return; }
     if (strcmp(k, "OK") == 0) { apply_field(); pad_hide(); return; }
     if (k[0] < '0' || k[0] > '9') return;
@@ -398,7 +401,7 @@ static void make_pad(lv_obj_t *parent)
     lv_obj_set_style_border_width(s_pad, 0, 0);
     lv_obj_set_style_pad_all(s_pad, 4, 0);
     lv_obj_clear_flag(s_pad, LV_OBJ_FLAG_SCROLLABLE);
-    const char *keys[] = {"1","2","3","4","5","6","7","8","9","C","0","OK"};
+    const char *keys[] = {"1","2","3","4","5","6","7","8","9","<","0","OK"};
     for (int i = 0; i < 12; ++i) {
         lv_obj_t *b = lv_btn_create(s_pad);
         if (!b) break;
@@ -570,7 +573,7 @@ static void build_ui(void)
 {
     s_scr_chg = lv_scr_act();
     style_screen(s_scr_chg);
-    line(s_scr_chg, "ДОМ 2.7.1", 8);
+    line(s_scr_chg, "ДОМ 2.7.2", 8);
     lv_obj_add_flag(s_scr_chg, LV_OBJ_FLAG_SCROLLABLE);
     s_card_u = card(s_scr_chg, 10, 40, &s_voltage, "V");
     s_card_i = card(s_scr_chg, 122, 40, &s_current, "A");
@@ -588,7 +591,7 @@ static void build_ui(void)
     lv_obj_t *stop_lbl = lv_label_create(stop);
     lv_label_set_text(stop_lbl, "HOLD STOP");
     lv_obj_center(stop_lbl);
-    s_dots = line(s_scr_chg, "лист с края экрана", 248);
+    s_dots = line(s_scr_chg, "край: листать  |  низ: сети/лог", 248);
     s_status = line(s_scr_chg, "VIN --", 268);
     lv_obj_set_height(s_scr_chg, 320);
 
@@ -663,17 +666,19 @@ static void build_ui(void)
     style_screen(s_scr_log);
     lv_obj_add_flag(s_scr_log, LV_OBJ_FLAG_SCROLLABLE);
     line(s_scr_log, "ЛОГИ ESP", 8);
+    lv_obj_add_flag(s_scr_log, LV_OBJ_FLAG_SCROLLABLE);
+    lv_obj_set_scroll_dir(s_scr_log, LV_DIR_VER);
     s_log_lbl = line(s_scr_log, "нет событий", 28);
     lv_label_set_long_mode(s_log_lbl, LV_LABEL_LONG_WRAP);
-    lv_obj_set_width(s_log_lbl, 216);
-    lv_obj_set_height(s_log_lbl, 200);
+    lv_obj_set_width(s_log_lbl, 210);
+    lv_obj_set_style_text_font(s_log_lbl, &lv_font_montserrat_12, 0);
     line(s_scr_log, "ЛОГИ CAN", 136);
     s_can_lbl = line(s_scr_log, "нет кадров", 156);
     lv_label_set_long_mode(s_can_lbl, LV_LABEL_LONG_WRAP);
     lv_obj_set_height(s_can_lbl, 110);
     s_scr_sys = lv_obj_create(NULL);
     style_screen(s_scr_sys);
-    line(s_scr_sys, "СИСТЕМА 2.7.1", 4);
+    line(s_scr_sys, "СИСТЕМА 2.7.2", 4);
     s_sys_temp = line(s_scr_sys, "CPU -- C", 28);
     s_sys_cpu = line(s_scr_sys, "F 160 MHz", 48);
     s_sys_load = line(s_scr_sys, "Load -- %", 68);
@@ -778,8 +783,10 @@ static void build_ui(void)
     lv_obj_t *cll = lv_label_create(clb); lv_label_set_text(cll, "CLOSE"); lv_obj_center(cll);
     lv_obj_add_flag(s_pass_box, LV_OBJ_FLAG_HIDDEN);
     s_ip_box = lv_obj_create(lv_layer_top());
-    lv_obj_set_size(s_ip_box, 220, 96);
-    lv_obj_align(s_ip_box, LV_ALIGN_CENTER, 0, -20);
+    lv_obj_set_size(s_ip_box, 200, 36);
+    lv_obj_align(s_ip_box, LV_ALIGN_BOTTOM_MID, 0, -8);
+    lv_obj_add_flag(s_ip_box, LV_OBJ_FLAG_CLICKABLE);
+    lv_obj_add_event_cb(s_ip_box, pass_close_cb, LV_EVENT_CLICKED, NULL);
     lv_obj_set_style_bg_color(s_ip_box, lv_color_hex(0x101820), 0);
     lv_obj_set_style_bg_opa(s_ip_box, LV_OPA_COVER, 0);
     lv_obj_set_style_border_color(s_ip_box, lv_color_hex(0x1F6FEB), 0);
@@ -929,6 +936,7 @@ esp_err_t display_init(void)
     ESP_LOGW(TAG, "LVGL mem %u KiB, building UI", (unsigned)(LV_MEM_SIZE / 1024));
     build_ui();
     ESP_LOGI(TAG, "LCD portrait %dx%d (ST7789=%d)", CUBE_LCD_H_RES, CUBE_LCD_V_RES, CUBE_LCD_USE_ST7789);
+    sm_start_session();
     return ESP_OK;
 }
 
@@ -1041,12 +1049,12 @@ void display_set_values(void)
         snprintf(b, sizeof(b), "VIN %s", app_state_vin());
         lv_label_set_text(s_status, b);
     }
-    if (s_ip_box && s_ip_msg && web_sta_ip()[0] >= '1' && web_sta_ip()[0] <= '9') {
-        char msg[96];
-        snprintf(msg, sizeof(msg), "STA %s\nhttp://%s\nAP Cube 192.168.4.1\npass %s",
-                 web_sta_ip(), web_sta_ip(), CUBE_WIFI_PASSWORD);
+    if (s_ip_box && s_ip_msg && !s_ip_shown && web_sta_ip()[0] >= '1' && web_sta_ip()[0] <= '9') {
+        char msg[64];
+        snprintf(msg, sizeof(msg), "LAN %s", web_sta_ip());
         lv_label_set_text(s_ip_msg, msg);
         lv_obj_clear_flag(s_ip_box, LV_OBJ_FLAG_HIDDEN);
+        s_ip_shown = 1;
         if (s_pass_box) lv_obj_add_flag(s_pass_box, LV_OBJ_FLAG_HIDDEN);
     }
     /* Brightness stays on the SYS slider; do not override it. */

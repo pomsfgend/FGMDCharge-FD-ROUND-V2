@@ -544,8 +544,8 @@ esp_err_t web_scan_now(void)
     for (int i = 0; i < s_scan_n; ++i) {
         memcpy(s_scan_ssid[i], rec[i].ssid, 32);
         s_scan_ssid[i][32] = 0;
-        ESP_LOGW(TAG, "scan[%d] %s rssi=%d ch=%u", i, s_scan_ssid[i], rec[i].rssi, rec[i].primary);
     }
+    ESP_LOGI(TAG, "scan done n=%d", s_scan_n);
     return ESP_OK;
 }
 
@@ -588,30 +588,12 @@ esp_err_t web_wifi_restart(void)
 static void wifi_boot_scan_task(void *arg)
 {
     (void)arg;
-    /* AP must beacon first. A blocking scan at 400 ms drops the SoftAP. */
-    vTaskDelay(pdMS_TO_TICKS(12000));
+    /* No periodic scan. Channel hops drop the softAP and flood the log.
+       Scan only when the user opens the network list (web_scan_now). */
     for (;;) {
-        wifi_scan_config_t scan = {
-            .show_hidden = true,
-            .scan_type = WIFI_SCAN_TYPE_ACTIVE,
-        };
-        if (esp_wifi_scan_start(&scan, false) == ESP_OK) {
-            vTaskDelay(pdMS_TO_TICKS(2200));
-            uint16_t n = 16;
-            wifi_ap_record_t rec[16];
-            memset(rec, 0, sizeof(rec));
-            if (esp_wifi_scan_get_ap_records(&n, rec) == ESP_OK) {
-                if (n > 16) n = 16;
-                s_scan_n = (int)n;
-                for (int i = 0; i < s_scan_n; ++i) {
-                    memcpy(s_scan_ssid[i], rec[i].ssid, 32);
-                    s_scan_ssid[i][32] = 0;
-                    ESP_LOGW(TAG, "scan[%d] %s rssi=%d ch=%u", i, s_scan_ssid[i], rec[i].rssi, rec[i].primary);
-                }
-            }
-        }
+        (void)esp_wifi_set_ps(WIFI_PS_NONE);
         (void)esp_wifi_set_max_tx_power(84);
-        vTaskDelay(pdMS_TO_TICKS(20000));
+        vTaskDelay(pdMS_TO_TICKS(30000));
     }
 }
 
@@ -871,7 +853,7 @@ esp_err_t web_init(void)
     ap.ap.max_connection = CUBE_WIFI_MAX_CONNECTIONS;
     ap.ap.ssid_hidden = 0;          /* always broadcast beacon */
     ap.ap.beacon_interval = 100;
-    ap.ap.pmf_cfg.capable = true;
+    ap.ap.pmf_cfg.capable = false; /* phones fail PMF on C3 softAP */
     ap.ap.pmf_cfg.required = false;
     if (strlen(CUBE_WIFI_PASSWORD) >= 8U) {
         /* WPA2-PSK/CCMP is deterministic and avoids mixed-mode roaming quirks. */
