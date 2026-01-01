@@ -1,9 +1,0 @@
-Signal,Previous_RE_GPIO,Confidence_old,Status_now,Notes
-MOSI,5,CONFIRMED (prior),NEEDS_PCB_VERIFY,User reports bootloop with this set
-SCLK,19,CONFIRMED (prior),NEEDS_PCB_VERIFY,User reports bootloop with this set
-CS,4,CONFIRMED (prior),NEEDS_PCB_VERIFY,User reports bootloop with this set
-DC,18,CONFIRMED (prior),NEEDS_PCB_VERIFY,User reports bootloop with this set
-MISO,-1,CONFIRMED,OK,Not used
-RST,-1,CONFIRMED,OK,panel_config reset_gpio_num = -1; error string exists but unused
-BL,-1,CONFIRMED,OK,No backlight GPIO in original FW; do NOT use GPIO6/7
-SPI_HOST,LCD_HOST (SPI2 typically),CONFIRMED,OK,spi_bus_initialize(LCD_HOST,...)

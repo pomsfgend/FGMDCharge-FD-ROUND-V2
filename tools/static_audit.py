@@ -10,7 +10,7 @@ import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-VERSION = "2.2.9"
+VERSION = "2.3.0"
 DUMP_SHA = "1428dbddc0749eee8ac133b1e16b6c0805a2da4bb4b0c73bc759c1500b03f233"
 ERRORS: list[str] = []
 
@@ -113,11 +113,11 @@ def check_config() -> None:
     for needle in (
         'CONFIG_IDF_TARGET="esp32c3"', 'CONFIG_ESPTOOLPY_FLASHSIZE="4MB"',
         'CONFIG_PARTITION_TABLE_CUSTOM_FILENAME="partitions.csv"',
-        "CONFIG_BT_ENABLED=y", "CONFIG_BT_CONTROLLER_ENABLED=y", "CONFIG_BT_BLUEDROID_ENABLED=y", "CONFIG_BT_BLE_ENABLED=y", "CONFIG_BT_GATTS_ENABLE=y",
-        
-        
-        
-        
+        "CONFIG_BT_ENABLED=y", "CONFIG_BT_CONTROLLER_ENABLED=y", "CONFIG_BT_BLUEDROID_ENABLED=y",
+        "CONFIG_BT_BLE_ENABLED=y", "CONFIG_BT_GATTS_ENABLE=y",
+        "CONFIG_BT_BLE_42_FEATURES_SUPPORTED=y", "CONFIG_BT_BLE_42_ADV_EN=y",
+        "CONFIG_BT_BLE_42_SCAN_EN=y", "CONFIG_BT_BLE_50_FEATURES_SUPPORTED=n",
+        "CONFIG_BT_CLASSIC_ENABLED=n", "CONFIG_BT_NIMBLE_ENABLED=n",
     ):
         if needle not in sdk: fail(f"sdkconfig.defaults missing {needle}")
     cfg = read("main/config.h")
@@ -133,8 +133,6 @@ def check_config() -> None:
 def check_source_hygiene() -> None:
     for p in sorted((ROOT / "main").glob("*.c")):
         rel = p.relative_to(ROOT).as_posix()
-        if rel.startswith("main/lv_font_"):
-            continue
         text = p.read_text(encoding="utf-8")
         balance_check(rel)
         for bad, label in (
@@ -298,7 +296,7 @@ def main() -> int:
     print("static audit: PASS")
     print("- C/C++ source/header delimiters and hygiene: PASS")
     print("- CMake/component/assets: PASS")
-    print("- ESP32-C3 + OptionalBT + CAN recovery defaults: PASS")
+    print("- ESP32-C3 + Bluedroid + CAN recovery defaults: PASS")
     print("- OTA, partition map and original dump slices: PASS")
     print("- Web UI, local-only policy and OTA progress: PASS")
     print("- Windows scripts and Python syntax: PASS")

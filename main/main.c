@@ -78,12 +78,6 @@ void app_main(void) {
     if (err != ESP_OK) ESP_LOGW(TAG, "touch init failed: %s", esp_err_to_name(err));
     else ESP_LOGW(TAG, "stage: touch ok");
 
-    /* SoftAP first for scan visibility, then BLE. */
-    err = web_init();
-    if (err != ESP_OK) ESP_LOGE(TAG, "Web init failed: %s", esp_err_to_name(err));
-    else ESP_LOGW(TAG, "stage: Web AP ok");
-
-
     err = display_init();
     if (err != ESP_OK) {
         ESP_LOGE(TAG, "display init failed: %s", esp_err_to_name(err));
@@ -92,21 +86,26 @@ void app_main(void) {
     } else {
         ESP_LOGW(TAG, "stage: LCD/LVGL ok");
     }
-#if CUBE_BLE_ENABLE
-#if (CUBE_BLE_START_DELAY_MS > 0)
-    vTaskDelay(pdMS_TO_TICKS(CUBE_BLE_START_DELAY_MS));
-#endif
+
+    /* SoftAP first for scan visibility, then BLE. */
+    err = web_init();
+    if (err != ESP_OK) ESP_LOGE(TAG, "Web init failed: %s", esp_err_to_name(err));
+    else ESP_LOGW(TAG, "stage: Web AP ok");
+
+    #if CUBE_BLE_ENABLE
     err = cube_ble_init();
-    if (err != ESP_OK) {
+#else
+    err = ESP_ERR_NOT_SUPPORTED;
+#endif
+    if (err == ESP_ERR_NOT_SUPPORTED) {
+        ESP_LOGW(TAG, "stage: BLE disabled");
+    } else if (err != ESP_OK) {
         ESP_LOGE(TAG, "BLE init failed: %s", esp_err_to_name(err));
     } else if (xTaskCreate(cube_ble_task, "myTask_BLE", 4096, NULL, 3, NULL) != pdPASS) {
         ESP_LOGE(TAG, "BLE task creation failed");
     } else {
-        ESP_LOGW(TAG, "stage: BLE ok (name=FGMDCharge)");
+        ESP_LOGW(TAG, "stage: BLE ok");
     }
-#else
-    ESP_LOGW(TAG, "stage: BLE disabled");
-#endif
 
     if (xTaskCreate(myTask_Timer, "myTask_Timer", 4096, NULL, 2, NULL) != pdPASS) {
         ESP_LOGE(TAG, "Timer task creation failed");

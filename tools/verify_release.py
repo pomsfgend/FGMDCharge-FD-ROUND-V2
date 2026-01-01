@@ -10,7 +10,7 @@ import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-VERSION = "2.2.9"
+VERSION = "2.3.0"
 DUMP_SHA256 = "1428dbddc0749eee8ac133b1e16b6c0805a2da4bb4b0c73bc759c1500b03f233"
 MAX_OTA = 0x190000
 
@@ -97,9 +97,8 @@ if "EMBED_FILES" in cmake or "EMBED_TXTFILES" in cmake:
     err("web assets must use compiled-in C arrays, not linker embedding")
 if '"web_assets.c"' not in cmake:
     err("web_assets.c is not part of the component")
-if "esp_lcd_ili9341" not in cmake:
-    err("missing LCD component requirement")
-# bt component optional when CONFIG_BT_ENABLED=n
+if "esp_lcd_ili9341" not in cmake or "bt" not in cmake:
+    err("missing LCD/BLE component requirements")
 
 # Target/config invariants.
 for needle in (

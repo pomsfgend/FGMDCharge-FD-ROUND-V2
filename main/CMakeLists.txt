@@ -3,13 +3,11 @@
 # Web UI assets are compiled into static C arrays; no linker EMBED_* symbols are used.
 idf_component_register(
     SRCS
-        lv_font_ru_14.c
         "main.c"
         "app_state.c"
         "can_gbt.c"
         "gbt_tp.c"
         "display.c"
-        "diag.c"
         "touch_cst816s.c"
         "ble.c"
         "web.c"

@@ -1,23 +1,22 @@
 #pragma once
 
 #define CUBE_FW_NAME                 "FD_ROUND_V2"
-#define CUBE_FW_VERSION              "2.2.9"
+#define CUBE_FW_VERSION              "2.3.0"
 
-/* Web API protection. Change before installing on a real vehicle/charging setup. */
-#define CUBE_WEB_KEY                 ""  /* local SoftAP: no API key */
+/* SoftAP */
+#define CUBE_WEB_KEY                 ""
 #define CUBE_WIFI_SSID               "Cube"
 #define CUBE_WIFI_PASSWORD           "123456789"
-#define CUBE_WIFI_CHANNEL            0  /* 0 = auto pick 1/6/11 */
+#define CUBE_WIFI_CHANNEL            6
 #define CUBE_WIFI_MAX_CONNECTIONS    4
+#define CUBE_WIFI_OPEN               0
 
-/* Safety: boots with CAN TX disabled until explicitly enabled via web/BLE. */
 #define CUBE_TX_COMPILED_ENABLE      1
 #define CUBE_TX_DEFAULT_ENABLED      0
+#define CUBE_HTTP_MAX_UPLOAD       (0x190000)
 
-/* LCD — dump strings said ILI9341, but panel is 240x280 (ST7789 family).
- * Many cubes use ST7789 with ILI-compatible branding. Prefer ST7789. */
-#define CUBE_LCD_USE_ST7789          1  /* 240x280 = ST7789 geometry */
-/* LCD — pins confirmed from original dump (no BL GPIO in original). */
+/* LCD ST7789 240x280 */
+#define CUBE_LCD_USE_ST7789          1
 #define CUBE_LCD_H_RES               240
 #define CUBE_LCD_V_RES               280
 #define CUBE_LCD_MOSI_GPIO           5
@@ -25,74 +24,73 @@
 #define CUBE_LCD_SCLK_GPIO           19
 #define CUBE_LCD_CS_GPIO             4
 #define CUBE_LCD_DC_GPIO             18
-#define CUBE_LCD_SPI_HZ              20000000
-/* Backlight: GPIO2 is a strap sampled only during reset. It is safe to drive
-   after boot; the current hardware was already observed to light at GPIO2=HIGH. */
+#define CUBE_LCD_SPI_HZ              40000000
 #define CUBE_LCD_BL_GPIO             2
-/* Late PWM on the same backlight pin, initialized only after panel/boot straps. */
 #define CUBE_LCD_BL_PWM_GPIO         2
-#define CUBE_LCD_BL_PWM_HZ           20000
-#define CUBE_LCD_BL_PWM_DUTY         1023
+#define CUBE_LCD_BL_PWM_HZ           5000
+#define CUBE_LCD_BL_PWM_DUTY_DEFAULT 70
 #define CUBE_LCD_RST_GPIO            (-1)
-/* Bench toggles — dump: mirror(0,0), no invert observed; 240x280 may need gap. */
-#define CUBE_LCD_INVERT              1
-#define CUBE_LCD_GAP_X               0
-#define CUBE_LCD_GAP_Y               20
-#define CUBE_LCD_MIRROR_X            0
-#define CUBE_LCD_MIRROR_Y            0
-#define CUBE_LCD_BGR                 1
 #define CUBE_STATUS_LED_GPIO         (-1)
 #define CUBE_LCD_QUEUE_DEPTH         10
 #define CUBE_LCD_MAX_TRANSFER        38400
+#define CUBE_LCD_GAP_X               0
+#define CUBE_LCD_GAP_Y               20
+#define CUBE_LCD_INVERT              1
+#define CUBE_LCD_BGR                 1
+#define CUBE_LCD_MIRROR_X            0
+#define CUBE_LCD_MIRROR_Y            0
 
-/* Touch CST816x @ 0x15 */
+/* Touch CST816x */
 #define CUBE_TOUCH_ENABLED_DEFAULT   1
 #define CUBE_TOUCH_SDA_GPIO          1
 #define CUBE_TOUCH_SCL_GPIO          8
 #define CUBE_TOUCH_I2C_PORT          0
 #define CUBE_TOUCH_ADDR              0x15
-#define CUBE_TOUCH_I2C_HZ             400000
-#define CUBE_TOUCH_READ_TIMEOUT_MS    5
 #define CUBE_TOUCH_SWAP_XY           0
 #define CUBE_TOUCH_INVERT_X          0
 #define CUBE_TOUCH_INVERT_Y          0
+#define CUBE_TOUCH_POLL_MS           15
 
-/* CAN/TWAI confirmed */
+/* CAN */
 #define CUBE_CAN_TX_GPIO             10
 #define CUBE_CAN_RX_GPIO             9
 #define CUBE_CAN_BITRATE             250000
-#define CUBE_CAN_TX_QUEUE             10
-#define CUBE_CAN_RX_QUEUE             10
 
-/* Relays — CONFIRMED from RE steps 18–21 */
-#define CUBE_RELAY_A_GPIO            6   /* prepare / pre-charge */
-#define CUBE_RELAY_B_GPIO            7   /* main power path */
-/* NEVER drive: GPIO2 (strapping) */
+/* Relays */
+#define CUBE_RELAY_A_GPIO            6
+#define CUBE_RELAY_B_GPIO            7
 
-/* BLE identity */
-#define CUBE_BLE_NAME                "FGMDCharge"
-#define CUBE_BLE_SERVICE_UUID        0xFFE0
-#define CUBE_BLE_CHAR1_UUID          0xFFE1
-#define CUBE_BLE_CHAR2_UUID          0xFFE2
-#define CUBE_BLE_CHAR3_UUID          0xFFE3
-
-/* State machine */
-#define CUBE_SM_TIMEBASE_MS          10
-#define CUBE_RELAY_HANDOFF_MS        10000
-
-#define CUBE_CAN_HISTORY              64
-#define CUBE_HTTP_MAX_UPLOAD       (0x190000)
-
-/* Default charge request values (0.1 V / 0.1 A units where applicable) */
-#define CUBE_DEFAULT_REQ_VOLTAGE_0P1V  570   /* 57.0 V */
-#define CUBE_DEFAULT_REQ_CURRENT_0P1A  70    /* 7.0 A  */
-#define CUBE_DEFAULT_MAX_VOLTAGE_0P1V  660   /* 66.0 V */
-
-/* Start BLE after SoftAP is visible (coex). 0 = immediate. */
-#define CUBE_BLE_START_DELAY_MS      0
-
-/* 0 = do not start BLE (max SoftAP visibility on shared RF). */
+/* BLE off by default */
 #define CUBE_BLE_ENABLE              0
+#define CUBE_BLE_NAME                "FGMDCharge"
 
-/* After SoftAP up, wait so user can scan before display draws power. */
-#define CUBE_WIFI_SCAN_WINDOW_MS     0
+/* LVGL performance */
+#define CUBE_LVGL_TICK_MS            5
+#define CUBE_LVGL_TASK_MS            10
+#define CUBE_LVGL_TASK_PRIO          4
+
+/* State machine / CAN queues (required by app_state, can_gbt, sm_relay) */
+#define CUBE_SM_TIMEBASE_MS              10
+#define CUBE_CAN_TX_QUEUE                16
+#define CUBE_CAN_RX_QUEUE                32
+#define CUBE_CAN_HISTORY                 48
+#define CUBE_RELAY_HANDOFF_MS            300
+
+/* BCL defaults: 400.0 V / 10.0 A, max 450.0 V */
+#define CUBE_DEFAULT_REQ_VOLTAGE_0P1V    4000
+#define CUBE_DEFAULT_REQ_CURRENT_0P1A    100
+#define CUBE_DEFAULT_MAX_VOLTAGE_0P1V    4500
+
+/* NVS */
+#define CUBE_NVS_NAMESPACE               "storage"
+#define CUBE_NVS_BLE_NAME                "ble_name"
+#define CUBE_NVS_ALLDATA                 "alldata"
+
+/* BLE GATT (Bluedroid compiled, start gated by CUBE_BLE_ENABLE) */
+#define CUBE_BLE_SERVICE_UUID            0xFFE0
+#define CUBE_BLE_CHAR1_UUID              0xFFE1
+#define CUBE_BLE_CHAR2_UUID              0xFFE2
+#define CUBE_BLE_CHAR3_UUID              0xFFE3
+
+/* alias used by adc_pwm.c */
+#define CUBE_LCD_BL_PWM_DUTY             CUBE_LCD_BL_PWM_DUTY_DEFAULT

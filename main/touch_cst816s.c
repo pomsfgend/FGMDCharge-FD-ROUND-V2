@@ -12,7 +12,7 @@ static bool s_ok;
 static uint32_t s_last_probe_ms;
 
 static esp_err_t reg_read(uint8_t reg, uint8_t *buf, size_t len) {
-    return i2c_master_write_read_device(CUBE_TOUCH_I2C_PORT, CUBE_TOUCH_ADDR, &reg, 1, buf, len, pdMS_TO_TICKS(CUBE_TOUCH_READ_TIMEOUT_MS));
+    return i2c_master_write_read_device(CUBE_TOUCH_I2C_PORT, CUBE_TOUCH_ADDR, &reg, 1, buf, len, pdMS_TO_TICKS(50));
 }
 
 esp_err_t touch_init(void) {
@@ -28,7 +28,7 @@ esp_err_t touch_init(void) {
     cfg.scl_io_num = CUBE_TOUCH_SCL_GPIO;
     cfg.sda_pullup_en = GPIO_PULLUP_ENABLE;
     cfg.scl_pullup_en = GPIO_PULLUP_ENABLE;
-    cfg.master.clk_speed = CUBE_TOUCH_I2C_HZ;
+    cfg.master.clk_speed = 100000;
     esp_err_t err = i2c_param_config(CUBE_TOUCH_I2C_PORT, &cfg);
     if (err != ESP_OK) return err;
     err = i2c_driver_install(CUBE_TOUCH_I2C_PORT, cfg.mode, 0, 0, 0);
@@ -73,7 +73,7 @@ void touch_lvgl_read(lv_indev_drv_t *drv, lv_indev_data_t *data) {
     }
     uint8_t d[5] = {0};
     uint8_t reg = 0x02;
-    esp_err_t err = i2c_master_write_read_device(CUBE_TOUCH_I2C_PORT, CUBE_TOUCH_ADDR, &reg, 1, d, sizeof(d), pdMS_TO_TICKS(CUBE_TOUCH_READ_TIMEOUT_MS));
+    esp_err_t err = i2c_master_write_read_device(CUBE_TOUCH_I2C_PORT, CUBE_TOUCH_ADDR, &reg, 1, d, sizeof(d), pdMS_TO_TICKS(12));
     if (err != ESP_OK) { s_ok = false; s_last_probe_ms = now; app_state_set_touch(false, false); data->state = LV_INDEV_STATE_REL; data->point.x = last_x; data->point.y = last_y; return; }
     bool pressed = (d[0] & 0x0F) != 0;
     int x = (((int)d[1] << 8) & 0x0F00) | d[2];

@@ -1,7 +1,6 @@
 #pragma once
 
 #include <stddef.h>
-#include <stdint.h>
 #include "esp_err.h"
 
 #define CUBE_NVS_NAMESPACE "storage"
@@ -11,5 +10,3 @@
 esp_err_t settings_init(void);
 esp_err_t settings_get_ble_name(char *out, size_t out_size);
 esp_err_t settings_set_ble_name(const char *name);
-uint8_t settings_get_brightness(void);
-esp_err_t settings_set_brightness(uint8_t percent);
