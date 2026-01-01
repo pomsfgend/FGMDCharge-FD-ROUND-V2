@@ -11,6 +11,9 @@
 #include "web.h"
 #include "settings.h"
 #include "config.h"
+#include "esp_ota_ops.h"
+#include "nvs.h"
+#include "esp_timer.h"
 #include "sm_relay.h"
 
 static const char *TAG = "MAIN";
@@ -34,6 +37,39 @@ static void myTask_SM(void *arg)
     }
 }
 
+
+static void boot_select_on_reset(void)
+{
+    nvs_handle_t h;
+    if (nvs_open("storage", NVS_READWRITE, &h) != ESP_OK) return;
+    uint8_t slot = 1;
+    uint8_t count = 0;
+    int64_t last = 0;
+    nvs_get_u8(h, "boot_slot", &slot);
+    nvs_get_u8(h, "rst_count", &count);
+    nvs_get_i64(h, "rst_us", &last);
+    int64_t now = esp_timer_get_time();
+    esp_reset_reason_t why = esp_reset_reason();
+    if (why == ESP_RST_POWERON || why == ESP_RST_EXT || why == ESP_RST_SW) {
+        count = (now - last < 8000000) ? (uint8_t)(count + 1) : 1;
+        nvs_set_u8(h, "rst_count", count);
+        nvs_set_i64(h, "rst_us", now);
+        nvs_commit(h);
+        if (count >= 3) {
+            slot = slot ? 0 : 1;
+            nvs_set_u8(h, "boot_slot", slot);
+            nvs_set_u8(h, "rst_count", 0);
+            nvs_commit(h);
+            esp_partition_subtype_t sub = slot ? ESP_PARTITION_SUBTYPE_APP_OTA_1 : ESP_PARTITION_SUBTYPE_APP_OTA_0;
+            const esp_partition_t *part = esp_partition_find_first(ESP_PARTITION_TYPE_APP, sub, NULL);
+            if (part) esp_ota_set_boot_partition(part);
+            nvs_close(h);
+            esp_restart();
+        }
+    }
+    nvs_close(h);
+}
+
 void app_main(void) {
     ESP_LOGW(TAG, "boot %s %s", CUBE_FW_NAME, CUBE_FW_VERSION);
 
@@ -41,6 +77,7 @@ void app_main(void) {
     if (err == ESP_ERR_NVS_NO_FREE_PAGES || err == ESP_ERR_NVS_NEW_VERSION_FOUND) {
         err = nvs_flash_erase();
         if (err == ESP_OK) err = nvs_flash_init();
+    boot_select_on_reset();
     }
     if (err != ESP_OK) {
         ESP_LOGE(TAG, "NVS init failed: %s", esp_err_to_name(err));
