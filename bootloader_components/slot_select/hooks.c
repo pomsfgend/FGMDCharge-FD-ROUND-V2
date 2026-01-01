@@ -4,8 +4,6 @@
 #include "bootloader_flash_priv.h"
 #include "soc/rtc_cntl_reg.h"
 
-void bootloader_reset(void);
-
 #define OTADATA 0xD000
 
 static int current_slot(void)
