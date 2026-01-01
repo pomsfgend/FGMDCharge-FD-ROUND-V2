@@ -231,10 +231,6 @@ static lv_obj_t *s_out_v;
 static lv_obj_t *s_out_a;
 static lv_obj_t *s_watt;
 static lv_obj_t *s_stat;
-static void pad_show(void);
-static lv_obj_t *s_active_ta;
-static lv_obj_t *s_pass_box;
-static lv_obj_t *s_pass_title;
 
 static void ask_pass(int act)
 {
@@ -293,6 +289,7 @@ static void pad_show(void)
     if (s_pad) lv_obj_clear_flag(s_pad, LV_OBJ_FLAG_HIDDEN);
 }
 
+static lv_obj_t *s_active_ta;
 static int s_set_v = 240;
 static int s_set_i = 50;
 static int s_set_soc = 20;
@@ -303,6 +300,8 @@ static lv_obj_t *s_v_ta;
 static lv_obj_t *s_i_ta;
 static lv_obj_t *s_soc_ta;
 static lv_obj_t *s_kwh_ta;
+static lv_obj_t *s_pass_box;
+static lv_obj_t *s_pass_title;
 static lv_obj_t *s_ip_box;
 static lv_obj_t *s_ip_msg;
 static int s_ip_shown;
