@@ -7,6 +7,7 @@ idf_component_register(
         "app_state.c"
         "can_gbt.c"
         "gbt_tp.c"
+        "gbt_b.c"
         "display.c"
         "lv_font_ru_14.c"
         "touch_cst816s.c"

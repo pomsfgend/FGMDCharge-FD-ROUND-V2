@@ -8,6 +8,7 @@
 #include "esp_timer.h"
 #include "config.h"
 #include "gbt_tp.h"
+#include "gbt_b.h"
 
 static const char *TAG = "GBT_CAN";
 static SemaphoreHandle_t s_lock;
@@ -38,8 +39,18 @@ static int16_t decode_current_0p1a(uint16_t raw)
     return (int16_t)value;
 }
 
+static bool is_b_secc(uint32_t id)
+{
+    uint32_t body = id & 0x00FFFFFFu;
+    uint8_t sa = (uint8_t)(body & 0xFFu);
+    uint8_t ps = (uint8_t)((body >> 8) & 0xFFu);
+    uint8_t pf = (uint8_t)((body >> 16) & 0xFFu);
+    return sa == 0x5Fu && ps == 0x25u && (pf == 0x38u || (pf >= 0x34u && pf <= 0x37u));
+}
+
 static bool is_charger_id(uint32_t id)
 {
+    if (is_b_secc(id)) return true;
     switch (id) {
         case GBT_ID_CTS:
         case GBT_ID_CRM:
@@ -64,17 +75,23 @@ static void decode_known(const twai_message_t *rx)
     switch (rx->identifier) {
         case GBT_ID_CHM:
             app_state_set_charger_stage(CUBE_STAGE_HANDSHAKE);
+            if (rx->data_length_code >= 3U) {
+                char m[48];
+                snprintf(m, sizeof(m), "CHM ver %u.%u.%u", d[0], d[1], d[2]);
+                app_state_log(m);
+            }
             break;
         case GBT_ID_CRM:
             app_state_set_charger_stage(CUBE_STAGE_HANDSHAKE);
             break;
         case GBT_ID_CML:
-            if (rx->data_length_code >= 8U) {
-                /* GB/T/J1939 SPNs are little-endian on the CAN payload. */
+            if (rx->data_length_code >= 6U) {
+                /* 2015/2023-A: 8 bytes. 2011: 6 bytes, no minimum current. */
                 uint16_t max_v = le16(&d[0]);
                 uint16_t min_v = le16(&d[2]);
                 int16_t max_i = decode_current_0p1a(le16(&d[4]));
-                int16_t min_i = decode_current_0p1a(le16(&d[6]));
+                int16_t min_i = 0;
+                if (rx->data_length_code >= 8U) min_i = decode_current_0p1a(le16(&d[6]));
                 app_state_set_cml(max_v, min_v, max_i, min_i);
             }
             break;
@@ -82,11 +99,12 @@ static void decode_known(const twai_message_t *rx)
             if (rx->data_length_code >= 1U) app_state_set_cro(d[0]);
             break;
         case GBT_ID_CCS:
-            if (rx->data_length_code >= 7U) {
+            if (rx->data_length_code >= 6U) {
                 uint16_t out_v = le16(&d[0]);
                 int16_t out_i = decode_current_0p1a(le16(&d[2]));
                 uint16_t charge_time = le16(&d[4]);
-                uint8_t permit = d[6];
+                /* 2011 CCS is 6 bytes and has no permit bit. 2015/2023-A adds it. */
+                uint8_t permit = (rx->data_length_code >= 7U) ? d[6] : 0x01u;
                 app_state_set_ccs(out_v, out_i, charge_time, permit);
             }
             break;
@@ -258,6 +276,7 @@ void gbt_can_task(void *arg)
 
             app_state_can_rx(&f, is_charger_id(f.id));
             decode_known(&rx);
+            gbt_b_on_rx(f.id, f.data, f.dlc);
 
             gbt_tp_rx_t *tp = NULL;
             if (f.id == GBT_ID_TP_CM_CHG || f.id == GBT_ID_TP_DT_CHG) {

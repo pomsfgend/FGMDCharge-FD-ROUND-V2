@@ -311,11 +311,13 @@ float app_state_cap_kwh(void) { return s_cap_wh / 1000.0f; }
 
 void app_state_set_protocol(uint8_t protocol)
 {
-    if (protocol > 2) protocol = 0;
+    if (protocol > 3) protocol = 0;
     lock_state();
     s_state.protocol = protocol;
     unlock_state();
-    app_state_log(protocol == 1 ? "protocol GBT-2015" : protocol == 2 ? "protocol GBT-2011" : "protocol AUTO");
+    app_state_log(protocol == 1 ? "protocol GBT-2015/A" :
+                  protocol == 2 ? "protocol GBT-2011" :
+                  protocol == 3 ? "protocol GBT-2023-B" : "protocol AUTO");
 }
 
 void app_state_add_energy(float watts, float dt_s)
@@ -388,8 +390,9 @@ void app_state_snapshot(cube_state_snapshot_t *out)
 
 const char *cube_protocol_name(uint8_t protocol)
 {
-    if (protocol == 1) return "GBT-2015";
+    if (protocol == 1) return "GBT-2015/A";
     if (protocol == 2) return "GBT-2011";
+    if (protocol == 3) return "GBT-2023-B";
     return "AUTO";
 }
 
@@ -401,8 +404,14 @@ void app_state_can_rx(const cube_can_frame_t *f, bool charger_frame)
     s_state.last = *f;
     s_state.rx_count++;
     if (charger_frame) s_state.last_charger_rx_ms = now_ms();
-    /* Match PF|PS and ignore priority/SA. CHM 26F4 -> 2015, CRM 01F4 with no CHM -> 2011. */
-    if ((f->id & 0x00FFFF00u) == 0x0026F400u) {
+    /* PF|PS|SA, priority ignored.
+       0x0038255F is GB/T 27930-2023 B version frame (SECC 0x5F -> EVCC 0x25).
+       CHM 26F4 is 2015 and 2023 class A (same V1.1 messages).
+       CRM 01F4 with no CHM and no B frame is 2011. */
+    if ((f->id & 0x00FFFFFFu) == 0x0038255Fu) {
+        if (s_state.protocol != 3) proto_log = 3;
+        s_state.protocol = 3;
+    } else if ((f->id & 0x00FFFF00u) == 0x0026F400u && s_state.protocol != 3) {
         if (s_state.protocol != 1) proto_log = 1;
         s_state.protocol = 1;
     } else if ((f->id & 0x00FFFF00u) == 0x0001F400u) {
@@ -416,8 +425,9 @@ void app_state_can_rx(const cube_can_frame_t *f, bool charger_frame)
         }
     }
     unlock_state();
-    if (proto_log == 1) app_state_log("CHM -> GBT-2015");
+    if (proto_log == 1) app_state_log("CHM -> GBT-2015/2023-A");
     else if (proto_log == 2) app_state_log("CRM without CHM -> GBT-2011");
+    else if (proto_log == 3) app_state_log("version frame -> GBT-2023-B");
     if (charger_frame) {
         static uint32_t last_logged;
         if (f->id != last_logged) {

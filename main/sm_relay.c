@@ -10,6 +10,7 @@
 #include "app_state.h"
 #include "config.h"
 #include "can_gbt.h"
+#include "gbt_b.h"
 #include "driver/gpio.h"
 #include "esp_log.h"
 #include "esp_timer.h"
@@ -41,7 +42,7 @@ static uint32_t s_power_seen_ms = 0;
 static bool s_load_on = false;
 static uint16_t s_v_anchor = 0;
 /* -1: load follows station voltage. 0/1: long-hold latched the load relay until the opposite hold. */
-static int s_load_manual = -1;
+static uint32_t s_last_opt_ms = 0;
 
 static uint32_t now_ms(void)
 {
@@ -134,10 +135,13 @@ static void tx_brm(void)
 {
     uint8_t b[49];
     memset(b, 0, sizeof(b));
-    b[0] = 1; b[1] = 1; b[2] = 0; /* protocol 1.1.0 */
-    b[3] = 6;                     /* lithium */
+    b[0] = 1;
+    b[1] = st_proto_is_2011() ? 0 : 1;
+    b[2] = 0;
+    b[3] = 6;                     /* ternary lithium */
     b[4] = 0xE8; b[5] = 0x03;     /* 100.0 Ah */
     b[6] = 0xA0; b[7] = 0x0F;     /* 400.0 V */
+    b[23] = 0xFF;                 /* reserved bits filled with 1 */
     memcpy(&b[24], "00000000000000000", 17);
     {
         const char *vin = app_state_vin();
@@ -159,17 +163,27 @@ static void tx_bcp(void)
     uint8_t b[13];
     memset(b, 0, sizeof(b));
     uint16_t cell = 420; /* 4.20 V */
-    uint16_t imax = (uint16_t)(4000 - 2500); /* 250 A allowed, offset -400 A */
+    int32_t i_abs = st.bcl_requested_current_0p1a;
+    int32_t imax;
     uint16_t energy = (uint16_t)(app_state_cap_kwh() * 10.0f); /* 0.1 kWh */
     uint16_t vmax = CUBE_DEFAULT_MAX_VOLTAGE_0P1V;
     uint16_t vnow = st.bcl_requested_voltage_raw ? st.bcl_requested_voltage_raw : 2400;
+    uint16_t soc_01;
+    if (i_abs < 0) i_abs = -i_abs;
+    if (vnow > vmax) vmax = vnow;
+    imax = i_abs + 4000; /* 0.1 A, offset -400 A, same sign as BCL */
+    if (imax < 0) imax = 0;
+    if (imax > 65535) imax = 65535;
+    soc_01 = (uint16_t)(st.soc_percent ? st.soc_percent : 50) * 10u;
     b[0] = (uint8_t)(cell & 0xFF); b[1] = (uint8_t)(cell >> 8);
     b[2] = (uint8_t)(imax & 0xFF); b[3] = (uint8_t)(imax >> 8);
     b[4] = (uint8_t)(energy & 0xFF); b[5] = (uint8_t)(energy >> 8);
     b[6] = (uint8_t)(vmax & 0xFF); b[7] = (uint8_t)(vmax >> 8);
     b[8] = 90; /* 40 C, offset -50 */
-    b[9] = st.soc_percent ? st.soc_percent : 50;
-    b[10] = (uint8_t)(vnow & 0xFF); b[11] = (uint8_t)(vnow >> 8);
+    b[9] = (uint8_t)(soc_01 & 0xFF);
+    b[10] = (uint8_t)(soc_01 >> 8);          /* SOC is 0.1 % in 2015 and 2023-A */
+    b[11] = (uint8_t)(vnow & 0xFF);
+    b[12] = (uint8_t)(vnow >> 8);
     tx_bam(0x000600u, b, 13);
     app_state_log("TX BCP 13B");
 }
@@ -180,10 +194,21 @@ static void tx_bro(uint8_t ready)
     (void)gbt_can_send(0x100956F4u, d, 1);
 }
 
-static void tx_bem(uint8_t code)
+/* BEM bits: 00 normal, 01 timeout, 10 untrusted. One 2-bit field per missed message. */
+static void tx_bem(uint8_t which)
 {
-    uint8_t d[8] = {code, 0, 0, 0, 0, 0, 0, 0};
-    (void)gbt_can_send(0x081E56F4u, d, 4);
+    /* Reserved bits are 1. Each 2-bit field is 01 only for the missed message. */
+    uint8_t d[4] = {0xF0, 0xF0, 0xF0, 0xFC};
+    switch (which) {
+        case 0: d[0] = 0xF1; break; /* CRM = 0x00 */
+        case 1: d[0] = 0xF4; break; /* CRM = 0xAA */
+        case 2: d[1] = 0xF1; break; /* CML */
+        case 3: d[1] = 0xF4; break; /* CRO */
+        case 4: d[2] = 0xF1; break; /* CCS */
+        case 5: d[2] = 0xF4; break; /* CST */
+        default: d[3] = 0xFD; break; /* CSD */
+    }
+    (void)gbt_can_send(GBT_ID_BEM, d, 4);
     app_state_log("TX BEM timeout, relays off");
 }
 
@@ -191,8 +216,17 @@ static void tx_bsd(void)
 {
     cube_state_snapshot_t st;
     app_state_snapshot(&st);
-    uint8_t d[8] = {st.soc_percent, 0, 0, 0, 0, 0, 0, 0};
-    (void)gbt_can_send(0x181C56F4u, d, 7);
+    uint8_t d[8] = {0};
+    uint16_t cell_min = 330; /* 3.30 V, 0.01 V */
+    uint16_t cell_max = 420; /* 4.20 V */
+    d[0] = st.soc_percent;
+    d[1] = (uint8_t)(cell_min & 0xFF);
+    d[2] = (uint8_t)(cell_min >> 8);
+    d[3] = (uint8_t)(cell_max & 0xFF);
+    d[4] = (uint8_t)(cell_max >> 8);
+    d[5] = 70; /* 20 C, offset -50 */
+    d[6] = 80; /* 30 C */
+    (void)gbt_can_send(GBT_ID_BSD, d, 7);
     app_state_log("TX BSD end");
 }
 
@@ -238,8 +272,36 @@ static void tx_bcs(void)
 
 static void tx_bsm(void)
 {
-    uint8_t d[8] = {0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
-    (void)gbt_can_send(0x181356F4u, d, 7);
+    uint16_t bits = 0;
+    uint8_t d[8];
+    memset(d, 0, sizeof(d));
+    d[0] = 1;   /* highest-cell index, numbering starts at 1 */
+    d[1] = 75;  /* 25 C, offset -50. Zero would be -50 C and trips the pile. */
+    d[2] = 1;
+    d[3] = 70;  /* 20 C */
+    d[4] = 1;
+    bits |= (1u << 12); /* charge allowed */
+    bits |= (3u << 14); /* reserved bits filled with 1 */
+    d[5] = (uint8_t)(bits & 0xFF);
+    d[6] = (uint8_t)(bits >> 8);
+    (void)gbt_can_send(GBT_ID_BSM, d, 7);
+}
+
+/* Optional in every GB/T 27930 edition. 2011 period is 1 s, 2015/2023-A is 10 s. */
+static void tx_optional_cells(void)
+{
+    uint8_t mv[2];
+    uint8_t mt[1];
+    uint8_t sp[1];
+    uint16_t cell = 420; /* 4.20 V in 12 bits, group 0 */
+    mv[0] = (uint8_t)(cell & 0xFF);
+    mv[1] = (uint8_t)(cell >> 8);
+    mt[0] = 75;
+    sp[0] = 0xFF;
+    tx_bam(0x001500u, mv, 2);
+    tx_bam(0x001600u, mt, 1);
+    tx_bam(0x001700u, sp, 1);
+    app_state_log("TX BMV BMT BSP");
 }
 
 static void tx_bst(void)
@@ -287,6 +349,7 @@ void sm_start_session(void)
     s_cro_ok = false;
     s_crm00 = false;
     s_crmaa = false;
+    gbt_b_reset();
     s_sub = 0;
     app_state_set_substate(0);
     app_state_set_session(true);
@@ -308,7 +371,10 @@ void sm_request_relay_test(void)
 
 void sm_stop_session(void)
 {
-    if (s_main == ST_CHARGING || s_main == ST_READY_WAIT_CRO ||
+    cube_state_snapshot_t st;
+    app_state_snapshot(&st);
+    if (st.protocol == 3) gbt_b_request_stop();
+    else if (s_main == ST_CHARGING || s_main == ST_READY_WAIT_CRO ||
         s_main == ST_PARAM_CONFIG || s_main == ST_WAIT_CRM) {
         tx_bst();
     }
@@ -376,7 +442,22 @@ void sm_relay_tick(void)
         s_last_chg_ms = t;
     }
 
-    switch (s_main) {
+    bool skip_a = false;
+    if (st.protocol == 3) {
+        gbt_b_tick(t);
+        if (gbt_b_stop()) {
+            if (s_main != ST_IDLE) {
+                app_state_log("B session end");
+                set_state(ST_IDLE);
+                gbt_b_reset();
+            }
+        } else if (gbt_b_energy()) {
+            if (s_main != ST_CHARGING) set_state(ST_CHARGING);
+        }
+        if (s_main != ST_CHARGING) skip_a = true;
+    }
+
+    if (!skip_a) switch (s_main) {
     case ST_IDLE:
         if (t > s_auto_hold_until && s_last_chg_ms != 0 && (t - s_last_chg_ms) < 1500) {
             app_state_log("auto start: station on CAN");
@@ -405,7 +486,7 @@ void sm_relay_tick(void)
             set_state(ST_PARAM_CONFIG);
         }
         if ((t - s_entry_ms) > 30000) {
-            tx_bem(0x01);
+            tx_bem(s_crm00 ? 1 : 0);
             set_state(ST_IDLE);
         }
         break;
@@ -420,7 +501,7 @@ void sm_relay_tick(void)
             set_state(ST_READY_WAIT_CRO);
         }
         if ((t - s_entry_ms) > 20000) {
-            tx_bem(0x04);
+            tx_bem(2);
             set_state(ST_IDLE);
         }
         break;
@@ -435,7 +516,7 @@ void sm_relay_tick(void)
             set_state(ST_CHARGING);
         }
         if ((t - s_entry_ms) > 30000) {
-            tx_bem(0x08);
+            tx_bem(3);
             set_state(ST_IDLE);
         }
         break;
@@ -484,28 +565,36 @@ void sm_relay_tick(void)
             if (i < 0) i = -i;
             if (v > 5 && i > 0.2f) app_state_add_energy(v * i, 0.01f);
         }
-        /* periodic BCL / BCS / BSM */
-        if ((t - s_last_bcl_ms) >= 50) {
-            tx_bcl();
-            s_last_bcl_ms = t;
-        }
-        if ((t - s_last_bcs_ms) >= 250) {
-            tx_bcs();
-            s_last_bcs_ms = t;
-        }
-        if ((t - s_last_bsm_ms) >= 250) {
-            tx_bsm();
-            s_last_bsm_ms = t;
-        }
-        /* charger stop / error */
-        if (st.charger_stage == CUBE_STAGE_COMPLETED ||
-            st.charger_stage == CUBE_STAGE_ERROR ||
-            st.charger_stage == CUBE_STAGE_SUSPENDED) {
-            tx_bst();
-            tx_bsd();
-            set_state(ST_STOP);
-            set_state(ST_FINALIZE);
-            set_state(ST_IDLE);
+        if (st.protocol != 3) {
+            /* periodic BCL / BCS / BSM and optional BMV/BMT/BSP */
+            if ((t - s_last_bcl_ms) >= 50) {
+                tx_bcl();
+                s_last_bcl_ms = t;
+            }
+            if ((t - s_last_bcs_ms) >= 250) {
+                tx_bcs();
+                s_last_bcs_ms = t;
+            }
+            if ((t - s_last_bsm_ms) >= 250) {
+                tx_bsm();
+                s_last_bsm_ms = t;
+            }
+            {
+                uint32_t opt_ms = st_proto_is_2011() ? 1000u : 10000u;
+                if ((t - s_last_opt_ms) >= opt_ms) {
+                    tx_optional_cells();
+                    s_last_opt_ms = t;
+                }
+            }
+            if (st.charger_stage == CUBE_STAGE_COMPLETED ||
+                st.charger_stage == CUBE_STAGE_ERROR ||
+                st.charger_stage == CUBE_STAGE_SUSPENDED) {
+                tx_bst();
+                tx_bsd();
+                set_state(ST_STOP);
+                set_state(ST_FINALIZE);
+                set_state(ST_IDLE);
+            }
         }
         break;
 

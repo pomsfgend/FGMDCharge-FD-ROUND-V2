@@ -10,7 +10,7 @@ import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-VERSION = "2.8.10"
+VERSION = "2.8.11"
 DUMP_SHA = "1428dbddc0749eee8ac133b1e16b6c0805a2da4bb4b0c73bc759c1500b03f233"
 ERRORS: list[str] = []
 
@@ -92,7 +92,7 @@ def check_version() -> None:
 def check_cmake() -> None:
     cmake = read("main/CMakeLists.txt")
     expected_src = (
-        "main.c", "app_state.c", "can_gbt.c", "gbt_tp.c", "display.c", "touch_cst816s.c",
+        "main.c", "app_state.c", "can_gbt.c", "gbt_tp.c", "gbt_b.c", "display.c", "touch_cst816s.c",
         "ble.c", "web.c", "web_assets.c", "safe_ota.c", "settings.c", "adc_pwm.c",
         "sm_relay.c",
     )

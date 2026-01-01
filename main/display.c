@@ -878,12 +878,12 @@ static void build_ui(void)
     lv_obj_add_flag(s_kwh_ta, LV_OBJ_FLAG_HIDDEN);
     s_active_ta = s_v_ta;
     {
-        const char *pn[] = {"авто", "2015", "2011"};
-        const int pv[] = {0, 1, 2};
-        for (int i = 0; i < 3; ++i) {
+        const char *pn[] = {"авто", "2015", "2011", "2023"};
+        const int pv[] = {0, 1, 2, 3};
+        for (int i = 0; i < 4; ++i) {
             lv_obj_t *b = lv_btn_create(s_scr_ses);
-            lv_obj_set_size(b, 70, 28);
-            lv_obj_set_pos(b, 8 + i * 76, 500);
+            lv_obj_set_size(b, 54, 28);
+            lv_obj_set_pos(b, 8 + i * 58, 500);
             lv_obj_set_style_shadow_width(b, 0, 0);
             lv_obj_add_event_cb(b, proto_cb, LV_EVENT_CLICKED, (void *)(intptr_t)pv[i]);
             lv_obj_t *l = lv_label_create(b);
@@ -903,7 +903,7 @@ static void build_ui(void)
     lv_obj_set_height(s_can_lbl, 110);
     s_scr_sys = lv_obj_create(NULL);
     style_screen(s_scr_sys);
-    line(s_scr_sys, "СИСТЕМА 2.8.10", 4);
+    line(s_scr_sys, "СИСТЕМА 2.8.11", 4);
     s_sys_temp = line(s_scr_sys, "CPU -- C", 28);
     s_sys_cpu = line(s_scr_sys, "F 160 MHz", 48);
     s_sys_load = line(s_scr_sys, "Load -- %", 68);
@@ -1194,9 +1194,10 @@ void display_set_values(void)
     if (s_req_v) { snprintf(b, sizeof(b), "%d", s_set_v); lv_label_set_text(s_req_v, b); }
     if (s_req_i) { snprintf(b, sizeof(b), "%d", s_set_i); lv_label_set_text(s_req_i, b); }
     if (s_time) { snprintf(b, sizeof(b), "%u", (unsigned)st.ccs_charge_time_min); lv_label_set_text(s_time, b); }
-    if (s_stat) lv_label_set_text(s_stat, st.protocol == 1 ? "2015" : st.protocol == 2 ? "2011" : "авто");
+    if (s_stat) lv_label_set_text(s_stat, st.protocol == 1 ? "2015" : st.protocol == 2 ? "2011" : st.protocol == 3 ? "2023" : "авто");
     if (s_proto_lbl) {
-        snprintf(b, sizeof(b), "протокол %s", st.protocol == 1 ? "GB/T 2015" : st.protocol == 2 ? "GB/T 2011" : "авто");
+        const char *pn = st.protocol == 1 ? "2015/A" : st.protocol == 2 ? "2011" : st.protocol == 3 ? "2023-B" : "авто";
+        snprintf(b, sizeof(b), "протокол %s", pn);
         lv_label_set_text(s_proto_lbl, b);
     }
     if (s_can) {

@@ -39,3 +39,18 @@ The exact byte-to-field meaning of every auxiliary internal field is not assumed
 A helper around `0x4200B5F8` maintains reassembly state around `0x3FC981E8`.
 Observed control values include `0x11` and `0x13`, and maximum total length is `0x6F0` bytes.
 V2 includes a generic reassembler, but CAN TX of transport frames is not enabled by default.
+
+## GB/T 27930 on this 250 kbit/s port (2.8.11)
+
+The cube is the vehicle (EVCC/BMS). TX stays off until the user enables it. Three wire protocols share the port. ISO 15118, CHAdeMO and cloud OCPP/云快充 do not.
+
+| Protocol | How it is recognized | What the cube sends |
+|---|---|---|
+| 2015 and 2023 class A | CHM `PF=0x26 PS=0xF4`, version bytes `01 01 00` | BHM, BRM 49, BCP 13, BRO, BCL, BCS, BSM, BMV/BMT/BSP every 10 s, BST, BSD, BEM |
+| 2011 | CRM `PF=0x01 PS=0xF4` and no CHM, no class-B version frame | no BHM, BRM 41 version `01 00 00`, same charge loop, optional cells every 1 s. CML may be 6 bytes, CCS 6 bytes, CSD 5 bytes |
+| 2023 class B | version frame `(id & 0x00FFFFFF) == 0x0038255F` | version answer `P=3 PF=0x38 SA=0x25 PS=0x5F`, then RM/URM |
+
+Class A addresses: charger `0x56`, vehicle `0xF4`. Current is 0.1 A with offset −400 A. BCP SOC is two bytes in 0.1 %. BSM byte 6 is `0x00`, byte 7 is `0xD0` (charge allowed, reserved bits 1, temperatures about 20–25 °C).
+
+Class B addresses: charger `0x5F`, vehicle `0x25`. Priority 3 version and control, priority 6 long and unreliable short, priority 4 reliable short. PF `0x38` version, `0x34` long, `0x35` reliable short, `0x36` unreliable short, `0x37` ack. Success only for CAN 2.0 and version 2.0.0. The vehicle picks charge FDC 1 and statistics FDC 1. It does not pick auth, reserve, self-check, supply or discharge. Current and voltage in B messages have offset 0. There is no measured-output CCS, so 3 s after the charger says ready or its contactor is closed the cube copies the setpoint into the CCS fields that already drive the load relay.
+
