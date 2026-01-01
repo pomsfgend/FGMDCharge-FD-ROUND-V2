@@ -159,6 +159,7 @@ static lv_obj_t *s_card_u;
 static lv_obj_t *s_card_i;
 static lv_obj_t *s_dots;
 static void gesture_cb(lv_event_t *e);
+static void stop_hold_cb(lv_event_t *e);
 
 static void style_screen(lv_obj_t *scr)
 {
@@ -190,10 +191,16 @@ static void gesture_cb(lv_event_t *e)
     lv_indev_get_point(in, &pt);
     /* brightness slider lives here; do not steal the drag */
     if (s_page == 1 && pt.y >= 150 && pt.y <= 230) return;
+    if (s_page == 0 && pt.y >= 188) return;
     lv_dir_t dir = lv_indev_get_gesture_dir(in);
     lv_indev_wait_release(in);
     if (dir == LV_DIR_LEFT) apply_page(s_page + 1);
     else if (dir == LV_DIR_RIGHT) apply_page(s_page - 1);
+}
+
+static void stop_hold_cb(lv_event_t *e)
+{
+    if (lv_event_get_code(e) == LV_EVENT_LONG_PRESSED) sm_stop_session();
 }
 
 static void br_cb(lv_event_t *e)
@@ -336,6 +343,8 @@ static lv_obj_t *card(lv_obj_t *parent, int x, int y, lv_obj_t **value, const ch
     *value = lv_label_create(c);
     lv_label_set_text(*value, "--");
     lv_obj_set_style_text_color(*value, lv_color_hex(0xF4F7FB), 0);
+    lv_obj_set_width(*value, 92);
+    lv_label_set_long_mode(*value, LV_LABEL_LONG_CLIP);
     lv_obj_align(*value, LV_ALIGN_BOTTOM_LEFT, 0, 0);
     return c;
 }
@@ -356,7 +365,7 @@ static void build_ui(void)
 {
     s_scr_chg = lv_scr_act();
     style_screen(s_scr_chg);
-    line(s_scr_chg, "CUBE 2.4.1", 4);
+    line(s_scr_chg, "CUBE 2.4.2", 4);
     s_card_u = card(s_scr_chg, 10, 28, &s_voltage, "V");
     s_card_i = card(s_scr_chg, 122, 28, &s_current, "A");
     (void)s_card_u; (void)s_card_i;
@@ -367,7 +376,15 @@ static void build_ui(void)
     s_cml = line(s_scr_chg, "CML --", 192);
     s_can = line(s_scr_chg, "CAN rx0 tx0", 212);
     s_status = line(s_scr_chg, "AP Cube", 232);
-    s_dots = line(s_scr_chg, "o  -  -   swipe", 254);
+    lv_obj_t *stop = lv_btn_create(s_scr_chg);
+    lv_obj_set_size(stop, 216, 36);
+    lv_obj_align(stop, LV_ALIGN_TOP_MID, 0, 198);
+    lv_obj_set_style_bg_color(stop, lv_color_hex(0xE74C3C), 0);
+    lv_obj_add_event_cb(stop, stop_hold_cb, LV_EVENT_LONG_PRESSED, NULL);
+    lv_obj_t *sl = lv_label_create(stop);
+    lv_label_set_text(sl, "HOLD STOP");
+    lv_obj_center(sl);
+    s_dots = line(s_scr_chg, "o  -  -", 242);
 
     s_scr_sys = lv_obj_create(NULL);
     style_screen(s_scr_sys);

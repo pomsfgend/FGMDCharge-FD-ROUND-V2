@@ -113,6 +113,8 @@ void app_state_set_ccs(uint16_t out_v, int16_t out_i_0p1a, uint16_t charge_time_
 
 static char s_log[12][80];
 static int s_log_n;
+static float s_energy_wh;
+static uint8_t s_soc_base;
 static char s_vin[18] = "UNKNOWNVIN000000";
 
 void app_state_log(const char *msg)
