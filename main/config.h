@@ -16,20 +16,9 @@
 #define CUBE_HTTP_MAX_UPLOAD       (0x190000)
 
 /* LCD ST7789 240x280 */
-/* Changed from 1 to 0: the real chip's own boot log (captured directly
- * over UART from this exact board) says "ili9341: Install ILI9341 panel
- * driver" — the panel is ILI9341, not ST7789. If the display shows
- * nothing or wrong colors, this is the first thing to double-check. */
-#define CUBE_LCD_USE_ST7789          0
-/* 240x280 + GAP_Y=20 was tuned for the ST7789 branch (a known quirk of
- * that specific controller). Now that the driver is ILI9341 (see
- * CUBE_LCD_USE_ST7789 above), ILI9341's standard resolution is 240x320
- * with no offset. This is inferred from the chip identity, not
- * separately confirmed from the dump — if the image is cropped or
- * shifted, this pair + CUBE_LCD_GAP_Y below is the first place to
- * adjust. */
+#define CUBE_LCD_USE_ST7789          1
 #define CUBE_LCD_H_RES               240
-#define CUBE_LCD_V_RES               320
+#define CUBE_LCD_V_RES               280
 #define CUBE_LCD_MOSI_GPIO           5
 #define CUBE_LCD_MISO_GPIO           (-1)
 #define CUBE_LCD_SCLK_GPIO           19
@@ -45,7 +34,7 @@
 #define CUBE_LCD_QUEUE_DEPTH         10
 #define CUBE_LCD_MAX_TRANSFER        38400
 #define CUBE_LCD_GAP_X               0
-#define CUBE_LCD_GAP_Y               0
+#define CUBE_LCD_GAP_Y               20
 #define CUBE_LCD_INVERT              1
 #define CUBE_LCD_BGR                 1
 #define CUBE_LCD_MIRROR_X            0
