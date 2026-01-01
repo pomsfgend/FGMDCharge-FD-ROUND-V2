@@ -1,13 +1,13 @@
 #pragma once
 
 #define CUBE_FW_NAME                 "FD_ROUND_V2"
-#define CUBE_FW_VERSION              "2.2.2"
+#define CUBE_FW_VERSION              "2.2.3"
 
 /* Web API protection. Change before installing on a real vehicle/charging setup. */
 #define CUBE_WEB_KEY                 ""  /* no API key on local AP */
 #define CUBE_WIFI_SSID               "FGMDCharge-V2"
 #define CUBE_WIFI_PASSWORD           ""  /* open — as 2.0.5 working */
-#define CUBE_WIFI_CHANNEL            1
+#define CUBE_WIFI_CHANNEL            6
 #define CUBE_WIFI_MAX_CONNECTIONS    4
 
 /* Safety: boots with CAN TX disabled until explicitly enabled via web/BLE. */
@@ -88,10 +88,10 @@
 #define CUBE_DEFAULT_MAX_VOLTAGE_0P1V  660   /* 66.0 V */
 
 /* Start BLE after SoftAP is visible (coex). 0 = immediate. */
-#define CUBE_BLE_START_DELAY_MS      2000
+#define CUBE_BLE_START_DELAY_MS      0
 
 /* 0 = do not start BLE (max SoftAP visibility on shared RF). */
 #define CUBE_BLE_ENABLE              1
 
 /* After SoftAP up, wait so user can scan before display draws power. */
-#define CUBE_WIFI_SCAN_WINDOW_MS     8000
+#define CUBE_WIFI_SCAN_WINDOW_MS     0

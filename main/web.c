@@ -505,23 +505,31 @@ esp_err_t web_init(void)
         ap.ap.authmode = WIFI_AUTH_OPEN;
         ap.ap.password[0] = 0;
     }
-    /* APSTA: some phones only show SoftAP when radio is also in station-capable mode. */
-    if ((err = esp_wifi_set_mode(WIFI_MODE_APSTA)) != ESP_OK) return err;
+
+    /* ESP-IDF SoftAP (ESP32-C3): AP-only, country set before start for legal channels. */
+    wifi_country_t country = {
+        .cc = "01",
+        .schan = 1,
+        .nchan = 13,
+        .max_tx_power = 20,
+        .policy = WIFI_COUNTRY_POLICY_MANUAL,
+    };
+    (void)esp_wifi_set_country(&country);
+
+    if ((err = esp_wifi_set_mode(WIFI_MODE_AP)) != ESP_OK) return err;
     if ((err = esp_wifi_set_config(WIFI_IF_AP, &ap)) != ESP_OK) return err;
     (void)esp_wifi_set_ps(WIFI_PS_NONE);
     (void)esp_wifi_set_bandwidth(WIFI_IF_AP, WIFI_BW_HT20);
     (void)esp_wifi_set_protocol(WIFI_IF_AP, WIFI_PROTOCOL_11B | WIFI_PROTOCOL_11G | WIFI_PROTOCOL_11N);
     if ((err = esp_wifi_start()) != ESP_OK && err != ESP_ERR_INVALID_STATE) return err;
-    /* Max TX (~20–21 dBm). Units are 0.25 dBm. */
     (void)esp_wifi_set_max_tx_power(80);
+
     {
         uint8_t mac[6] = {0};
         (void)esp_wifi_get_mac(WIFI_IF_AP, mac);
-        ESP_LOGW(TAG, "SoftAP UP SSID=%s OPEN ch=%u MAC=%02X:%02X:%02X:%02X:%02X:%02X TX=max",
+        ESP_LOGW(TAG, "SoftAP %s OPEN ch=%u MAC=%02X:%02X:%02X:%02X:%02X:%02X",
                  CUBE_WIFI_SSID, (unsigned)CUBE_WIFI_CHANNEL,
                  mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
-        ESP_LOGW(TAG, ">>> SCAN PHONE NOW for '%s' (no password) http://192.168.4.1/",
-                 CUBE_WIFI_SSID);
     }
 
 

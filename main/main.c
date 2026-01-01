@@ -81,13 +81,7 @@ void app_main(void) {
     /* SoftAP first for scan visibility, then BLE. */
     err = web_init();
     if (err != ESP_OK) ESP_LOGE(TAG, "Web init failed: %s", esp_err_to_name(err));
-    else {
-        ESP_LOGW(TAG, "stage: Web AP ok");
-#if (CUBE_WIFI_SCAN_WINDOW_MS > 0)
-        ESP_LOGW(TAG, "WiFi scan window %d ms — look for SSID now", CUBE_WIFI_SCAN_WINDOW_MS);
-        vTaskDelay(pdMS_TO_TICKS(CUBE_WIFI_SCAN_WINDOW_MS));
-#endif
-    }
+    else ESP_LOGW(TAG, "stage: Web AP ok");
 
 
     err = display_init();
