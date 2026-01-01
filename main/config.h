@@ -4,7 +4,7 @@
 #define CUBE_FW_VERSION              "2.0.5"
 
 /* Web API protection. Change before installing on a real vehicle/charging setup. */
-#define CUBE_WEB_KEY                 "FDcube2026"
+#define CUBE_WEB_KEY                 ""  /* empty = no API password on local AP */
 #define CUBE_WIFI_SSID               "FGMDCharge-V2"
 #define CUBE_WIFI_PASSWORD           "FDcube2026"  /* change before field use */
 #define CUBE_WIFI_CHANNEL            1
@@ -17,6 +17,9 @@
 /* LCD confirmed from the original dump. */
 #define CUBE_LCD_H_RES               240
 #define CUBE_LCD_V_RES               280
+/* After 90° left (CCW): LVGL uses swapped logical size */
+#define CUBE_LCD_UI_H_RES            280
+#define CUBE_LCD_UI_V_RES            240
 #define CUBE_LCD_MOSI_GPIO           5
 #define CUBE_LCD_MISO_GPIO           (-1)
 #define CUBE_LCD_SCLK_GPIO           19
