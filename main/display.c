@@ -167,8 +167,7 @@ static void style_screen(lv_obj_t *scr)
     lv_obj_set_style_text_color(scr, lv_color_hex(0xE8EEF4), 0);
     lv_obj_clear_flag(scr, LV_OBJ_FLAG_SCROLLABLE);
     lv_obj_add_event_cb(scr, gesture_cb, LV_EVENT_GESTURE, NULL);
-    lv_obj_add_event_cb(scr, gesture_cb, LV_EVENT_PRESSED, NULL);
-}
+    }
 
 static void apply_page(int p)
 {
@@ -186,8 +185,13 @@ static void apply_page(int p)
 static void gesture_cb(lv_event_t *e)
 {
     if (lv_event_get_code(e) != LV_EVENT_GESTURE) return;
-    lv_dir_t dir = lv_indev_get_gesture_dir(lv_indev_get_act());
-    lv_indev_wait_release(lv_indev_get_act());
+    lv_indev_t *in = lv_indev_get_act();
+    lv_point_t pt;
+    lv_indev_get_point(in, &pt);
+    /* brightness slider lives here; do not steal the drag */
+    if (s_page == 1 && pt.y >= 150 && pt.y <= 230) return;
+    lv_dir_t dir = lv_indev_get_gesture_dir(in);
+    lv_indev_wait_release(in);
     if (dir == LV_DIR_LEFT) apply_page(s_page + 1);
     else if (dir == LV_DIR_RIGHT) apply_page(s_page - 1);
 }
@@ -316,7 +320,7 @@ static void make_pad(lv_obj_t *parent)
 static lv_obj_t *card(lv_obj_t *parent, int x, int y, lv_obj_t **value, const char *cap)
 {
     lv_obj_t *c = lv_obj_create(parent);
-    lv_obj_set_size(c, 110, 78);
+    lv_obj_set_size(c, 104, 70);
     lv_obj_set_pos(c, x, y);
     lv_obj_set_style_bg_color(c, lv_color_hex(0x122033), 0);
     lv_obj_set_style_bg_opa(c, LV_OPA_COVER, 0);
@@ -340,10 +344,10 @@ static lv_obj_t *line(lv_obj_t *parent, const char *txt, int y)
 {
     lv_obj_t *l = lv_label_create(parent);
     lv_label_set_text(l, txt);
-    lv_obj_set_width(l, 224);
+    lv_obj_set_width(l, 216);
     lv_label_set_long_mode(l, LV_LABEL_LONG_CLIP);
     lv_obj_set_style_text_color(l, lv_color_hex(0xD5DEE8), 0);
-    lv_obj_align(l, LV_ALIGN_TOP_LEFT, 8, y);
+    lv_obj_align(l, LV_ALIGN_TOP_LEFT, 12, y);
     lv_obj_add_event_cb(l, gesture_cb, LV_EVENT_GESTURE, NULL);
     return l;
 }
@@ -352,9 +356,9 @@ static void build_ui(void)
 {
     s_scr_chg = lv_scr_act();
     style_screen(s_scr_chg);
-    line(s_scr_chg, "CUBE  2.3.3", 4);
-    s_card_u = card(s_scr_chg, 8, 26, &s_voltage, "VOLT");
-    s_card_i = card(s_scr_chg, 122, 26, &s_current, "AMP");
+    line(s_scr_chg, "CUBE 2.4.1", 4);
+    s_card_u = card(s_scr_chg, 10, 28, &s_voltage, "V");
+    s_card_i = card(s_scr_chg, 122, 28, &s_current, "A");
     (void)s_card_u; (void)s_card_i;
     s_power = line(s_scr_chg, "P -- W", 112);
     s_soc = line(s_scr_chg, "SOC -- %", 132);
@@ -552,25 +556,18 @@ void display_set_values(void)
     int ch = web_get_ap_channel();
     cube_state_snapshot_t st;
     app_state_snapshot(&st);
-    float uv = st.ccs_output_voltage_raw > 0 ? st.ccs_output_voltage_raw / 10.0f
-                                             : st.battery_voltage_0p1v / 10.0f;
-    float ia = st.ccs_output_current_0p1a != 0 ? st.ccs_output_current_0p1a / 10.0f
-                                               : st.battery_current_0p1a / 10.0f;
+    bool live = st.ccs_output_voltage_raw > 0;
+    float uv = live ? st.ccs_output_voltage_raw / 10.0f : 0;
+    float ia = st.ccs_output_current_0p1a / 10.0f;
     if (ia < 0) ia = -ia;
-    if (s_voltage) {
-        snprintf(b, sizeof(b), "%.1f V", (double)uv);
-        lv_label_set_text(s_voltage, b);
-    }
-    if (s_current) {
-        snprintf(b, sizeof(b), "%.1f A", (double)ia);
-        lv_label_set_text(s_current, b);
-    }
+    if (s_voltage) lv_label_set_text(s_voltage, live ? (snprintf(b, sizeof(b), "%.0f", (double)uv), b) : "--");
+    if (s_current) lv_label_set_text(s_current, live ? (snprintf(b, sizeof(b), "%.1f", (double)ia), b) : "--");
     if (s_power) {
-        snprintf(b, sizeof(b), "P  %.0f W", (double)(uv * ia));
+        snprintf(b, sizeof(b), live ? "P %.0f W" : "P --", (double)(uv * ia));
         lv_label_set_text(s_power, b);
     }
     if (s_soc) {
-        snprintf(b, sizeof(b), "SOC %u %%", (unsigned)st.soc_percent);
+        snprintf(b, sizeof(b), "SOC %u%%  E %.2f", (unsigned)st.soc_percent, (double)app_state_energy_kwh());
         lv_label_set_text(s_soc, b);
     }
     if (s_stage) {

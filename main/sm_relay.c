@@ -32,12 +32,15 @@ static uint32_t s_last_bsm_ms = 0;
 static bool     s_crm00 = false;
 static bool     s_crmaa = false;
 static uint32_t s_last_brm_ms = 0;
+static uint32_t s_last_bcp_ms = 0;
 static uint32_t s_last_rx_count = 0;
 static uint32_t s_last_chg_ms = 0;
 static uint32_t s_auto_hold_until = 0;
 static uint8_t  s_relay_test = 0;
 static uint32_t s_relay_test_ms = 0;
 static bool     s_boot_started = false;
+static uint32_t s_power_seen_ms = 0;
+static bool s_load_on = false;
 
 static uint32_t now_ms(void)
 {
@@ -104,6 +107,14 @@ static void tx_bam(uint32_t pgn, const uint8_t *payload, uint16_t len)
         (void)gbt_can_send(0x1CEB56F4u, dt, 8);
         vTaskDelay(pdMS_TO_TICKS(10));
     }
+}
+
+
+static bool st_proto_is_2011(void)
+{
+    cube_state_snapshot_t snap;
+    app_state_snapshot(&snap);
+    return snap.protocol == 2;
 }
 
 static void tx_brm(void)
@@ -420,13 +431,22 @@ void sm_relay_tick(void)
 
     case ST_CHARGING:
         /* 10 s handoff when substate==3 */
-        if (!s_handoff && s_sub == 3) {
-            if ((t - s_entry_ms) >= CUBE_RELAY_HANDOFF_MS) {
-                relays_set(0, 1); /* main power */
+        /* GPIO6 onboard already on. GPIO7 external load 3 s after station voltage. */
+        if (st.ccs_output_voltage_raw > 500) {
+            if (s_power_seen_ms == 0) s_power_seen_ms = t;
+            if (!s_load_on && (t - s_power_seen_ms) >= 3000) {
+                relays_set(1, 1);
+                s_load_on = true;
                 s_handoff = true;
                 app_state_set_handoff(true);
-                ESP_LOGW(TAG, "RELAY HANDOFF: A=0 B=1 after %u ms", (unsigned)CUBE_RELAY_HANDOFF_MS);
+                app_state_log("load GPIO7 ON, 3s after station power");
             }
+        }
+        {
+            float v = st.ccs_output_voltage_raw / 10.0f;
+            float i = st.ccs_output_current_0p1a / 10.0f;
+            if (i < 0) i = -i;
+            if (v > 5 && i > 0.2f) app_state_add_energy(v * i, 0.01f);
         }
         /* periodic BCL / BCS / BSM */
         if ((t - s_last_bcl_ms) >= 50) {

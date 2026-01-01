@@ -32,8 +32,8 @@ void app_state_init(void)
     s_state.bcl_requested_voltage_raw = CUBE_DEFAULT_REQ_VOLTAGE_0P1V;
     s_state.bcl_requested_current_0p1a = CUBE_DEFAULT_REQ_CURRENT_0P1A;
     s_state.bcl_mode = 0x01; /* constant current preferred */
-    s_state.battery_voltage_0p1v = 480; /* placeholder 48.0 V */
-    s_state.soc_percent = 50;
+    s_state.battery_voltage_0p1v = 0;
+    s_state.soc_percent = 0;
 }
 
 void app_state_set_main_state(uint8_t s)
@@ -113,6 +113,8 @@ void app_state_set_ccs(uint16_t out_v, int16_t out_i_0p1a, uint16_t charge_time_
 
 static char s_log[12][80];
 static int s_log_n;
+static float s_energy_wh;
+static uint8_t s_soc_base;
 static char s_vin[18] = "UNKNOWNVIN000000";
 
 void app_state_log(const char *msg)
@@ -133,11 +135,6 @@ int app_state_log_text(char *out, int out_len)
     }
     if (o == 0) o = snprintf(out, (size_t)out_len, "no events\n");
     return o;
-}
-
-void app_state_set_soc(uint8_t soc)
-{
-    s_state.soc_percent = soc > 100 ? 100 : soc;
 }
 
 void app_state_set_vin(const char *vin)
@@ -286,9 +283,25 @@ void app_state_set_battery_vi(uint16_t v_0p1v, int16_t i_0p1a)
 void app_state_set_soc(uint8_t soc)
 {
     lock_state();
-    s_state.soc_percent = soc > 100 ? 100 : soc;
+    s_soc_base = soc > 100 ? 100 : soc;
+    s_state.soc_percent = s_soc_base;
     unlock_state();
 }
+
+void app_state_add_energy(float watts, float dt_s)
+{
+    if (watts < 1 || dt_s <= 0) return;
+    s_energy_wh += watts * dt_s / 3600.0f;
+    float soc = s_soc_base + (s_energy_wh / 7500.0f) * 100.0f;
+    if (soc > 100) soc = 100;
+    lock_state();
+    s_state.soc_percent = (uint8_t)soc;
+    s_state.csd_energy_0p1kwh = (uint16_t)(s_energy_wh / 100.0f);
+    unlock_state();
+}
+
+float app_state_energy_kwh(void) { return s_energy_wh / 1000.0f; }
+
 
 const char *cube_main_state_name(uint8_t s)
 {

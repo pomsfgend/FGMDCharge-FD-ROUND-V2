@@ -116,6 +116,8 @@ void app_state_set_cml(uint16_t max_v, uint16_t min_v, int16_t max_i_0p1a, int16
 void app_state_set_ccs(uint16_t out_v, int16_t out_i_0p1a, uint16_t charge_time_min, uint8_t permit_raw);
 void app_state_set_bcl(uint16_t requested_v, int16_t requested_i_0p1a, uint8_t mode);
 void app_state_set_soc(uint8_t soc);
+void app_state_add_energy(float watts, float dt_s);
+float app_state_energy_kwh(void);
 void app_state_set_vin(const char *vin);
 void app_state_log(const char *msg);
 int app_state_log_text(char *out, int out_len);
@@ -135,6 +137,8 @@ void app_state_set_touch(bool enabled, bool pressed);
 void app_state_set_ble_rx(const uint8_t *data, uint16_t len);
 void app_state_set_battery_vi(uint16_t v_0p1v, int16_t i_0p1a);
 void app_state_set_soc(uint8_t soc);
+void app_state_add_energy(float watts, float dt_s);
+float app_state_energy_kwh(void);
 
 const char *cube_main_state_name(uint8_t s);
 void app_state_can_rx(const cube_can_frame_t *f, bool charger_frame);
