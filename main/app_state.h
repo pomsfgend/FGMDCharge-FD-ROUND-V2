@@ -123,6 +123,8 @@ float app_state_energy_kwh(void);
 void app_state_set_cap_kwh(float kwh);
 float app_state_cap_kwh(void);
 void app_state_set_protocol(uint8_t protocol);
+bool app_state_protocol_locked(void);
+void app_state_release_auto_protocol(void);
 void app_state_set_vin(const char *vin);
 void app_state_log(const char *msg);
 int app_state_log_text(char *out, int out_len);

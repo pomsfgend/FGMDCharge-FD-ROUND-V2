@@ -23,6 +23,7 @@
 #include "can_gbt.h"
 #include "safe_ota.h"
 #include "display.h"
+#include "session_log.h"
 #include "esp_http_client.h"
 #include "esp_ota_ops.h"
 #include "esp_partition.h"
@@ -827,6 +828,46 @@ static esp_err_t wifi_join_post(httpd_req_t *req)
     return httpd_resp_sendstr(req, err == ESP_OK ? "{\"ok\":true}" : "{\"ok\":false}");
 }
 
+static esp_err_t logs_list_get(httpd_req_t *req)
+{
+    char buf[1400];
+    size_t used = 0;
+    int n = session_log_count();
+    set_security_headers(req);
+    set_no_cache(req);
+    appendf(buf, sizeof(buf), &used, "{\"ok\":true,\"count\":%d,\"logs\":[", n);
+    for (int i = 0; i < n; ++i) {
+        int seq = 0, bytes = 0, protocol = 0, reason = 0;
+        const char *tag = "auto";
+        const char *why = "upd";
+        if (!session_log_info(i, &seq, &bytes, &protocol, &reason)) break;
+        if (protocol == 1) tag = "2015";
+        else if (protocol == 2) tag = "2011";
+        else if (protocol == 3) tag = "2023";
+        if (reason == 1) why = "proto";
+        else if (reason == 2) why = "stop";
+        appendf(buf, sizeof(buf), &used, "%s{\"n\":%d,\"seq\":%d,\"bytes\":%d,\"protocol\":\"%s\",\"reason\":\"%s\"}",
+                i ? "," : "", i + 1, seq, bytes, tag, why);
+    }
+    appendf(buf, sizeof(buf), &used, "]}");
+    httpd_resp_set_type(req, "application/json; charset=utf-8");
+    return httpd_resp_sendstr(req, buf);
+}
+
+static esp_err_t logs_last_get(httpd_req_t *req)
+{
+    set_security_headers(req);
+    set_no_cache(req);
+    return session_log_send_last(req);
+}
+
+static esp_err_t logs_zip_get(httpd_req_t *req)
+{
+    set_security_headers(req);
+    set_no_cache(req);
+    return session_log_send_zip(req);
+}
+
 void web_boot_original(void)
 {
     const esp_partition_t *orig = esp_partition_find_first(
@@ -907,7 +948,7 @@ esp_err_t web_init(void)
     /* AP only, no scan */
 
     httpd_config_t hc = HTTPD_DEFAULT_CONFIG();
-    hc.max_uri_handlers = 36;
+    hc.max_uri_handlers = 40;
     hc.stack_size = 12288;
     hc.recv_wait_timeout = 10;
     hc.send_wait_timeout = 10;
@@ -940,6 +981,9 @@ esp_err_t web_init(void)
         {.uri = "/api/can", .method = HTTP_GET, .handler = can_text_get},
         {.uri = "/api/start", .method = HTTP_POST, .handler = session_start_post},
         {.uri = "/api/log", .method = HTTP_GET, .handler = log_get},
+        {.uri = "/api/logs/last", .method = HTTP_GET, .handler = logs_last_get},
+        {.uri = "/api/logs.zip", .method = HTTP_GET, .handler = logs_zip_get},
+        {.uri = "/api/logs", .method = HTTP_GET, .handler = logs_list_get},
         {.uri = "/api/setpoints", .method = HTTP_POST, .handler = setpoints_post},
         {.uri = "/api/stop", .method = HTTP_POST, .handler = session_stop_post},
         {.uri = "/api/tx_enable", .method = HTTP_POST, .handler = session_start_post},

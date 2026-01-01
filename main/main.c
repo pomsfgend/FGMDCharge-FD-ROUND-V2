@@ -19,6 +19,7 @@
 #include <stdarg.h>
 #include "sm_relay.h"
 #include "safe_ota.h"
+#include "session_log.h"
 
 static const char *TAG = "MAIN";
 
@@ -42,6 +43,7 @@ static void myTask_Timer(void *arg)
     (void)arg;
     for (;;) {
         app_state_housekeeping();
+        session_log_on_second();
         vTaskDelay(pdMS_TO_TICKS(1000));
     }
 }
@@ -71,6 +73,7 @@ void app_main(void) {
     safe_ota_boot_continue();
 
     app_state_init();
+    session_log_init();
     s_prev_log = esp_log_set_vprintf(console_hook);
 
     err = settings_init();

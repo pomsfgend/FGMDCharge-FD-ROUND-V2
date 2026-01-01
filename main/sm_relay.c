@@ -11,6 +11,7 @@
 #include "config.h"
 #include "can_gbt.h"
 #include "gbt_b.h"
+#include "session_log.h"
 #include "driver/gpio.h"
 #include "esp_log.h"
 #include "esp_timer.h"
@@ -42,6 +43,7 @@ static uint32_t s_power_seen_ms = 0;
 static bool s_load_on = false;
 static uint16_t s_v_anchor = 0;
 /* -1: load follows station voltage. 0/1: long-hold latched the load relay until the opposite hold. */
+static int s_load_manual = -1;
 static uint32_t s_last_opt_ms = 0;
 
 static uint32_t now_ms(void)
@@ -91,6 +93,17 @@ static void set_state(uint8_t s)
         relays_set(1, s_load_manual == 1 ? 1 : 0); /* prepare path, keep a latched load */
     }
     ESP_LOGI(TAG, "state -> %s (%u) sub=%u", cube_main_state_name(s), (unsigned)s, (unsigned)s_sub);
+}
+
+static void end_session(void)
+{
+    session_log_request(1, SESSION_LOG_STOP);
+    session_log_service();
+    app_state_release_auto_protocol();
+    if (s_main == ST_IDLE) return;
+    set_state(ST_STOP);
+    set_state(ST_FINALIZE);
+    set_state(ST_IDLE);
 }
 
 /* --- TX helpers (only when TX enabled) --- */
@@ -378,10 +391,7 @@ void sm_stop_session(void)
         s_main == ST_PARAM_CONFIG || s_main == ST_WAIT_CRM) {
         tx_bst();
     }
-    set_state(ST_STOP);
-    /* short finalize then idle */
-    set_state(ST_FINALIZE);
-    set_state(ST_IDLE);
+    end_session();
 }
 
 void sm_ble_cmd_0x66(uint8_t val)
@@ -448,8 +458,8 @@ void sm_relay_tick(void)
         if (gbt_b_stop()) {
             if (s_main != ST_IDLE) {
                 app_state_log("B session end");
-                set_state(ST_IDLE);
                 gbt_b_reset();
+                end_session();
             }
         } else if (gbt_b_energy()) {
             if (s_main != ST_CHARGING) set_state(ST_CHARGING);
@@ -487,7 +497,7 @@ void sm_relay_tick(void)
         }
         if ((t - s_entry_ms) > 30000) {
             tx_bem(s_crm00 ? 1 : 0);
-            set_state(ST_IDLE);
+            end_session();
         }
         break;
 
@@ -502,7 +512,7 @@ void sm_relay_tick(void)
         }
         if ((t - s_entry_ms) > 20000) {
             tx_bem(2);
-            set_state(ST_IDLE);
+            end_session();
         }
         break;
 
@@ -517,7 +527,7 @@ void sm_relay_tick(void)
         }
         if ((t - s_entry_ms) > 30000) {
             tx_bem(3);
-            set_state(ST_IDLE);
+            end_session();
         }
         break;
 
@@ -591,9 +601,7 @@ void sm_relay_tick(void)
                 st.charger_stage == CUBE_STAGE_SUSPENDED) {
                 tx_bst();
                 tx_bsd();
-                set_state(ST_STOP);
-                set_state(ST_FINALIZE);
-                set_state(ST_IDLE);
+                end_session();
             }
         }
         break;
@@ -611,4 +619,5 @@ void sm_relay_tick(void)
         s_auto_hold_until = t + 8000;
         sm_stop_session();
     }
+    session_log_service();
 }

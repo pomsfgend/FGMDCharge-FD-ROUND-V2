@@ -10,7 +10,7 @@ import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-VERSION = "2.8.11"
+VERSION = "2.8.12"
 DUMP_SHA256 = "1428dbddc0749eee8ac133b1e16b6c0805a2da4bb4b0c73bc759c1500b03f233"
 MAX_OTA = 0x190000
 
@@ -118,8 +118,8 @@ for needle in (
         err(f"sdkconfig.defaults missing {needle}")
 
 # Safety/config invariants.
-if '#define CUBE_TX_DEFAULT_ENABLED      0' not in cfg:
-    err("CAN TX default is not disabled")
+if '#define CUBE_TX_DEFAULT_ENABLED      1' not in cfg:
+    err("CAN TX default is not enabled")
 if "0x190000" not in cfg:
     err("OTA slot limit missing")
 

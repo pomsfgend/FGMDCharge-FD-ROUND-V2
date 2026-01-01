@@ -764,7 +764,7 @@ static void build_ui(void)
     lv_obj_set_scroll_dir(s_scr_chg, LV_DIR_VER);
     s_dots = line(s_scr_chg, "пароль 1234 до выкл", 248);
     if (s_dots) { lv_obj_set_height(s_dots, 16); lv_label_set_long_mode(s_dots, LV_LABEL_LONG_DOT); }
-    s_can = line(s_scr_chg, "CAN тишина", 264);
+    s_can = line(s_scr_chg, "CAN вкл тишина", 264);
     if (s_can) { lv_obj_set_height(s_can, 16); lv_label_set_long_mode(s_can, LV_LABEL_LONG_DOT); }
     s_proto_lbl = line(s_scr_chg, "протокол авто", 300);
     s_main_temp = line(s_scr_chg, "плата -- C", 322);
@@ -903,7 +903,7 @@ static void build_ui(void)
     lv_obj_set_height(s_can_lbl, 110);
     s_scr_sys = lv_obj_create(NULL);
     style_screen(s_scr_sys);
-    line(s_scr_sys, "СИСТЕМА 2.8.11", 4);
+    line(s_scr_sys, "СИСТЕМА 2.8.12", 4);
     s_sys_temp = line(s_scr_sys, "CPU -- C", 28);
     s_sys_cpu = line(s_scr_sys, "F 160 MHz", 48);
     s_sys_load = line(s_scr_sys, "Load -- %", 68);
@@ -1197,13 +1197,15 @@ void display_set_values(void)
     if (s_stat) lv_label_set_text(s_stat, st.protocol == 1 ? "2015" : st.protocol == 2 ? "2011" : st.protocol == 3 ? "2023" : "авто");
     if (s_proto_lbl) {
         const char *pn = st.protocol == 1 ? "2015/A" : st.protocol == 2 ? "2011" : st.protocol == 3 ? "2023-B" : "авто";
-        snprintf(b, sizeof(b), "протокол %s", pn);
+        snprintf(b, sizeof(b), "протокол %s%s", pn, app_state_protocol_locked() ? " фикс" : "");
         lv_label_set_text(s_proto_lbl, b);
     }
     if (s_can) {
         uint32_t now = (uint32_t)(esp_timer_get_time() / 1000ULL);
         int talk = st.last_charger_rx_ms != 0 && (uint32_t)(now - st.last_charger_rx_ms) < 1500U;
-        snprintf(b, sizeof(b), "CAN %s %lu/%lu", talk ? "обмен" : "тишина",
+        snprintf(b, sizeof(b), "%s %s %lu/%lu",
+                 st.tx_enabled ? "CAN вкл" : "CAN выкл",
+                 talk ? "обмен" : "тишина",
                  (unsigned long)st.rx_count, (unsigned long)st.tx_count);
         lv_label_set_text(s_can, b);
     }

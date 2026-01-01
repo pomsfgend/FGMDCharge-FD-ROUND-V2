@@ -5,6 +5,7 @@ idf_component_register(
     SRCS
         "main.c"
         "app_state.c"
+        "session_log.c"
         "can_gbt.c"
         "gbt_tp.c"
         "gbt_b.c"

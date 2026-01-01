@@ -10,7 +10,7 @@ import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-VERSION = "2.8.11"
+VERSION = "2.8.12"
 DUMP_SHA = "1428dbddc0749eee8ac133b1e16b6c0805a2da4bb4b0c73bc759c1500b03f233"
 ERRORS: list[str] = []
 
@@ -123,7 +123,7 @@ def check_config() -> None:
     cfg = read("main/config.h")
     for needle in (
         f'#define CUBE_FW_VERSION              "{VERSION}"',
-        '#define CUBE_TX_DEFAULT_ENABLED      0',
+        '#define CUBE_TX_DEFAULT_ENABLED      1',
         '#define CUBE_CAN_BITRATE             250000',
         '#define CUBE_HTTP_MAX_UPLOAD       (0x190000)',
     ):

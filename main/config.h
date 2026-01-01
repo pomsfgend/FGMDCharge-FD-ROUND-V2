@@ -1,7 +1,7 @@
 #pragma once
 
 #define CUBE_FW_NAME                 "FD_ROUND_V2"
-#define CUBE_FW_VERSION              "2.8.11"
+#define CUBE_FW_VERSION              "2.8.12"
 
 /* SoftAP */
 #define CUBE_WEB_KEY                 ""
@@ -12,7 +12,12 @@
 #define CUBE_WIFI_OPEN               0
 
 #define CUBE_TX_COMPILED_ENABLE      1
-#define CUBE_TX_DEFAULT_ENABLED      0
+#define CUBE_TX_DEFAULT_ENABLED      1
+/* Saved session logs sit in the erased tail after ota_1 (ota_1 ends at 0x330000).
+   This is not a partition, so the table and the factory slot stay untouched. */
+#define CUBE_LOG_FLASH_BASE          0x330000
+#define CUBE_LOG_SLOTS               8
+#define CUBE_LOG_SLOT_SIZE           4096
 #define CUBE_HTTP_MAX_UPLOAD       (0x190000)
 
 /* LCD ST7789 240x280 */

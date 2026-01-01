@@ -1,4 +1,5 @@
 #include "app_state.h"
+#include "session_log.h"
 #include <string.h>
 #include "freertos/FreeRTOS.h"
 #include "freertos/semphr.h"
@@ -111,17 +112,18 @@ void app_state_set_ccs(uint16_t out_v, int16_t out_i_0p1a, uint16_t charge_time_
     unlock_state();
 }
 
-static char s_log[20][96];
+static char s_log[24][96];
 static int s_log_n;
 static float s_energy_wh;
 static float s_cap_wh = 7500.0f;
 static uint8_t s_soc_base;
 static char s_vin[18] = "UNKNOWNVIN000000";
+static uint8_t s_protocol_lock;
 
 void app_state_log(const char *msg)
 {
     if (!msg) return;
-    int i = s_log_n % 20;
+    int i = s_log_n % 24;
     snprintf(s_log[i], sizeof(s_log[i]), "%lu %s", (unsigned long)now_ms(), msg);
     s_log_n++;
 }
@@ -130,11 +132,21 @@ int app_state_log_text(char *out, int out_len)
 {
     if (!out || out_len < 8) return 0;
     int o = 0;
-    int start = s_log_n > 20 ? s_log_n - 20 : 0;
+    int start = s_log_n > 24 ? s_log_n - 24 : 0;
     for (int n = start; n < s_log_n && o < out_len - 2; ++n) {
-        o += snprintf(out + o, (size_t)(out_len - o), "%s\n", s_log[n % 20]);
+        int room = out_len - o;
+        int w = snprintf(out + o, (size_t)room, "%s\n", s_log[n % 24]);
+        if (w < 0) break;
+        if (w >= room) {
+            o = out_len - 1;
+            break;
+        }
+        o += w;
     }
     if (o == 0) o = snprintf(out, (size_t)out_len, "no events\n");
+    if (o < 0) o = 0;
+    if (o >= out_len) o = out_len - 1;
+    out[o] = 0;
     return o;
 }
 
@@ -312,12 +324,26 @@ float app_state_cap_kwh(void) { return s_cap_wh / 1000.0f; }
 void app_state_set_protocol(uint8_t protocol)
 {
     if (protocol > 3) protocol = 0;
+    s_protocol_lock = protocol == 0 ? 0 : 1;
     lock_state();
     s_state.protocol = protocol;
     unlock_state();
     app_state_log(protocol == 1 ? "protocol GBT-2015/A" :
                   protocol == 2 ? "protocol GBT-2011" :
                   protocol == 3 ? "protocol GBT-2023-B" : "protocol AUTO");
+}
+
+bool app_state_protocol_locked(void)
+{
+    return s_protocol_lock != 0;
+}
+
+void app_state_release_auto_protocol(void)
+{
+    if (s_protocol_lock) return;
+    lock_state();
+    s_state.protocol = 0;
+    unlock_state();
 }
 
 void app_state_add_energy(float watts, float dt_s)
@@ -408,14 +434,14 @@ void app_state_can_rx(const cube_can_frame_t *f, bool charger_frame)
        0x0038255F is GB/T 27930-2023 B version frame (SECC 0x5F -> EVCC 0x25).
        CHM 26F4 is 2015 and 2023 class A (same V1.1 messages).
        CRM 01F4 with no CHM and no B frame is 2011. */
-    if ((f->id & 0x00FFFFFFu) == 0x0038255Fu) {
+    if (!s_protocol_lock && (f->id & 0x00FFFFFFu) == 0x0038255Fu) {
         if (s_state.protocol != 3) proto_log = 3;
         s_state.protocol = 3;
-    } else if ((f->id & 0x00FFFF00u) == 0x0026F400u && s_state.protocol != 3) {
+    } else if (!s_protocol_lock && (f->id & 0x00FFFF00u) == 0x0026F400u && s_state.protocol != 3) {
         if (s_state.protocol != 1) proto_log = 1;
         s_state.protocol = 1;
     } else if ((f->id & 0x00FFFF00u) == 0x0001F400u) {
-        if (s_state.protocol == 0) {
+        if (!s_protocol_lock && s_state.protocol == 0) {
             s_state.protocol = 2;
             proto_log = 2;
         }
@@ -428,6 +454,7 @@ void app_state_can_rx(const cube_can_frame_t *f, bool charger_frame)
     if (proto_log == 1) app_state_log("CHM -> GBT-2015/2023-A");
     else if (proto_log == 2) app_state_log("CRM without CHM -> GBT-2011");
     else if (proto_log == 3) app_state_log("version frame -> GBT-2023-B");
+    if (proto_log) session_log_request(0, SESSION_LOG_PROTO);
     if (charger_frame) {
         static uint32_t last_logged;
         if (f->id != last_logged) {
@@ -437,7 +464,10 @@ void app_state_can_rx(const cube_can_frame_t *f, bool charger_frame)
             last_logged = f->id;
         }
     }
-    if (f->id == 0x081FF456u) app_state_log("CEM charger error, session kept");
+    if (f->id == 0x081FF456u) {
+        app_state_log("CEM charger error, session kept");
+        session_log_request(1, SESSION_LOG_STOP);
+    }
     if (f->id == 0x101AF456u) app_state_log("CST from charger, session kept");
 }
 

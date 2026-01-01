@@ -3,6 +3,7 @@
 
 import struct
 import zlib
+from pathlib import Path
 from dataclasses import dataclass, field
 
 GBT_ID_TP_CM_CHG = 0x1CECF456
@@ -226,5 +227,82 @@ assert detect(0x1826F456, 0) == 1
 assert detect(0x1826F456, 3) == 3
 assert detect(0x1801F456, 0) == 2
 assert detect(0x1801F456, 1) == 1
+
+def detect_user(can_id, protocol, locked):
+    if locked:
+        return protocol
+    return detect(can_id, protocol)
+
+def after_unplug(protocol, locked):
+    return protocol if locked else 0
+
+assert detect_user(0x1826F456, 2, True) == 2
+assert detect_user(0x1826F456, 0, False) == 1
+assert detect_user(b_id(3, 0x38, 0x25, 0x5F), 1, False) == 3
+assert after_unplug(1, False) == 0
+assert after_unplug(1, True) == 1
+
+cfg = (Path(__file__).resolve().parents[1] / "main" / "config.h").read_text(encoding="utf-8")
+assert '#define CUBE_FW_VERSION              "2.8.12"' in cfg
+assert "#define CUBE_TX_DEFAULT_ENABLED      1" in cfg
+
+def crc32_zip(data: bytes) -> int:
+    crc = 0xFFFFFFFF
+    for byte in data:
+        crc ^= byte
+        for _ in range(8):
+            mask = -(crc & 1) & 0xFFFFFFFF
+            crc = ((crc >> 1) ^ (0xEDB88320 & mask)) & 0xFFFFFFFF
+    return (~crc) & 0xFFFFFFFF
+
+assert crc32_zip(b"cube") == zlib.crc32(b"cube") & 0xFFFFFFFF
+
+def put_u16(buf, off, val):
+    buf[off] = val & 0xFF
+    buf[off + 1] = (val >> 8) & 0xFF
+
+def put_u32(buf, off, val):
+    put_u16(buf, off, val)
+    put_u16(buf, off + 2, val >> 16)
+
+def build_store_zip(files):
+    blob = bytearray()
+    central = bytearray()
+    for name, data in files:
+        name_b = name.encode()
+        crc = crc32_zip(data)
+        local = bytearray(30)
+        put_u32(local, 0, 0x04034B50)
+        put_u16(local, 4, 20)
+        put_u32(local, 14, crc)
+        put_u32(local, 18, len(data))
+        put_u32(local, 22, len(data))
+        put_u16(local, 26, len(name_b))
+        off = len(blob)
+        blob += local + name_b + data
+        cd = bytearray(46)
+        put_u32(cd, 0, 0x02014B50)
+        put_u16(cd, 4, 20)
+        put_u16(cd, 6, 20)
+        put_u32(cd, 16, crc)
+        put_u32(cd, 20, len(data))
+        put_u32(cd, 24, len(data))
+        put_u16(cd, 28, len(name_b))
+        put_u32(cd, 42, off)
+        central += cd + name_b
+    end = bytearray(22)
+    put_u32(end, 0, 0x06054B50)
+    put_u16(end, 8, len(files))
+    put_u16(end, 10, len(files))
+    put_u32(end, 12, len(central))
+    put_u32(end, 16, len(blob))
+    raw = bytes(blob + central + end)
+    zf = __import__("zipfile").ZipFile(__import__("io").BytesIO(raw))
+    for name, data in files:
+        assert zf.read(name) == data
+    return raw
+
+build_store_zip([("cube-1-2015-stop.txt", "протокол: GBT-2015/A\n".encode()),
+                 ("cube-2-auto-proto.txt", "авто\n".encode())])
 
 print("host core tests: PASS")
