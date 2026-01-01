@@ -1,13 +1,13 @@
 #pragma once
 
 #define CUBE_FW_NAME                 "FD_ROUND_V2"
-#define CUBE_FW_VERSION              "2.1.4"
+#define CUBE_FW_VERSION              "2.1.5"
 
 /* Web API protection. Change before installing on a real vehicle/charging setup. */
 #define CUBE_WEB_KEY                 "FDcube2026"
-#define CUBE_WIFI_SSID               "FGMDCharge-V2"
+#define CUBE_WIFI_SSID               "FGMDCharge"
 #define CUBE_WIFI_PASSWORD           ""  /* open AP */
-#define CUBE_WIFI_CHANNEL            6
+#define CUBE_WIFI_CHANNEL            1
 #define CUBE_WIFI_MAX_CONNECTIONS    4
 
 /* Safety: boots with CAN TX disabled until explicitly enabled via web/BLE. */
@@ -16,7 +16,7 @@
 
 /* LCD — dump strings said ILI9341, but panel is 240x280 (ST7789 family).
  * Many cubes use ST7789 with ILI-compatible branding. Prefer ST7789. */
-#define CUBE_LCD_USE_ST7789          1
+#define CUBE_LCD_USE_ST7789          0  /* dump strings: ili9341 only */
 /* LCD — pins confirmed from original dump (no BL GPIO in original). */
 #define CUBE_LCD_H_RES               240
 #define CUBE_LCD_V_RES               280
@@ -35,6 +35,11 @@
 #define CUBE_LCD_BL_PWM_HZ           60000
 #define CUBE_LCD_BL_PWM_DUTY         1023
 #define CUBE_LCD_RST_GPIO            (-1)
+/* Bench toggles — dump: mirror(0,0), no invert observed; 240x280 may need gap. */
+#define CUBE_LCD_INVERT              0
+#define CUBE_LCD_GAP_X               0
+#define CUBE_LCD_GAP_Y               0
+#define CUBE_LCD_BGR                 0
 #define CUBE_STATUS_LED_GPIO         (-1)
 #define CUBE_LCD_QUEUE_DEPTH         10
 #define CUBE_LCD_MAX_TRANSFER        38400

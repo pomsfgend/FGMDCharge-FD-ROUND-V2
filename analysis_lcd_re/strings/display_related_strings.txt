@@ -1,0 +1,267 @@
+sl_map && "internal error - second level bitmap is null"
+esp_intr_alloc(ETS_SYSTIMER_TARGET0_EDGE_INTR_SOURCE + cpuid, ESP_INTR_FLAG_IRAM | level, SysTickIsrHandler, &systimer_hal, NULL)
+/IDF/components/freertos/FreeRTOS-Kernel/portable/port_systick.c
+!( ( xTaskGetSchedulerState() == ( ( BaseType_t ) 0 ) ) && ( xTicksToWait != 0 ) )
+pxTicksToWait
+xTaskIncrementTick
+ESP_ERR_FLASH_UNSUPPORTED_HOST
+ESP_ERR_HTTP_INVALID_TRANSPORT
+ESP_ERR_ESP_TLS_CANNOT_RESOLVE_HOSTNAME
+ESP_ERR_ESP_TLS_FAILED_CONNECT_TO_HOST
+ESP_ERR_MBEDTLS_SSL_SET_HOSTNAME_FAILED
+ESP_ERR_MBEDTLS_SSL_TICKET_SETUP_FAILED
+ESP_ERR_WOLFSSL_SSL_SET_HOSTNAME_FAILED
+translate_path
+myTask_lcd
+ili9341
+/./main/esp_lcd_ili9341.c
+[0;31mE (%lu) %s: %s(%d): no mem for ili9341 panel
+[0;31mE (%lu) %s: %s(%d): unsupported pixel width
+[0;32mI (%lu) %s: Initialize SPI bus
+[0;32mI (%lu) %s: spi_bus_config_t
+spi_bus_initialize(LCD_HOST, &buscfg, SPI_DMA_CH_AUTO)
+./main/esp_lcd_ili9341.c
+[0;32mI (%lu) %s: Install panel IO
+esp_lcd_new_panel_io_spi((esp_lcd_spi_bus_handle_t)LCD_HOST, &io_config, &io_handle)
+[0;32mI (%lu) %s: Install ILI9341 panel driver
+esp_lcd_new_panel_ili9341(io_handle, &panel_config, &panel_handle)
+esp_lcd_panel_reset(panel_handle)
+esp_lcd_panel_init(panel_handle)
+esp_lcd_panel_mirror(panel_handle, false, false)
+esp_lcd_panel_disp_on_off(panel_handle, true)
+[0;32mI (%lu) %s: Initialize LVGL library
+buf1
+buf2
+[0;32mI (%lu) %s: Register display driver to LVGL
+[0;32mI (%lu) %s: Install LVGL tick timer
+lvgl_tick
+esp_timer_create(&lvgl_tick_timer_args, &lvgl_tick_timer)
+esp_timer_start_periodic(lvgl_tick_timer, EXAMPLE_LVGL_TICK_PERIOD_MS * 1000)
+[0;32mI (%lu) %s: Display LVGL Meter Widget
+panel_ili9341_invert_color
+panel_ili9341_mirror
+panel_ili9341_swap_xy
+panel_ili9341_disp_on_off
+esp_lcd_new_panel_ili9341
+panel_ili9341_reset
+panel_ili9341_init
+panel_ili9341_draw_bitmap
+panel_ili9341_draw_bitmap
+lcd_main
+twai_transmit(&TxMessage, portMAX_DELAY)
+lcd_panel.io
+[0;31mE (%lu) %s: %s(%d): invalid panel io handle
+esp_lcd_panel_io_tx_color
+esp_lcd_panel_io_tx_param
+lcd_panel.io.spi
+[0;33mW (%lu) %s: Callback on_color_trans_done was already set and now it was overwritten!
+[0;31mE (%lu) %s: %s(%d): recycle spi transactions failed
+[0;31mE (%lu) %s: %s(%d): acquire spi bus failed
+[0;31mE (%lu) %s: %s(%d): spi transmit (polling) command failed
+[0;31mE (%lu) %s: %s(%d): spi transmit (queue) color failed
+[0;31mE (%lu) %s: %s(%d): spi transmit (polling) param failed
+[0;31mE (%lu) %s: %s(%d): no mem for spi panel io
+[0;31mE (%lu) %s: %s(%d): adding spi device to bus failed
+[0;31mE (%lu) %s: %s(%d): get spi max transaction len failed
+panel_io_spi_rx_param
+panel_io_spi_tx_param
+panel_io_spi_tx_color
+panel_io_spi_del
+esp_lcd_new_panel_io_spi
+lcd_panel
+[0;31mE (%lu) %s: %s(%d): invalid panel handle
+esp_lcd_panel_disp_on_off
+esp_lcd_panel_swap_xy
+esp_lcd_panel_mirror
+esp_lcd_panel_draw_bitmap
+esp_lcd_panel_init
+esp_lcd_panel_reset
+//IDF/components/bt/host/bluedroid/btc/core/btc_ble_storage.c
+//IDF/components/bt/host/bluedroid/btc/core/btc_config.c
+[0;31mE (%lu) %s: %s btc_transfer_context failed
+//IDF/components/bt/host/bluedroid/btc/profile/std/gap/btc_gap_ble.c
+//IDF/components/bt/host/bluedroid/device/bdaddr.c
+[0;31mE (%lu) %s: Start HCI Host Layer Failure
+[0;31mE (%lu) %s: %s: Unable to Trigger LE transmitter test
+[0;31mE (%lu) %s: %s: Unable to Trigger LE enhanced transmitter test
+BTM_BleEnhancedTransmitterTest
+BTM_BleTransmitterTest
+//IDF/components/bt/host/bluedroid/stack/btm/btm_ble_bgconn.c
+//IDF/components/bt/host/bluedroid/stack/btm/btm_ble_gap.c
+BTM_BleReadConnectability
+BTM_BleReadDiscoverability
+HCI_ERR_HOST_REJECT_RESOURCES
+HCI_ERR_HOST_REJECT_SECURITY
+HCI_ERR_HOST_REJECT_DEVICE
+HCI_ERR_HOST_TIMEOUT
+HCI_ERR_CONN_CAUSE_LOCAL_HOST
+HCI_ERR_LMP_ERR_TRANS_COLLISION
+HCI_ERR_DIFF_TRANSACTION_COLLISION
+HCI_ERR_HOST_BUSY_PAIRING
+[0;32mI (%lu) %s: BTM_SetDiscoverability
+[0;32mI (%lu) %s: BTM_SetDiscoverability: mode %d [NonDisc-0, Lim-1, Gen-2], window 0x%04x, interval 0x%04x
+[0;32mI (%lu) %s: BTM_ReadDiscoverability
+[0;32mI (%lu) %s: BTM_SetConnectability
+[0;32mI (%lu) %s: BTM_SetConnectability: mode %d [NonConn-0, Conn-1], window 0x%04x, interval 0x%04x
+[0;32mI (%lu) %s: BTM_ReadConnectability
+[0;32mI (%lu) %s: btm_sec_bond_by_transport BDA: %02x:%02x:%02x:%02x:%02x:%02x
+btm_io_capabilities_req
+//IDF/components/bt/host/bluedroid/stack/btu/btu_hcif.c
+//IDF/components/bt/host/bluedroid/stack/include/stack/hcimsgs.h
+//IDF/components/bt/host/bluedroid/stack/btu/btu_task.c
+[0;32mI (%lu) %s: GATTS_SendRsp: conn_id: %u  trans_id: %u  Status: 0x%04x
+[0;31mE (%lu) %s: Unsupported transport for background connection
+//IDF/components/bt/host/bluedroid/stack/hcic/hciblecmds.c
+//IDF/components/bt/host/bluedroid/stack/l2cap/l2c_utils.c
+[0;33mW (%lu) %s: Rcvd from the peer cmd 0x%02x with IO Capability             value (0x%02x) out of range).
+btc_transfer_context
+//IDF/components/bt/host/bluedroid/bta/gatt/bta_gattc_utils.c
+//IDF/components/bt/host/bluedroid/bta/sys/bta_sys_main.c
+//IDF/components/bt/host/bluedroid/btc/core/btc_dm.c
+[0;31mE (%lu) %s: %s transfer failed
+//IDF/components/bt/host/bluedroid/device/controller.c
+//IDF/components/bt/host/bluedroid/device/interop.c
+//IDF/components/bt/host/bluedroid/hci/hci_hal_h4.c
+host_recv_adv_packet(stream) == true
+host_recv_adv_packet
+host_recv_pkt_cb
+transmit_data
+[0;31mE (%lu) %s: %s invalid event type, could not translate 0x%x
+//IDF/components/bt/host/bluedroid/hci/hci_layer.c
+[0;31mE (%lu) %s: %s legacy transmit of command. Use transmit_command instead.
+transmit_command
+transmit_command_futured
+transmit_downward
+//IDF/components/bt/host/bluedroid/hci/hci_packet_parser.c
+//IDF/components/bt/host/bluedroid/hci/packet_fragmenter.c
+//IDF/components/bt/host/bluedroid/bta/gatt/bta_gattc_act.c
+EM_RF_SW_SPI_OFFSET: 0x%08x, EM_RF_SW_SPI_END: 0x%08x
+EM_RF_HW_SPI_OFFSET: 0x%08x, EM_RF_HW_SPI_END: 0x%08x
+//IDF/components/efuse/src/esp_efuse_utility.c
+esp_efuse_utility_read_reg
+esp_efuse_utility_process
+timer_clk_src == LEDC_SCLK
+is_valid_host(host_id)
+//IDF/components/driver/spi_common.c
+dma_chan == SPI_DMA_CH_AUTO
+[0;31mE (%lu) %s: SPI%d already claimed by %s.
+sclk not valid
+mosi not valid
+[0;31mE (%lu) %s: sclk pin required.
+[0;31mE (%lu) %s: mosi pin required.
+[0;31mE (%lu) %s: not both mosi and miso output capable
+not all required capabilities satisfied.
+invalid host_id
+SPI bus already initialized.
+invalid dma channel, chip only support spi dma channel auto-alloc
+spi master
+host_id already in use
+spi_bus_initialize
+spicommon_bus_initialize_io
+spicommon_cs_free_io
+dma_chan_free
+alloc_dma_chan
+spi_master
+[0;31mE (%lu) %s: %s(%d): SPI_TRANS_USE_RXDATA only available for rxdata transfer <= 32 bits
+[0;31mE (%lu) %s: %s(%d): SPI_TRANS_USE_TXDATA only available for txdata transfer <= 32 bits
+[0;31mE (%lu) %s: %s(%d): txdata transfer > host maximum
+[0;31mE (%lu) %s: %s(%d): rxdata transfer > host maximum
+[0;31mE (%lu) %s: %s(%d): SPI half duplex mode is not supported when both MOSI and MISO phases are enabled.
+[0;31mE (%lu) %s: %s(%d): trans tx_buffer should be NULL and SPI_TRANS_USE_TXDATA should be cleared to skip MOSI phase.
+[0;31mE (%lu) %s: %s(%d): trans rx_buffer should be NULL and SPI_TRANS_USE_RXDATA should be cleared to skip MISO phase.
+[0;31mE (%lu) %s: %s(%d): txdata transfer > hardware max supported len
+[0;31mE (%lu) %s: %s(%d): rxdata transfer > hardware max supported len
+spi_hal_usr_is_done(&host->hal)
+//IDF/components/driver/spi_master.c
+host->cur_cs != DEV_NUM_MAX
+host->cur_cs == DEV_NUM_MAX
+[0;31mE (%lu) %s: %s(%d): Cannot acquire bus when a polling transaction is in progress.
+[0;31mE (%lu) %s: Cannot release bus when a polling transaction is in progress.
+[0;31mE (%lu) %s: %s(%d): currently timeout is not available for polling transactions
+[0;31mE (%lu) %s: %s(%d): Cannot send polling transaction while the previous polling transaction is not terminated.
+host->cur_cs == handle->id
+handle == get_acquiring_dev(host)
+host->device_acquiring_lock == NULL
+[0;31mE (%lu) %s: %s(%d): host_id not initialized
+[0;31mE (%lu) %s: %s(%d): SPI Master cannot attach to bus. (Check CONFIG_SPI_FLASH_SHARE_SPI1_BUS)
+[0;31mE (%lu) %s: %s(%d): host_id not in use
+[0;31mE (%lu) %s: %s(%d): invalid host_id
+[0;31mE (%lu) %s: %s(%d): invalid host
+[0;31mE (%lu) %s: %s(%d): spics pin invalid
+[0;31mE (%lu) %s: %s(%d): invalid sclk speed
+[0;31mE (%lu) %s: %s(%d): no free cs pins for the host
+[0;31mE (%lu) %s: %s(%d): Have unfinished transactions
+handle->host->device[handle->id] == handle
+[0;31mE (%lu) %s: %s(%d): Cannot queue new transaction while previous polling transaction is not terminated.
+spi_bus_get_max_transaction_len
+spi_bus_remove_device
+spi_master_deinit_driver
+spi_master_init_driver
+spi_bus_add_device
+spi_device_polling_end
+spi_device_polling_start
+spi_device_acquire_bus
+spi_device_get_trans_result
+check_trans_valid
+spi_device_queue_trans
+spi_device_polling_end
+spi_bus_remove_device
+spi_intr
+spi_bus_add_device
+spi_device_release_bus
+//IDF/components/driver/spi_bus_lock.c
+spi_bus_lock_wait_bg_done
+spi_bus_lock_acquire_end
+spi_bus_lock_acquire_start
+spi_bus_deinit_lock
+twai_transmit
+[0;31mE (%lu) %s: spi_flash_mmap failed: 0x%x
+mosi_len <= 32
+phys_offs != SPI_FLASH_CACHE2PHYS_FAIL
+//IDF/components/spi_flash/flash_mmap.c
+spi_flash_munmap
+spi_flash_mmap_pages
+io <= ESP_MSPI_IO_WP
+//IDF/components/spi_flash/flash_ops.c
+esp_mspi_get_io
+//IDF/components/spi_flash/esp_flash_api.c
+spi_flash
+spi_flash
+//IDF/components/spi_flash/spi_flash_os_func_app.c
+spi1_flash_os_check_yield
+/IDF/components/hal/spi_hal.c
+spi_hal_cal_clock_conf
+//IDF/components/esp_hw_support/gdma.c
+gdma
+[0;31mE (%lu) %s: %s(%d): no mem for gdma tx channel
+[0;31mE (%lu) %s: %s(%d): no mem for gdma rx channel
+[0;31mE (%lu) %s: %s(%d): no free gdma channel, search code=%d
+gdma_disconnect
+gdma_connect
+gdma_get_channel_id
+gdma_del_channel
+gdma_new_channel
+gdma_start
+gdma_set_transfer_ability
+gdma_release_group_handle
+gdma_release_pair_handle
+gdma_new_channel
+[0;31mE (%lu) %s: esp_sha_dma_start failed, no DMA channel available
+[0;31mE (%lu) %s: SHA DMA buf_len cannot exceed max size for a single block
+crypto_shared_gdma
+[0;31mE (%lu) %s: Failed to acquire DMA channel, Err=%d
+/builds/idf/crosstool-NG/.build/HOST-x86_64-w64-mingw32/riscv32-esp-elf/src/newlib/newlib/libc/stdlib/dtoa.c
+/builds/idf/crosstool-NG/.build/HOST-x86_64-w64-mingw32/riscv32-esp-elf/src/newlib/newlib/libc/stdlib/mprec.c
+B                0000000000000000/builds/idf/crosstool-NG/.build/HOST-x86_64-w64-mingw32/riscv32-esp-elf/src/newlib/newlib/libc/stdlib/gdtoa-gethex.c
+spi_ll_get_running_cmd(hw) == 0
+/IDF/components/hal/spi_hal_iram.c
+spi_hal_setup_trans
+//IDF/components/spi_flash/memspi_host_driver.c
+memspi_host_program_page
+memspi_host_erase_block
+memspi_host_erase_sector
+memspi
+[0;31mE (%lu) %s: configure host io mode failed - unsupported
+//IDF/components/spi_flash/spi_flash_chip_generic.c
+spi_flash_chip_generic_get_write_protect
+@*DMa

@@ -509,7 +509,8 @@ esp_err_t web_init(void)
     if ((err = esp_wifi_set_mode(WIFI_MODE_AP)) != ESP_OK) return err;
     if ((err = esp_wifi_set_config(WIFI_IF_AP, &ap)) != ESP_OK) return err;
     (void)esp_wifi_set_ps(WIFI_PS_NONE);
-    (void)esp_wifi_set_protocol(WIFI_IF_AP, WIFI_PROTOCOL_11B | WIFI_PROTOCOL_11G | WIFI_PROTOCOL_11N);
+    /* Prefer b/g for maximum phone scan compatibility; 11n optional. */
+    (void)esp_wifi_set_protocol(WIFI_IF_AP, WIFI_PROTOCOL_11B | WIFI_PROTOCOL_11G);
     (void)esp_wifi_set_bandwidth(WIFI_IF_AP, WIFI_BW_HT20);
     (void)esp_wifi_set_country_code("01", true);
     if ((err = esp_wifi_start()) != ESP_OK && err != ESP_ERR_INVALID_STATE) return err;
@@ -563,6 +564,6 @@ esp_err_t web_init(void)
             return err;
         }
     }
-    ESP_LOGI(TAG, "Wi-Fi AP=%s (WPA2); Web UI=http://192.168.4.1/", CUBE_WIFI_SSID);
+    ESP_LOGI(TAG, "Wi-Fi AP=%s OPEN ch=%u UI=http://192.168.4.1/", CUBE_WIFI_SSID, (unsigned)CUBE_WIFI_CHANNEL);
     return ESP_OK;
 }

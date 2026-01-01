@@ -185,19 +185,23 @@ esp_err_t display_init(void) {
     err = esp_lcd_new_panel_io_spi((esp_lcd_spi_bus_handle_t)SPI2_HOST, &io_cfg, &s_panel_io);
     if (err != ESP_OK) return err;
 
-    /* 240x280 panels on these cubes are almost always ST7789 (dump strings
-       still said ILI9341). ST7789 needs Y gap + color invert. */
+    /* Dump-confirmed sequence (DISPLAY_ANALYSIS_FROM_DUMP.md):
+       Install ILI9341 -> reset -> init -> mirror(false,false) -> disp_on_off(true).
+       RST=-1, BL=-1. Pins MOSI5/SCLK19/CS4/DC18 (hypothesis but SPI init succeeds). */
     esp_lcd_panel_dev_config_t panel_cfg = {
         .reset_gpio_num = CUBE_LCD_RST_GPIO,
         .bits_per_pixel = 16,
-        /* BGR is the common byte order for ST7789/ILI modules with LVGL. */
+#if CUBE_LCD_BGR
         .rgb_endian = LCD_RGB_ENDIAN_BGR,
+#else
+        .rgb_endian = LCD_RGB_ENDIAN_RGB,
+#endif
     };
 #if CUBE_LCD_USE_ST7789
     ESP_LOGW(TAG, "panel create ST7789 240x280...");
     err = esp_lcd_new_panel_st7789(s_panel_io, &panel_cfg, &s_panel);
 #else
-    ESP_LOGW(TAG, "panel create ILI9341...");
+    ESP_LOGW(TAG, "panel create ILI9341 (dump)...");
     err = esp_lcd_new_panel_ili9341(s_panel_io, &panel_cfg, &s_panel);
 #endif
     if (err != ESP_OK) {
@@ -206,30 +210,44 @@ esp_err_t display_init(void) {
     }
     if ((err = esp_lcd_panel_reset(s_panel)) != ESP_OK) return err;
     if ((err = esp_lcd_panel_init(s_panel)) != ESP_OK) return err;
-    /* ST7789 240x280 window is offset inside 240x320 GRAM. */
-    (void)esp_lcd_panel_set_gap(s_panel, 0, 20);
-    (void)esp_lcd_panel_invert_color(s_panel, true);
+    (void)esp_lcd_panel_set_gap(s_panel, CUBE_LCD_GAP_X, CUBE_LCD_GAP_Y);
+    (void)esp_lcd_panel_invert_color(s_panel, CUBE_LCD_INVERT ? true : false);
     if ((err = esp_lcd_panel_mirror(s_panel, false, false)) != ESP_OK) return err;
+    if ((err = esp_lcd_panel_swap_xy(s_panel, false)) != ESP_OK) return err;
     if ((err = esp_lcd_panel_disp_on_off(s_panel, true)) != ESP_OK) return err;
-    ESP_LOGW(TAG, "panel on (ST7789 gap_y=20 invert=1 BGR)");
+    ESP_LOGW(TAG, "panel on ILI=%d invert=%d gap=%d,%d bgr=%d",
+             !CUBE_LCD_USE_ST7789, CUBE_LCD_INVERT, CUBE_LCD_GAP_X, CUBE_LCD_GAP_Y, CUBE_LCD_BGR);
 
-    /* Smoke test: fill full screen so user sees life even if LVGL fonts fail. */
+    /* Smoke test: several patterns. One of them should be visible if SPI wiring is OK. */
     {
         enum { LINE = 240 };
         uint16_t *line = heap_caps_malloc(LINE * sizeof(uint16_t), MALLOC_CAP_DMA);
         if (line) {
-            for (int i = 0; i < LINE; ++i) line[i] = 0xF800; /* red RGB565 */
-            for (int y = 0; y < CUBE_LCD_V_RES; ++y) {
+            /* 1) Full white */
+            for (int i = 0; i < LINE; ++i) line[i] = 0xFFFF;
+            for (int y = 0; y < CUBE_LCD_V_RES; ++y)
                 (void)esp_lcd_panel_draw_bitmap(s_panel, 0, y, CUBE_LCD_H_RES, y + 1, line);
+            vTaskDelay(pdMS_TO_TICKS(80));
+            /* 2) RGB bars (native 565) */
+            static const uint16_t bars[3] = { 0xF800, 0x07E0, 0x001F };
+            for (int b = 0; b < 3; ++b) {
+                for (int i = 0; i < LINE; ++i) line[i] = bars[b];
+                int y0 = b * 40;
+                for (int y = y0; y < y0 + 40 && y < CUBE_LCD_V_RES; ++y)
+                    (void)esp_lcd_panel_draw_bitmap(s_panel, 0, y, CUBE_LCD_H_RES, y + 1, line);
             }
-            for (int i = 0; i < LINE; ++i) line[i] = 0x001F; /* blue */
-            for (int y = 0; y < 40; ++y) {
-                (void)esp_lcd_panel_draw_bitmap(s_panel, 0, y, CUBE_LCD_H_RES, y + 1, line);
+            vTaskDelay(pdMS_TO_TICKS(80));
+            /* 3) Byte-swapped bars (if COLOR_16_SWAP path differs from panel) */
+            static const uint16_t bars_sw[3] = { 0x00F8, 0xE007, 0x1F00 };
+            for (int b = 0; b < 3; ++b) {
+                for (int i = 0; i < LINE; ++i) line[i] = bars_sw[b];
+                int y0 = 120 + b * 40;
+                for (int y = y0; y < y0 + 40 && y < CUBE_LCD_V_RES; ++y)
+                    (void)esp_lcd_panel_draw_bitmap(s_panel, 0, y, CUBE_LCD_H_RES, y + 1, line);
             }
             heap_caps_free(line);
-            ESP_LOGW(TAG, "panel smoke fill: red body + blue top bar");
-            /* Let SPI DMA finish before LVGL registers the same callback path. */
-            vTaskDelay(pdMS_TO_TICKS(50));
+            ESP_LOGW(TAG, "panel smoke: white + RGB bars + swapped bars");
+            vTaskDelay(pdMS_TO_TICKS(100));
         }
     }
 

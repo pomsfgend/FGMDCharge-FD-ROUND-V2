@@ -105,7 +105,7 @@ void app_main(void) {
         ESP_LOGE(TAG, "Timer task creation failed");
     }
 
-    ESP_LOGW(TAG, "READY %s CAN_TX=%d WiFi=%s key=%s", CUBE_FW_VERSION,
+    ESP_LOGW(TAG, "READY %s CAN_TX=%d WiFi=%s (OPEN) key=%s", CUBE_FW_VERSION,
              gbt_can_get_tx_enabled(), CUBE_WIFI_SSID, CUBE_WEB_KEY);
     for (;;) vTaskDelay(pdMS_TO_TICKS(1000));
 }
