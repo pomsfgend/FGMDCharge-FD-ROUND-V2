@@ -32,9 +32,13 @@ static uint32_t s_last_bsm_ms = 0;
 static bool     s_crm00 = false;
 static bool     s_crmaa = false;
 static uint32_t s_last_brm_ms = 0;
+static uint32_t s_last_bcp_ms = 0;
 static uint32_t s_last_rx_count = 0;
 static uint32_t s_last_chg_ms = 0;
 static uint32_t s_auto_hold_until = 0;
+static uint8_t  s_relay_test = 0;
+static uint32_t s_relay_test_ms = 0;
+static bool     s_boot_started = false;
 
 static uint32_t now_ms(void)
 {
@@ -101,6 +105,14 @@ static void tx_bam(uint32_t pgn, const uint8_t *payload, uint16_t len)
         (void)gbt_can_send(0x1CEB56F4u, dt, 8);
         vTaskDelay(pdMS_TO_TICKS(10));
     }
+}
+
+
+static bool st_proto_is_2011(void)
+{
+    cube_state_snapshot_t snap;
+    app_state_snapshot(&snap);
+    return snap.protocol == 2;
 }
 
 static void tx_brm(void)
@@ -260,6 +272,15 @@ void sm_start_session(void)
     set_state(ST_HANDSHAKE_INIT);
 }
 
+void sm_request_relay_test(void)
+{
+    if (s_main == ST_CHARGING || s_relay_test) return;
+    s_relay_test = 1;
+    s_relay_test_ms = now_ms();
+    relays_set(1, 0);
+    app_state_log("relay test GPIO6 ON");
+}
+
 void sm_stop_session(void)
 {
     if (s_main == ST_CHARGING || s_main == ST_READY_WAIT_CRO ||
@@ -320,6 +341,23 @@ void sm_relay_tick(void)
         s_crm_ok = true;
     }
 
+    if (!s_boot_started && t > 400) {
+        s_boot_started = true;
+        app_state_log("12V up, handshake now");
+        sm_start_session();
+    }
+    if (s_relay_test) {
+        uint32_t dt = t - s_relay_test_ms;
+        if (s_relay_test == 1 && dt >= 600) {
+            relays_set(0, 1);
+            s_relay_test = 2;
+            app_state_log("relay test GPIO7 ON");
+        } else if (s_relay_test == 2 && dt >= 1200) {
+            relays_set(0, 0);
+            s_relay_test = 0;
+            app_state_log("relay test off");
+        }
+    }
     if (st.rx_count != s_last_rx_count) {
         s_last_rx_count = st.rx_count;
         s_last_chg_ms = t;

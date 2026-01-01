@@ -6,6 +6,7 @@
 #include "app_state.h"
 #include "touch_cst816s.h"
 #include "web.h"
+#include "sm_relay.h"
 #include "driver/spi_master.h"
 #include "driver/gpio.h"
 #include "driver/ledc.h"
@@ -224,6 +225,12 @@ static void ta_focus_cb(lv_event_t *e)
     lv_obj_move_foreground(s_pad);
 }
 
+static void relay_test_cb(lv_event_t *e)
+{
+    (void)e;
+    sm_request_relay_test();
+}
+
 static void wifi_rst_cb(lv_event_t *e)
 {
     (void)e;
@@ -383,7 +390,16 @@ static void build_ui(void)
     lv_obj_t *rl = lv_label_create(rb);
     lv_label_set_text(rl, "RESTART WiFi");
     lv_obj_center(rl);
-    line(s_scr_sys, "-  o  -   swipe", 254);
+    lv_obj_t *tb = lv_btn_create(s_scr_sys);
+    lv_obj_set_size(tb, 180, 32);
+    lv_obj_align(tb, LV_ALIGN_TOP_MID, 0, 248);
+    lv_obj_set_style_bg_color(tb, lv_color_hex(0xC45C26), 0);
+    lv_obj_set_style_shadow_width(tb, 0, 0);
+    lv_obj_add_event_cb(tb, relay_test_cb, LV_EVENT_CLICKED, NULL);
+    lv_obj_t *tl = lv_label_create(tb);
+    lv_label_set_text(tl, "TEST RELAY");
+    lv_obj_center(tl);
+
 
     s_scr_wifi = lv_obj_create(NULL);
     style_screen(s_scr_wifi);

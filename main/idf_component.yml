@@ -1,4 +1,4 @@
-version: "2.3.3"
+version: "2.4.0"
 description: "FGMDCharge FD_ROUND V2 reconstructed ESP32-C3 firmware release"
 dependencies:
   idf: ">=5.0.9,<5.1.0"
