@@ -1,4 +1,4 @@
-FGMDCharge / FD_ROUND V2 — Release 2.0.5 firmware artifacts
+FGMDCharge / FD_ROUND V2 — Release 2.0.4 firmware artifacts
 
 After a successful BUILD_RELEASE.bat:
   FGMDCharge_FD_ROUND_V2.bin — application image for OTA slot

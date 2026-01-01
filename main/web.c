@@ -425,8 +425,6 @@ esp_err_t web_init(void)
     hc.recv_wait_timeout = 30;
     hc.send_wait_timeout = 10;
     hc.lru_purge_enable = true;
-    /* With CONFIG_LWIP_MAX_SOCKETS=8, httpd allows at most ~5 open sockets. */
-    hc.max_open_sockets = 4;
     if ((err = httpd_start(&s_server, &hc)) != ESP_OK) return err;
 
     const httpd_uri_t uri[] = {

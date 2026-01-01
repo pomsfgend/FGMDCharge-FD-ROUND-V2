@@ -1,15 +1,16 @@
-FGMDCharge / FD_ROUND V2 — Release 2.0.5 (runtime fix)
-======================================================
+FGMDCharge / FD_ROUND V2 — Release 2.0.5
+=======================================
 
-After first successful OTA1 flash, monitor showed:
-  - BLE: config advertising data failed: ESP_ERR_INVALID_ARG
-  - httpd: max_open_sockets too large (max allowed 5)
-  - Web init failed: ESP_ERR_INVALID_ARG
+Changes from 2.0.4:
+1) Fixed nested-comment compile error in web_assets.c (/* inside /*).
+2) Size optimization so the app fits into the original OTA slot 0x190000:
+   - CONFIG_COMPILER_OPTIMIZATION_SIZE=y
+   - reduced log level
+   - aggressively disabled unused LVGL widgets/features (only obj+label+2 fonts needed)
+   - reduced WiFi/LWIP/HTTPD buffers
+   - trimmed some Bluedroid options that are not required for advertising+GATTS
+3) force_sdkconfig.py updated accordingly.
+4) Version bumped to 2.0.5.
 
-Fixes:
-1) ble.c — ADV payload reduced to name+flags; service UUID/TX power
-   removed; flags-only fallback if name ADV still fails.
-2) web.c — httpd max_open_sockets = 4
-3) sdkconfig.defaults — CONFIG_LWIP_MAX_SOCKETS=16
-
-Rebuild + FLASH_RELEASE_OTA1.bat again (OTA0 still intact).
+Binary must stay <= 0x190000 (1638400 bytes) to match the original partition layout
+used by FLASH_RELEASE_OTA1.bat (writes only the app image into the existing OTA1 slot).

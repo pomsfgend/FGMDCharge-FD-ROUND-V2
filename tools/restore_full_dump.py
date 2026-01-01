@@ -24,5 +24,5 @@ if sha != EXPECTED:
 
 print("FULL RESTORE: this overwrites the entire 4MiB flash.")
 cmd = [sys.executable, "-m", "esptool", "--chip", "esp32c3", "--port", a.port,
-       "write_flash", "0x0", str(dump)]
+       "write-flash", "0x0", str(dump)]
 raise SystemExit(subprocess.call(cmd, cwd=ROOT))
