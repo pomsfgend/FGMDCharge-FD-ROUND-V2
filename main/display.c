@@ -48,10 +48,10 @@ static temperature_sensor_handle_t s_temp;
 static int s_brightness = CUBE_LCD_BL_PWM_DUTY_DEFAULT;
 
 /* UI */
-static lv_obj_t *s_scr_chg, *s_scr_ses, *s_scr_set, *s_scr_sys, *s_scr_wifi, *s_scr_log;
+static lv_obj_t *s_scr_chg, *s_scr_ses, *s_scr_chg, *s_scr_sys, *s_scr_wifi, *s_scr_log;
 static lv_obj_t *s_ses_kwh, *s_ses_soc, *s_ses_min, *s_ses_req, *s_log_lbl, *s_can_lbl;
 static int s_pending_boot;
-static int s_edge = 20;
+static int s_edge = 0;
 static lv_obj_t *s_voltage, *s_current, *s_power, *s_stage, *s_status;
 static lv_obj_t *s_soc, *s_relay, *s_cml, *s_can;
 static lv_obj_t *s_sys_temp, *s_sys_cpu, *s_sys_load, *s_sys_heap, *s_sys_wifi, *s_sys_touch;
@@ -176,7 +176,9 @@ static void style_screen(lv_obj_t *scr)
     lv_obj_set_style_bg_color(scr, lv_color_hex(0x071018), 0);
     lv_obj_set_style_bg_opa(scr, LV_OPA_COVER, 0);
     lv_obj_set_style_text_color(scr, lv_color_hex(0xE8EEF4), 0);
-    lv_obj_clear_flag(scr, LV_OBJ_FLAG_SCROLLABLE);
+    lv_obj_add_flag(scr, LV_OBJ_FLAG_SCROLLABLE);
+    lv_obj_set_scroll_dir(scr, LV_DIR_VER);
+    lv_obj_set_scrollbar_mode(scr, LV_SCROLLBAR_MODE_AUTO);
     lv_obj_set_style_text_font(scr, &lv_font_ru_14, 0);
     }
 
@@ -186,7 +188,7 @@ static void apply_page(int p)
     int prev = s_page;
     if (p < 0) p = 5;
     if (p > 5) p = 0;
-    pages[0] = s_scr_chg; pages[1] = s_scr_ses; pages[2] = s_scr_set;
+    pages[0] = s_scr_chg; pages[1] = s_scr_ses; pages[2] = s_scr_chg;
     pages[3] = s_scr_wifi; pages[4] = s_scr_log; pages[5] = s_scr_sys;
     s_page = p;
     if (s_pad) lv_obj_add_flag(s_pad, LV_OBJ_FLAG_HIDDEN);
@@ -215,11 +217,9 @@ static void gesture_cb(lv_event_t *e)
     s_arm = false;
     int dx = pt.x - s_down.x;
     int dy = pt.y - s_down.y;
-    if (dx < 0) dx = -dx;
-    if (dy < 0) dy = -dy;
-    /* Only the edge bars send this event. Ignore a short or vertical move. */
-    if (dx < 48 || dx < dy * 2) return;
-    apply_page(s_page + (pt.x < s_down.x ? 1 : -1));
+    (void)dx; (void)dy; (void)pt;
+    /* Vertical scroll only. No page swipe. */
+    return;
 }
 
 static void stop_hold_cb(lv_event_t *e)
@@ -573,7 +573,7 @@ static void build_ui(void)
 {
     s_scr_chg = lv_scr_act();
     style_screen(s_scr_chg);
-    line(s_scr_chg, "ДОМ 2.7.3", 8);
+    line(s_scr_chg, "ДОМ 2.7.4", 8);
     lv_obj_add_flag(s_scr_chg, LV_OBJ_FLAG_SCROLLABLE);
     s_card_u = card(s_scr_chg, 10, 40, &s_voltage, "V");
     s_card_i = card(s_scr_chg, 122, 40, &s_current, "A");
@@ -591,9 +591,9 @@ static void build_ui(void)
     lv_obj_t *stop_lbl = lv_label_create(stop);
     lv_label_set_text(stop_lbl, "HOLD STOP");
     lv_obj_center(stop_lbl);
-    s_dots = line(s_scr_chg, "край: листать  |  низ: сети/лог", 248);
+    s_dots = line(s_scr_chg, "листай вниз", 248);
     s_status = line(s_scr_chg, "VIN --", 268);
-    lv_obj_set_height(s_scr_chg, 320);
+    lv_obj_set_height(s_scr_chg, 280);
 
 
     s_scr_ses = lv_obj_create(NULL);
@@ -610,39 +610,39 @@ static void build_ui(void)
     lv_obj_set_style_bg_color(go, lv_color_hex(0x1F6F5B), 0);
     lv_obj_add_event_cb(go, session_go_cb, LV_EVENT_CLICKED, NULL);
     lv_obj_t *gl = lv_label_create(go); lv_label_set_text(gl, "START"); lv_obj_center(gl);
-    s_scr_set = lv_obj_create(NULL);
-    style_screen(s_scr_set);
-    lv_obj_add_flag(s_scr_set, LV_OBJ_FLAG_SCROLLABLE);
-    line(s_scr_set, "ЗАРЯДКА", 8);
-    s_set_lbl = line(s_scr_set, "поле, цифры, OK", 28);
-    line(s_scr_set, "V", 50);
-    s_v_ta = lv_textarea_create(s_scr_set);
+    s_scr_chg = lv_obj_create(NULL);
+    style_screen(s_scr_chg);
+    lv_obj_add_flag(s_scr_chg, LV_OBJ_FLAG_SCROLLABLE);
+    line(s_scr_chg, "ЗАРЯДКА", 300);
+    s_set_lbl = line(s_scr_chg, "поле, цифры, OK", 320);
+    line(s_scr_chg, "V", 342);
+    s_v_ta = lv_textarea_create(s_scr_chg);
     lv_obj_set_size(s_v_ta, 120, 32);
-    lv_obj_set_pos(s_v_ta, 70, 46);
+    lv_obj_set_pos(s_v_ta, 70, 338);
     lv_textarea_set_one_line(s_v_ta, true);
     lv_textarea_set_max_length(s_v_ta, 4);
     lv_textarea_set_text(s_v_ta, "240");
     lv_obj_add_event_cb(s_v_ta, ta_focus_cb, LV_EVENT_CLICKED, NULL);
-    line(s_scr_set, "A", 88);
-    s_i_ta = lv_textarea_create(s_scr_set);
+    line(s_scr_chg, "A", 380);
+    s_i_ta = lv_textarea_create(s_scr_chg);
     lv_obj_set_size(s_i_ta, 120, 32);
-    lv_obj_set_pos(s_i_ta, 70, 84);
+    lv_obj_set_pos(s_i_ta, 70, 376);
     lv_textarea_set_one_line(s_i_ta, true);
     lv_textarea_set_max_length(s_i_ta, 4);
     lv_textarea_set_text(s_i_ta, "50");
     lv_obj_add_event_cb(s_i_ta, ta_focus_cb, LV_EVENT_CLICKED, NULL);
-    line(s_scr_set, "SOC", 126);
-    s_soc_ta = lv_textarea_create(s_scr_set);
+    line(s_scr_chg, "SOC", 418);
+    s_soc_ta = lv_textarea_create(s_scr_chg);
     lv_obj_set_size(s_soc_ta, 120, 32);
-    lv_obj_set_pos(s_soc_ta, 70, 122);
+    lv_obj_set_pos(s_soc_ta, 70, 414);
     lv_textarea_set_one_line(s_soc_ta, true);
     lv_textarea_set_max_length(s_soc_ta, 3);
     lv_textarea_set_text(s_soc_ta, "20");
     lv_obj_add_event_cb(s_soc_ta, ta_focus_cb, LV_EVENT_CLICKED, NULL);
-    line(s_scr_set, "kWh", 164);
-    s_kwh_ta = lv_textarea_create(s_scr_set);
+    line(s_scr_chg, "kWh", 456);
+    s_kwh_ta = lv_textarea_create(s_scr_chg);
     lv_obj_set_size(s_kwh_ta, 120, 32);
-    lv_obj_set_pos(s_kwh_ta, 70, 160);
+    lv_obj_set_pos(s_kwh_ta, 70, 452);
     lv_textarea_set_one_line(s_kwh_ta, true);
     lv_textarea_set_max_length(s_kwh_ta, 5);
     lv_textarea_set_text(s_kwh_ta, "7.5");
@@ -652,9 +652,9 @@ static void build_ui(void)
         const char *pn[] = {"авто", "2015", "2011"};
         const int pv[] = {0, 1, 2};
         for (int i = 0; i < 3; ++i) {
-            lv_obj_t *b = lv_btn_create(s_scr_set);
+            lv_obj_t *b = lv_btn_create(s_scr_chg);
             lv_obj_set_size(b, 70, 28);
-            lv_obj_set_pos(b, 8 + i * 76, 210);
+            lv_obj_set_pos(b, 8 + i * 76, 500);
             lv_obj_set_style_shadow_width(b, 0, 0);
             lv_obj_add_event_cb(b, proto_cb, LV_EVENT_CLICKED, (void *)(intptr_t)pv[i]);
             lv_obj_t *l = lv_label_create(b);
@@ -668,7 +668,7 @@ static void build_ui(void)
     line(s_scr_log, "ЛОГИ ESP", 8);
     lv_obj_add_flag(s_scr_log, LV_OBJ_FLAG_SCROLLABLE);
     lv_obj_set_scroll_dir(s_scr_log, LV_DIR_VER);
-    s_log_lbl = line(s_scr_log, "нет событий", 28);
+    s_log_lbl = line(s_scr_chg, "нет событий", 760);
     lv_label_set_long_mode(s_log_lbl, LV_LABEL_LONG_WRAP);
     lv_obj_set_width(s_log_lbl, 210);
     lv_obj_set_style_text_font(s_log_lbl, &lv_font_montserrat_14, 0);
@@ -678,7 +678,7 @@ static void build_ui(void)
     lv_obj_set_height(s_can_lbl, 110);
     s_scr_sys = lv_obj_create(NULL);
     style_screen(s_scr_sys);
-    line(s_scr_sys, "СИСТЕМА 2.7.3", 4);
+    line(s_scr_sys, "СИСТЕМА 2.7.4", 4);
     s_sys_temp = line(s_scr_sys, "CPU -- C", 28);
     s_sys_cpu = line(s_scr_sys, "F 160 MHz", 48);
     s_sys_load = line(s_scr_sys, "Load -- %", 68);
@@ -734,13 +734,13 @@ static void build_ui(void)
     style_screen(s_scr_wifi);
     line(s_scr_wifi, "СЕТЬ", 2);
     lv_obj_add_flag(s_scr_wifi, LV_OBJ_FLAG_SCROLLABLE);
-    s_list = lv_obj_create(s_scr_wifi);
-    lv_obj_set_size(s_list, 220, 200);
-    lv_obj_align(s_list, LV_ALIGN_TOP_MID, 0, 22);
+    s_list = lv_obj_create(s_scr_chg);
+    lv_obj_set_size(s_list, 220, 160);
+    lv_obj_set_pos(s_list, 10, 560);
     lv_obj_add_flag(s_list, LV_OBJ_FLAG_SCROLLABLE);
     lv_obj_set_style_pad_row(s_list, 4, 0);
-    s_scan_lbl = line(s_scr_wifi, "nets: --", 226);
-    s_ip_lbl = line(s_scr_wifi, "AP 192.168.4.1", 248);
+    s_scan_lbl = line(s_scr_chg, "nets: --", 540);
+    s_ip_lbl = line(s_scr_chg, "AP 192.168.4.1", 730);
 
     lv_obj_t *sc = lv_btn_create(s_scr_wifi);
     lv_obj_set_size(sc, 70, 32);
