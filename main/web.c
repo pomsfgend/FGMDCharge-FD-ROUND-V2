@@ -420,10 +420,9 @@ static void wifi_ap_event_handler(void *arg, esp_event_base_t event_base,
         ESP_LOGI(TAG, "STA connected %02X:%02X:%02X:%02X:%02X:%02X AID=%u",
                  e->mac[0], e->mac[1], e->mac[2], e->mac[3], e->mac[4], e->mac[5], e->aid);
     } else if (event_id == WIFI_EVENT_AP_STADISCONNECTED) {
-        /* IDF 5.0.9: wifi_event_ap_stadisconnected_t has only mac + aid (no reason). */
         const wifi_event_ap_stadisconnected_t *e = (const wifi_event_ap_stadisconnected_t *)event_data;
-        ESP_LOGW(TAG, "STA disconnected %02X:%02X:%02X:%02X:%02X:%02X AID=%u",
-                 e->mac[0], e->mac[1], e->mac[2], e->mac[3], e->mac[4], e->mac[5], e->aid);
+        ESP_LOGW(TAG, "STA disconnected %02X:%02X:%02X:%02X:%02X:%02X AID=%u reason=%u",
+                 e->mac[0], e->mac[1], e->mac[2], e->mac[3], e->mac[4], e->mac[5], e->aid, e->reason);
     }
 }
 
@@ -527,8 +526,6 @@ esp_err_t web_init(void)
         return err;
     }
 
-    /* Specific routes first. Wildcard catch-all MUST be last or IDF reports
-       ESP_ERR_HTTPD_HANDLER_EXISTS / wrong match order. */
     const httpd_uri_t uri[] = {
         {.uri = "/", .method = HTTP_GET, .handler = root_get},
         {.uri = "/style.css", .method = HTTP_GET, .handler = css_get},
@@ -540,6 +537,7 @@ esp_err_t web_init(void)
         {.uri = "/connecttest.txt", .method = HTTP_GET, .handler = captive_text_get},
         {.uri = "/ncsi.txt", .method = HTTP_GET, .handler = captive_text_get},
         {.uri = "/success.txt", .method = HTTP_GET, .handler = captive_text_get},
+        {.uri = "/*", .method = HTTP_GET, .handler = portal_catchall_get},
         {.uri = "/api/status", .method = HTTP_GET, .handler = status_get},
         {.uri = "/api/can/recent", .method = HTTP_GET, .handler = can_recent_get},
         {.uri = "/api/settings", .method = HTTP_GET, .handler = settings_get},
@@ -549,7 +547,6 @@ esp_err_t web_init(void)
         {.uri = "/api/update", .method = HTTP_POST, .handler = update_post},
         {.uri = "/api/session/start", .method = HTTP_POST, .handler = session_start_post},
         {.uri = "/api/session/stop", .method = HTTP_POST, .handler = session_stop_post},
-        {.uri = "/*", .method = HTTP_GET, .handler = portal_catchall_get},
     };
     for (size_t i = 0; i < sizeof(uri) / sizeof(uri[0]); ++i) {
         err = httpd_register_uri_handler(s_server, &uri[i]);
