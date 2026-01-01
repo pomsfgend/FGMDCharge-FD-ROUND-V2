@@ -248,9 +248,7 @@ def check_web() -> None:
     for label, text in (("HTML", html), ("CSS", css), ("JS", js)):
         if len(text) < 1000: fail(f"web {label} unexpectedly small")
         if "https://" in text: fail(f"web {label} contains external HTTPS resource")
-    html_wo_script = re.sub(r"<script[\s\S]*?</script>", "", html, flags=re.I)
-    html_wo_script = re.sub(r"<style[\s\S]*?</style>", "", html_wo_script, flags=re.I)
-    if re.search(r"\bon(?:click|load|error|input|change)\s*=", html_wo_script, flags=re.I): fail("inline HTML event handler found")
+    if re.search(r"\bon(?:click|load|error|input|change)\s*=", html, flags=re.I): fail("inline HTML event handler found")
     for needle in ("prefers-reduced-motion", ".metric-card:hover", "@keyframes"):
         if needle not in css: fail(f"web CSS hook missing: {needle}")
     for needle in ("XMLHttpRequest", "upload.onprogress", "xhr.timeout", "0x190000"):

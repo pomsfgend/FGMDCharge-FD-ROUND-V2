@@ -44,7 +44,7 @@ if exist "%BACKUP_DIR%\cube_before_v2.bin" copy /y "%BACKUP_DIR%\cube_before_v2.
 echo.
 echo STEP 1/3 — FULL 4 MiB BACKUP
 echo Reading flash from %PORT%...
-python -m esptool --chip esp32c3 --port "%PORT%" -b 921600 read_flash 0x0 0x400000 "%BACKUP_DIR%\cube_before_v2.bin"
+python -m esptool --chip esp32c3 --port "%PORT%" read_flash 0x0 0x400000 "%BACKUP_DIR%\cube_before_v2.bin"
 if errorlevel 1 goto FAIL
 certutil -hashfile "%BACKUP_DIR%\cube_before_v2.bin" SHA256
 
@@ -61,7 +61,7 @@ if errorlevel 2 (
   exit /b 0
 )
 
-python -m esptool --chip esp32c3 --port "%PORT%" -b 921600 write_flash 0x1A0000 "%APP%"
+python -m esptool --chip esp32c3 --port "%PORT%" write_flash 0x1A0000 "%APP%"
 if errorlevel 1 goto FAIL
 
 echo.

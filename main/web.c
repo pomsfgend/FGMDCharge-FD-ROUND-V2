@@ -33,7 +33,6 @@ static httpd_handle_t s_server;
 
 static void set_no_cache(httpd_req_t *req)
 {
-    (void)httpd_resp_set_hdr(req, "Connection", "close");
     (void)httpd_resp_set_hdr(req, "Cache-Control", "no-store, no-cache, must-revalidate, max-age=0");
     (void)httpd_resp_set_hdr(req, "Pragma", "no-cache");
 }
@@ -87,12 +86,6 @@ static esp_err_t css_get(httpd_req_t *req)
 static esp_err_t js_get(httpd_req_t *req)
 {
     return send_asset(req, "application/javascript; charset=utf-8", web_app_js, web_app_js_len, true);
-}
-
-static esp_err_t favicon_get(httpd_req_t *req)
-{
-    httpd_resp_set_status(req, "204 No Content");
-    return httpd_resp_send(req, NULL, 0);
 }
 
 static void hex8(const uint8_t *data, uint8_t n, char *out, size_t out_sz)
@@ -408,8 +401,6 @@ esp_err_t web_init(void)
 
     wifi_init_config_t cfg = WIFI_INIT_CONFIG_DEFAULT();
     err = esp_wifi_init(&cfg);
-    if (err != ESP_OK) return err;
-    (void)esp_wifi_set_storage(WIFI_STORAGE_RAM);
     if (err != ESP_OK && err != ESP_ERR_INVALID_STATE) return err;
 
     wifi_config_t ap = {0};
@@ -417,13 +408,8 @@ esp_err_t web_init(void)
     ap.ap.ssid_len = (uint8_t)strlen(CUBE_WIFI_SSID);
     ap.ap.channel = CUBE_WIFI_CHANNEL;
     ap.ap.max_connection = CUBE_WIFI_MAX_CONNECTIONS;
-    ap.ap.ssid_hidden = 0;          /* always broadcast beacon */
-    ap.ap.beacon_interval = 100;
-    ap.ap.pmf_cfg.capable = false;
-    ap.ap.pmf_cfg.required = false;
     if (strlen(CUBE_WIFI_PASSWORD) >= 8U) {
-        /* WPA/WPA2 mixed is more compatible with phones than pure WPA2 */
-        ap.ap.authmode = WIFI_AUTH_WPA_WPA2_PSK;
+        ap.ap.authmode = WIFI_AUTH_WPA2_PSK;
         (void)snprintf((char *)ap.ap.password, sizeof(ap.ap.password), "%s", CUBE_WIFI_PASSWORD);
     } else {
         ap.ap.authmode = WIFI_AUTH_OPEN;
@@ -431,28 +417,22 @@ esp_err_t web_init(void)
     }
     if ((err = esp_wifi_set_mode(WIFI_MODE_AP)) != ESP_OK) return err;
     if ((err = esp_wifi_set_config(WIFI_IF_AP, &ap)) != ESP_OK) return err;
-    /* Ensure softAP is not in power-save that some clients reject. */
-    (void)esp_wifi_set_ps(WIFI_PS_NONE);
-    (void)esp_wifi_set_bandwidth(WIFI_IF_AP, WIFI_BW_HT20);
     if ((err = esp_wifi_start()) != ESP_OK && err != ESP_ERR_INVALID_STATE) return err;
 
     httpd_config_t hc = HTTPD_DEFAULT_CONFIG();
-    hc.max_uri_handlers = 16;
-    hc.stack_size = 12288;
-    hc.recv_wait_timeout = 10;
+    hc.max_uri_handlers = 12;
+    hc.stack_size = 8192;
+    hc.recv_wait_timeout = 30;
     hc.send_wait_timeout = 10;
     hc.lru_purge_enable = true;
-    hc.max_open_sockets = 7;
-    if ((err = httpd_start(&s_server, &hc)) != ESP_OK) {
-        ESP_LOGE(TAG, "httpd_start failed: %s", esp_err_to_name(err));
-        return err;
-    }
+    /* With CONFIG_LWIP_MAX_SOCKETS=8, httpd allows at most ~5 open sockets. */
+    hc.max_open_sockets = 4;
+    if ((err = httpd_start(&s_server, &hc)) != ESP_OK) return err;
 
     const httpd_uri_t uri[] = {
         {.uri = "/", .method = HTTP_GET, .handler = root_get},
         {.uri = "/style.css", .method = HTTP_GET, .handler = css_get},
         {.uri = "/app.js", .method = HTTP_GET, .handler = js_get},
-        {.uri = "/favicon.ico", .method = HTTP_GET, .handler = favicon_get},
         {.uri = "/api/status", .method = HTTP_GET, .handler = status_get},
         {.uri = "/api/can/recent", .method = HTTP_GET, .handler = can_recent_get},
         {.uri = "/api/settings", .method = HTTP_GET, .handler = settings_get},
