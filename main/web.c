@@ -598,7 +598,7 @@ static void wifi_boot_scan_task(void *arg)
 
 
 
-static char s_dl_url[180];
+static char s_dl_url[320];
 static char s_dl_user[40];
 static char s_dl_pass[40];
 
@@ -677,18 +677,27 @@ static void field_copy(const char *body, const char *key, char *out, size_t out_
 static esp_err_t ota_url_post(httpd_req_t *req)
 {
     set_security_headers(req);
-    char body[360] = {0};
-    int n = httpd_req_recv(req, body, sizeof(body) - 1);
-    if (n < 0) return ESP_FAIL;
-    body[n] = 0;
+    char body[512] = {0};
+    if (read_body_exact(req, body, sizeof(body)) < 0) return ESP_FAIL;
     field_copy(body, "url=", s_dl_url, sizeof(s_dl_url));
     field_copy(body, "user=", s_dl_user, sizeof(s_dl_user));
     field_copy(body, "pass=", s_dl_pass, sizeof(s_dl_pass));
     if (s_dl_url[0] == '\\' && s_dl_url[1] == '\\') {
-        char conv[180];
-        snprintf(conv, sizeof(conv), "http://%s", s_dl_url + 2);
-        for (char *p = conv; *p; ++p) if (*p == '\\') *p = '/';
-        snprintf(s_dl_url, sizeof(s_dl_url), "%s", conv);
+        /* UNC \\host\\share\\file.bin -> http://host/share/file.bin.
+           memcpy, not snprintf: GCC -Werror=format-truncation rejects a
+           destination that cannot hold "http://" plus the whole tail. */
+        const char *tail = s_dl_url + 2;
+        size_t tail_len = strlen(tail);
+        if (tail_len + 7U >= sizeof(s_dl_url)) {
+            return httpd_resp_sendstr(req, "url too long");
+        }
+        char conv[sizeof(s_dl_url) + 8];
+        memcpy(conv, "http://", 7);
+        memcpy(conv + 7, tail, tail_len + 1U);
+        for (char *p = conv; *p; ++p) {
+            if (*p == '\\') *p = '/';
+        }
+        memcpy(s_dl_url, conv, tail_len + 8U);
     }
     if (strncmp(s_dl_url, "http://", 7) != 0 && strncmp(s_dl_url, "https://", 8) != 0) {
         return httpd_resp_sendstr(req, "need http://host/share/file.bin or \\\\host\\share\\file.bin");
@@ -716,9 +725,7 @@ static esp_err_t setpoints_post(httpd_req_t *req)
 {
     set_security_headers(req);
     char body[280] = {0};
-    int n = httpd_req_recv(req, body, sizeof(body) - 1);
-    if (n < 0) return ESP_FAIL;
-    body[n] = 0;
+    if (read_body_exact(req, body, sizeof(body)) < 0) return ESP_FAIL;
     char vb[12] = {0}, ib[12] = {0}, sb[12] = {0}, cb[16] = {0}, pb[8] = {0}, vin[24] = {0};
     field_copy(body, "v=", vb, sizeof(vb));
     field_copy(body, "i=", ib, sizeof(ib));
@@ -791,9 +798,7 @@ static esp_err_t wifi_join_post(httpd_req_t *req)
 {
     set_security_headers(req);
     char body[160] = {0};
-    int n = httpd_req_recv(req, body, sizeof(body) - 1);
-    if (n < 0) return ESP_FAIL;
-    body[n] = 0;
+    if (read_body_exact(req, body, sizeof(body)) < 0) return ESP_FAIL;
     char ssid[33] = {0};
     char pass[65] = {0};
     sscanf(body, "ssid=%32[^&]&pass=%64s", ssid, pass);

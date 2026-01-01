@@ -1,4 +1,16 @@
-# FGMDCharge / FD_ROUND V2 — Release 2.5.8
+# FGMDCharge / FD_ROUND V2 — Release 2.5.9
+
+
+## 2.5.9 — сборка снова проходит
+
+Лог 2.5.8 останавливался на `main/web.c:689` (`-Werror=format-truncation`):
+`snprintf(conv, 180, "http://%s", s_dl_url + 2)` не вмещал худший случай.
+
+- UNC `\\\\host\\share\\file.bin` теперь переписывается в `http://host/share/file.bin` через `memcpy`, без усечения.
+- Слишком длинный URL отклоняется ответом `url too long`, а не обрезается молча.
+- Тело OTA-URL, уставок и Wi-Fi join читается через `read_body_exact` (повтор при `HTTPD_SOCK_ERR_TIMEOUT`).
+- Остальной функционал 2.5.8 не менялся: CAN/GB/T, BLE GATT, LCD/LVGL, локальный Web UI, OTA только в неактивный слот, оригинальный ota_0 из dump.
+
 
 ## 2.5.7 — полный инженерный релиз
 

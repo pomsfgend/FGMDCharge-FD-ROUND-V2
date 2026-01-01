@@ -1,4 +1,11 @@
-# FGMDCharge / FD_ROUND V2 — RELEASE 2.5.8
+# FGMDCharge / FD_ROUND V2 — RELEASE 2.5.9
+
+## 2.5.9 build fix
+
+`main/web.c` `ota_url_post` больше не использует `snprintf` для UNC→HTTP.
+Это был единственный `-Werror` в логе сборки 2.5.8 (`format-truncation`, dest 180, need 185).
+Формы OTA URL / setpoints / Wi-Fi join читают тело полностью.
+
 
 ## Что исправлено после лога 2.0.3 / передаётся в сборку 2.5.7
 
