@@ -366,12 +366,17 @@ static void make_pad(lv_obj_t *parent)
     lv_obj_add_flag(s_pad, LV_OBJ_FLAG_SCROLLABLE);
     for (int i = 0; i < 38; ++i) {
         lv_obj_t *b = lv_btn_create(s_pad);
+        if (!b) {
+            ESP_LOGE(TAG, "LVGL OOM pad key %d", i);
+            break;
+        }
         lv_obj_set_size(b, 42, 32);
         lv_obj_set_pos(b, (i % 5) * 46, (i / 5) * 36);
         lv_obj_set_style_bg_color(b, lv_color_hex(0x1A2430), 0);
         lv_obj_set_style_shadow_width(b, 0, 0);
         lv_obj_add_event_cb(b, pad_key_cb, LV_EVENT_CLICKED, (void *)keys[i]);
         lv_obj_t *l = lv_label_create(b);
+        if (!l) break;
         lv_label_set_text(l, keys[i]);
         lv_obj_set_style_text_color(l, lv_color_hex(0xF4F7FB), 0);
         lv_obj_center(l);
@@ -407,6 +412,10 @@ static lv_obj_t *card(lv_obj_t *parent, int x, int y, lv_obj_t **value, const ch
 static lv_obj_t *line(lv_obj_t *parent, const char *txt, int y)
 {
     lv_obj_t *l = lv_label_create(parent);
+    if (!l) {
+        ESP_LOGE(TAG, "LVGL OOM label '%s'", txt ? txt : "");
+        return NULL;
+    }
     lv_label_set_text(l, txt);
     lv_obj_set_width(l, 216);
     lv_label_set_long_mode(l, LV_LABEL_LONG_CLIP);
@@ -475,7 +484,7 @@ static void build_ui(void)
 {
     s_scr_chg = lv_scr_act();
     style_screen(s_scr_chg);
-    line(s_scr_chg, "ДОМ 2.5.9", 8);
+    line(s_scr_chg, "ДОМ 2.6.0", 8);
     lv_obj_add_flag(s_scr_chg, LV_OBJ_FLAG_SCROLLABLE);
     s_card_u = card(s_scr_chg, 10, 40, &s_voltage, "V");
     s_card_i = card(s_scr_chg, 122, 40, &s_current, "A");
@@ -558,7 +567,7 @@ static void build_ui(void)
     lv_obj_set_height(s_can_lbl, 110);
     s_scr_sys = lv_obj_create(NULL);
     style_screen(s_scr_sys);
-    line(s_scr_sys, "СИСТЕМА 2.5.9", 4);
+    line(s_scr_sys, "СИСТЕМА 2.6.0", 4);
     s_sys_temp = line(s_scr_sys, "CPU -- C", 28);
     s_sys_cpu = line(s_scr_sys, "F 160 MHz", 48);
     s_sys_load = line(s_scr_sys, "Load -- %", 68);
@@ -793,6 +802,7 @@ esp_err_t display_init(void)
     ESP_ERROR_CHECK(esp_timer_create(&tick_args, &s_tick_timer));
     ESP_ERROR_CHECK(esp_timer_start_periodic(s_tick_timer, CUBE_LVGL_TICK_MS * 1000));
 
+    ESP_LOGW(TAG, "LVGL mem %u KiB, building UI", (unsigned)(LV_MEM_SIZE / 1024));
     build_ui();
     ESP_LOGI(TAG, "LCD portrait %dx%d (ST7789=%d)", CUBE_LCD_H_RES, CUBE_LCD_V_RES, CUBE_LCD_USE_ST7789);
     return ESP_OK;

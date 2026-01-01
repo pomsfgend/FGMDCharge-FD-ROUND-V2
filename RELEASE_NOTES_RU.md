@@ -1,7 +1,17 @@
-# FGMDCharge / FD_ROUND V2 — Release 2.5.9
+# FGMDCharge / FD_ROUND V2 — Release 2.6.0
 
 
-## 2.5.9 — сборка снова проходит
+## 2.6.0 — экран больше не вешает main
+
+2.5.9 собрался и прошился. После `panel on` / temperature sensor `main` застревал в `lv_label_set_text` (`lv_label.c:135`, `LV_ASSERT_MALLOC`). Пул LVGL был 32 КиБ, клавиатура из 38 кнопок его исчерпывала, ассерт крутил бесконечный цикл, task WDT сбрасывал IDLE.
+
+- `CONFIG_LV_MEM_SIZE_KILOBYTES` 32 -> 64
+- `CONFIG_LV_USE_ASSERT_MALLOC` выключен: нехватка памяти больше не вешает CPU
+- `line()` и клавиатура не вызывают `lv_label_set_text` на NULL
+
+
+
+## 2.6.0 — сборка снова проходит
 
 Лог 2.5.8 останавливался на `main/web.c:689` (`-Werror=format-truncation`):
 `snprintf(conv, 180, "http://%s", s_dl_url + 2)` не вмещал худший случай.

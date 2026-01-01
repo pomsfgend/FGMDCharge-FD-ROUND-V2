@@ -24,6 +24,8 @@ required = {
     "CONFIG_LV_USE_LABEL": "y",
     "CONFIG_LV_FONT_MONTSERRAT_14": "y",
     "CONFIG_LV_FONT_MONTSERRAT_28": "y",
+    "CONFIG_LV_MEM_SIZE_KILOBYTES": "64",
+    "CONFIG_LV_USE_ASSERT_MALLOC": "n",
 }
 lines = p.read_text(encoding="utf-8").splitlines() if p.exists() else []
 out = []
