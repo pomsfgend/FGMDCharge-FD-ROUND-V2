@@ -45,7 +45,9 @@ static temperature_sensor_handle_t s_temp;
 static int s_brightness = CUBE_LCD_BL_PWM_DUTY_DEFAULT;
 
 /* UI */
-static lv_obj_t *s_scr_chg, *s_scr_sys, *s_scr_wifi;
+static lv_obj_t *s_scr_chg, *s_scr_ses, *s_scr_set, *s_scr_sys, *s_scr_wifi, *s_scr_log;
+static lv_obj_t *s_ses_kwh, *s_ses_soc, *s_ses_min, *s_log_lbl;
+static int s_edge = 28;
 static lv_obj_t *s_voltage, *s_current, *s_power, *s_stage, *s_status;
 static lv_obj_t *s_soc, *s_relay, *s_cml, *s_can;
 static lv_obj_t *s_sys_temp, *s_sys_cpu, *s_sys_load, *s_sys_heap, *s_sys_wifi, *s_sys_touch;
@@ -55,7 +57,7 @@ static lv_obj_t *s_wifi_ta;
 static lv_obj_t *s_scan_lbl;
 static lv_obj_t *s_list;
 static lv_obj_t *s_ip_lbl;
-static int s_page; /* 0 CHG 1 SYS 2 WIFI */
+static int s_page;
 static int s_pick;
 
 static bool lcd_flush_done(esp_lcd_panel_io_handle_t panel_io,
@@ -174,15 +176,15 @@ static void style_screen(lv_obj_t *scr)
 
 static void apply_page(int p)
 {
-    if (p < 0) p = 2;
-    if (p > 2) p = 0;
+    lv_obj_t *pages[6];
+    if (p < 0) p = 5;
+    if (p > 5) p = 0;
+    pages[0] = s_scr_chg; pages[1] = s_scr_ses; pages[2] = s_scr_set;
+    pages[3] = s_scr_wifi; pages[4] = s_scr_log; pages[5] = s_scr_sys;
     s_page = p;
     if (s_pad) lv_obj_add_flag(s_pad, LV_OBJ_FLAG_HIDDEN);
-    lv_scr_load(p == 0 ? s_scr_chg : (p == 1 ? s_scr_sys : s_scr_wifi));
-    if (s_dots) {
-        const char *d = p == 0 ? "o  -  -" : (p == 1 ? "-  o  -" : "-  -  o");
-        lv_label_set_text(s_dots, d);
-    }
+    if (pages[p]) lv_scr_load_anim(pages[p], LV_SCR_LOAD_ANIM_MOVE_LEFT, 180, 0, false);
+    if (s_dots) lv_label_set_text(s_dots, "home ses set net log sys");
 }
 
 static lv_point_t s_down;
@@ -203,7 +205,7 @@ static void gesture_cb(lv_event_t *e)
     int dy = pt.y - s_down.y;
     if (dx < 0) dx = -dx;
     if (dy < 0) dy = -dy;
-    if (s_down.x > 28 && s_down.x < 212) return;
+    if (s_down.x > s_edge && s_down.x < 240 - s_edge) return;
     if (dx < 36 || dx < dy) return;
     apply_page((s_page + (pt.x < s_down.x ? 1 : 2)) % 3);
 }
@@ -390,7 +392,8 @@ static void build_ui(void)
 {
     s_scr_chg = lv_scr_act();
     style_screen(s_scr_chg);
-    line(s_scr_chg, "CUBE 2.5.6", 22);
+    line(s_scr_chg, "ДОМ 2.5.7", 8);
+    lv_obj_add_flag(s_scr_chg, LV_OBJ_FLAG_SCROLLABLE);
     s_card_u = card(s_scr_chg, 10, 40, &s_voltage, "V");
     s_card_i = card(s_scr_chg, 122, 40, &s_current, "A");
     (void)s_card_u; (void)s_card_i;
@@ -409,9 +412,27 @@ static void build_ui(void)
     lv_obj_center(stop_lbl);
     s_dots = line(s_scr_chg, "CHG  SYS  WIFI", 228);
 
+
+    s_scr_ses = lv_obj_create(NULL);
+    style_screen(s_scr_ses);
+    lv_obj_add_flag(s_scr_ses, LV_OBJ_FLAG_SCROLLABLE);
+    line(s_scr_ses, "СЕССИЯ", 8);
+    s_ses_min = line(s_scr_ses, "время --", 36);
+    s_ses_kwh = line(s_scr_ses, "кВтч --", 58);
+    s_ses_soc = line(s_scr_ses, "SOC от 7.5", 80);
+    s_scr_set = lv_obj_create(NULL);
+    style_screen(s_scr_set);
+    lv_obj_add_flag(s_scr_set, LV_OBJ_FLAG_SCROLLABLE);
+    line(s_scr_set, "ЗАРЯДКА", 8);
+    line(s_scr_set, "V/I/VIN на сайте", 36);
+    s_scr_log = lv_obj_create(NULL);
+    style_screen(s_scr_log);
+    lv_obj_add_flag(s_scr_log, LV_OBJ_FLAG_SCROLLABLE);
+    line(s_scr_log, "ЛОГИ", 8);
+    s_log_lbl = line(s_scr_log, "ESP/CAN", 36);
     s_scr_sys = lv_obj_create(NULL);
     style_screen(s_scr_sys);
-    line(s_scr_sys, "SYSTEM", 4);
+    line(s_scr_sys, "СИСТЕМА 2.5.7", 4);
     s_sys_temp = line(s_scr_sys, "CPU -- C", 28);
     s_sys_cpu = line(s_scr_sys, "F 160 MHz", 48);
     s_sys_load = line(s_scr_sys, "Load -- %", 68);
@@ -447,7 +468,7 @@ static void build_ui(void)
 
     s_scr_wifi = lv_obj_create(NULL);
     style_screen(s_scr_wifi);
-    line(s_scr_wifi, "WiFi  digits", 2);
+    line(s_scr_wifi, "СЕТЬ", 2);
     s_list = lv_obj_create(s_scr_wifi);
     lv_obj_set_size(s_list, 220, 120);
     lv_obj_align(s_list, LV_ALIGN_TOP_MID, 0, 28);
@@ -617,6 +638,25 @@ void display_set_values(void)
     if (s_soc) {
         snprintf(b, sizeof(b), "SOC %u%%  E %.2f", (unsigned)st.soc_percent, (double)app_state_energy_kwh());
         lv_label_set_text(s_soc, b);
+    }
+    if (s_ses_kwh) {
+        snprintf(b, sizeof(b), "кВтч %.3f", (double)app_state_energy_kwh());
+        lv_label_set_text(s_ses_kwh, b);
+    }
+    if (s_ses_min) {
+        snprintf(b, sizeof(b), "время %u мин", (unsigned)st.ccs_charge_time_min);
+        lv_label_set_text(s_ses_min, b);
+    }
+    if (s_ses_soc) {
+        float k = app_state_energy_kwh();
+        int est = (int)(st.soc_percent + (k / 7.5f) * 100.0f);
+        if (est > 100) est = 100;
+        snprintf(b, sizeof(b), "оценка %d%%", est);
+        lv_label_set_text(s_ses_soc, b);
+    }
+    if (s_log_lbl) {
+        snprintf(b, sizeof(b), "CAN rx%lu tx%lu", (unsigned long)st.rx_count, (unsigned long)st.tx_count);
+        lv_label_set_text(s_log_lbl, b);
     }
     if (s_stage) {
         snprintf(b, sizeof(b), "%s %s %s", cube_protocol_name(st.protocol), cube_main_state_name(st.main_state), (st.rx_count & 1) ? "<>" : "--");

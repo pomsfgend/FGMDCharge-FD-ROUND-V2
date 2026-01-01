@@ -184,7 +184,7 @@ static esp_err_t status_get(httpd_req_t *req)
         s.cml_max_voltage_raw / 10.0, s.cml_max_current_0p1a / 10.0,
         s.bcl_requested_voltage_raw / 10.0, s.bcl_requested_current_0p1a / 10.0,
         s.bcl_mode ? "CC" : "CV", CUBE_WIFI_SSID, (unsigned)s.substate,
-        web_get_ap_channel(), (unsigned)web_ap_clients(), web_sta_ip());
+        web_get_ap_channel(), (unsigned)web_ap_clients(), web_sta_ip(), (double)app_state_energy_kwh(), app_state_vin());
     if (written < 0 || (size_t)written >= sizeof(json)) return ESP_ERR_NO_MEM;
     set_no_cache(req);
     (void)httpd_resp_set_type(req, "application/json; charset=utf-8");
