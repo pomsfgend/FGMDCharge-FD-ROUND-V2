@@ -10,7 +10,7 @@ import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-VERSION = "2.2.0"
+VERSION = "2.2.1"
 DUMP_SHA = "1428dbddc0749eee8ac133b1e16b6c0805a2da4bb4b0c73bc759c1500b03f233"
 ERRORS: list[str] = []
 
@@ -113,7 +113,7 @@ def check_config() -> None:
     for needle in (
         'CONFIG_IDF_TARGET="esp32c3"', 'CONFIG_ESPTOOLPY_FLASHSIZE="4MB"',
         'CONFIG_PARTITION_TABLE_CUSTOM_FILENAME="partitions.csv"',
-        "CONFIG_BT_ENABLED=n", "CONFIG_BT_CONTROLLER_ENABLED=n",
+        "CONFIG_BT_ENABLED=y", "CONFIG_BT_CONTROLLER_ENABLED=y", "CONFIG_BT_BLUEDROID_ENABLED=y", "CONFIG_BT_BLE_ENABLED=y", "CONFIG_BT_GATTS_ENABLE=y",
         
         
         

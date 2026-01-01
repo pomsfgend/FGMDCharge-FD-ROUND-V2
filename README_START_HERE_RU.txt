@@ -1,13 +1,13 @@
-FGMDCharge / FD_ROUND V2 — RELEASE 2.2.0
+FGMDCharge / FD_ROUND V2 — RELEASE 2.2.1
 
-2.2.0
+2.2.1
 - SoftAP как в рабочей 2.0.5: SSID FGMDCharge-V2, OPEN, без country/protocol хаков
 - WEB_KEY пустой (локальный AP без ключа)
 - Подписи на экране снова латиница (Montserrat без кириллицы → квадратики)
 - Кириллица вернётся с отдельным шрифтом позже
 
 
-2.2.0
+2.2.1
 - Убрано зеркало (MIRROR_X/Y=0)
 - BGR=1 против синевы
 - UI на русском (экран + частично web)
@@ -17,21 +17,21 @@ FGMDCharge / FD_ROUND V2 — RELEASE 2.2.0
 Внимание: esp32-evse = J1772 AC EVSE, не GB/T 27930. Берём архитектуру UI/API, не протокол.
 
 
-ЧТО ИСПРАВЛЕНО В 2.2.0 (слияние с рабочей 2.0.5)
+ЧТО ИСПРАВЛЕНО В 2.2.1 (слияние с рабочей 2.0.5)
 - Подсветка GPIO2 = ON ПОСЛЕ panel init (strapping уже снят — безопасно)
 - LCD: ILI9341 BGR + invert + mirror Y (как в 2.0.5, где пиксели были видны)
 - SPI 10 MHz
 - Wi-Fi: FGMDCharge-V2 OPEN ch1; BLE стартует через 3 с после SoftAP
 
 
-ЧТО ИСПРАВЛЕНО В 2.2.0 (по DISPLAY_ANALYSIS_FROM_DUMP)
+ЧТО ИСПРАВЛЕНО В 2.2.1 (по DISPLAY_ANALYSIS_FROM_DUMP)
 - LCD: строго ILI9341 как в dump (не ST7789), mirror(0,0), RST/BL=-1
 - Smoke: белый экран + RGB-полосы + byte-swapped полосы
 - Wi-Fi: SSID FGMDCharge, OPEN, канал 1, 802.11b/g (лучше видно на телефонах)
 - Документация RE по дисплею: analysis_lcd_re/
 
 
-ЧТО ИСПРАВЛЕНО В 2.2.0
+ЧТО ИСПРАВЛЕНО В 2.2.1
 - Убран ранний PWM на GPIO3 (был POWERON reboot loop)
 - Реле: уровень LOW до gpio_config (без дребезга катушки)
 - ST7789 + smoke fill (как в стабильном 2.1.2)
@@ -39,12 +39,12 @@ FGMDCharge / FD_ROUND V2 — RELEASE 2.2.0
 - Открытая точка FGMDCharge-V2, канал 6, max TX, SoftAP до BLE
 
 
-ЧТО ИСПРАВЛЕНО В 2.2.0
+ЧТО ИСПРАВЛЕНО В 2.2.1
 - DISPLAY: lcd_flush_done больше не вызывает lv_disp_flush_ready до регистрации LVGL
   (устранён Guru Meditation Store access fault на smoke fill)
 
 
-ЧТО ИСПРАВЛЕНО В 2.2.0
+ЧТО ИСПРАВЛЕНО В 2.2.1
 - Web: URI /* перенесён в конец (ESP_ERR_HTTPD_HANDLER_EXISTS устранён)
 - LCD: ST7789 240x280, gap_y=20, invert, BGR + smoke fill при старте
 - SoftAP FGMDCharge-V2 / FDcube2026 (ssid_hidden=0)
@@ -53,7 +53,7 @@ FGMDCharge / FD_ROUND V2 — RELEASE 2.2.0
 
 Полная реконструкция логики оригинальной прошивки кубика + веб-панель.
 
-ЧТО ДОБАВЛЕНО В 2.2.0
+ЧТО ДОБАВЛЕНО В 2.2.1
 ---------------------
 1. Полный state machine GB/T battery-side (состояния 0..7).
 2. Реле по аналитике RE:
@@ -64,7 +64,7 @@ FGMDCharge / FD_ROUND V2 — RELEASE 2.2.0
 4. BLE-команды 0x66 / 0x0D / 0x0E (как в оригинале).
 5. Веб-панель показывает main_state, substate, реле, handoff, session.
 6. Кнопки Start charge / Stop в веб-UI (требуют X-Cube-Key).
-7. Исправлен критический баг 2.2.0: CUBE_LCD_BL_GPIO = -1 (GPIO2 не драйвится).
+7. Исправлен критический баг 2.2.1: CUBE_LCD_BL_GPIO = -1 (GPIO2 не драйвится).
 
 КРИТИЧЕСКИЕ ПРАВИЛА
 -------------------

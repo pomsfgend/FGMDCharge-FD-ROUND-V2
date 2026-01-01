@@ -5,11 +5,11 @@ from pathlib import Path
 root = Path(__file__).resolve().parents[1]
 p = root / "sdkconfig"
 required = {
-    "CONFIG_BT_ENABLED": "n",
-    "CONFIG_BT_CONTROLLER_ENABLED": "n",
-    "CONFIG_BT_BLUEDROID_ENABLED": "n",
-    "CONFIG_BT_BLE_ENABLED": "n",
-    "CONFIG_BT_GATTS_ENABLE": "n",
+    "CONFIG_BT_ENABLED": "y",
+    "CONFIG_BT_CONTROLLER_ENABLED": "y",
+    "CONFIG_BT_BLUEDROID_ENABLED": "y",
+    "CONFIG_BT_BLE_ENABLED": "y",
+    "CONFIG_BT_GATTS_ENABLE": "y",
     "CONFIG_BT_GATTC_ENABLE": "n",
     "CONFIG_BT_BLE_42_FEATURES_SUPPORTED": "y",
     "CONFIG_BT_BLE_42_ADV_EN": "y",
