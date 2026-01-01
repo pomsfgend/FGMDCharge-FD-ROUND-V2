@@ -21,6 +21,9 @@
 #include "sm_relay.h"
 #include "can_gbt.h"
 #include "safe_ota.h"
+#include "display.h"
+#include "settings.h"
+#include "diag.h"
 
 extern const uint8_t web_index_html[];
 extern const size_t web_index_html_len;
@@ -138,8 +141,14 @@ static esp_err_t status_get(httpd_req_t *req)
     char last_hex[17] = {0};
     hex8(s.last.data, s.last.dlc, last_hex, sizeof(last_hex));
     const bool online = charger_online(s.last_charger_rx_ms);
+    const uint32_t now_ms = (uint32_t)(esp_timer_get_time() / 1000ULL);
+    const uint32_t stage_age_ms = s.charger_stage_ms ? (uint32_t)(now_ms - s.charger_stage_ms) : 0U;
     const long power_w = calc_power_w(&s);
-    char json[3200];
+    float cpu_temp = 0.0f;
+    const bool cpu_temp_valid = diag_get_temperature(&cpu_temp);
+    const uint8_t cpu_load = diag_get_cpu_load_percent();
+    const uint8_t brightness = display_get_brightness();
+    char json[3400];
     int written = snprintf(json, sizeof(json),
         "{\"ok\":true,\"fw\":\"%s\",\"version\":\"%s\","
         "\"can\":%s,\"tx_enabled\":%s,\"rx_count\":%lu,\"tx_count\":%lu,"
@@ -154,12 +163,13 @@ static esp_err_t status_get(httpd_req_t *req)
         "\"ccs_charge_permit\":%u,\"ccs_status_raw\":%u,\"power_w\":%ld,"
         "\"cro_status_raw\":%u,\"cst_status_raw\":%u,\"csd_time_min\":%u,\"csd_energy_0p1kwh\":%u,"
         "\"bcl_voltage_0p1v\":%u,\"bcl_current_0p1a\":%d,\"bcl_mode\":%u,"
+        "\"cpu_temp_c\":%.1f,\"cpu_temp_valid\":%s,\"cpu_load_percent\":%u,\"brightness_percent\":%u,\"heap_free_bytes\":%u,"
         "\"ble\":%s,\"notify\":%s,\"indicate\":%s,\"display\":%s,\"touch\":%s,\"touch_pressed\":%s}",
         CUBE_FW_NAME, CUBE_FW_VERSION,
         s.can_up ? "true" : "false", s.tx_enabled ? "true" : "false",
         (unsigned long)s.rx_count, (unsigned long)s.tx_count,
         (unsigned long)s.last.id, (unsigned)s.last.dlc, last_hex,
-        online ? "true" : "false", cube_charge_stage_name(s.charger_stage), (unsigned long)s.charger_stage_ms,
+        online ? "true" : "false", cube_charge_stage_name(s.charger_stage), (unsigned long)s.charger_stage_ms, (unsigned long)stage_age_ms,
         (unsigned)s.main_state, cube_main_state_name(s.main_state), (unsigned)s.substate,
         (unsigned)s.relay_a, (unsigned)s.relay_b, s.handoff_done ? "true" : "false",
         s.session_active ? "true" : "false",
@@ -171,6 +181,8 @@ static esp_err_t status_get(httpd_req_t *req)
         (unsigned)s.cro_status_raw, (unsigned)s.cst_status_raw, (unsigned)s.csd_time_min,
         (unsigned)s.csd_energy_0p1kwh, (unsigned)s.bcl_requested_voltage_raw,
         (int)s.bcl_requested_current_0p1a, (unsigned)s.bcl_mode,
+        (double)cpu_temp, cpu_temp_valid ? "true" : "false", (unsigned)cpu_load,
+        (unsigned)brightness, (unsigned)esp_get_free_heap_size(),
         s.ble_connected ? "true" : "false", s.ble_notify_enabled ? "true" : "false",
         s.ble_indicate_enabled ? "true" : "false", s.display_ready ? "true" : "false",
         s.touch_enabled ? "true" : "false", s.touch_pressed ? "true" : "false");
@@ -312,9 +324,15 @@ static esp_err_t settings_get(httpd_req_t *req)
     set_security_headers(req);
     set_no_cache(req);
     (void)httpd_resp_set_type(req, "application/json; charset=utf-8");
-    return httpd_resp_sendstr(req, gbt_can_get_tx_enabled()
-        ? "{\"ok\":true,\"tx_enabled\":true,\"tx_compiled\":true,\"web_key_required\":true,\"wifi_auth\":\"WPA2-PSK\"}"
-        : "{\"ok\":true,\"tx_enabled\":false,\"tx_compiled\":true,\"web_key_required\":true,\"wifi_auth\":\"WPA2-PSK\"}");
+    char out[256];
+    (void)snprintf(out, sizeof(out),
+                   "{\"ok\":true,\"tx_enabled\":%s,\"tx_compiled\":true,"
+                   "\"web_key_required\":%s,\"wifi_auth\":\"WPA2-PSK\","
+                   "\"brightness_percent\":%u}",
+                   gbt_can_get_tx_enabled() ? "true" : "false",
+                   CUBE_WEB_KEY[0] ? "true" : "false",
+                   (unsigned)display_get_brightness());
+    return httpd_resp_sendstr(req, out);
 }
 
 static esp_err_t settings_post(httpd_req_t *req)
@@ -333,11 +351,28 @@ static esp_err_t settings_post(httpd_req_t *req)
     if (json_bool(body, "tx_enabled", &value)) {
         gbt_can_set_tx_enabled(value);
     }
+
+    unsigned long brightness = 0;
+    if (json_u32(body, "brightness", &brightness)) {
+        if (brightness < 10UL || brightness > 100UL) {
+            httpd_resp_set_status(req, "400 Bad Request");
+            return httpd_resp_sendstr(req, "{\"ok\":false,\"error\":\"invalid_brightness\"}");
+        }
+        esp_err_t berr = settings_set_brightness((uint8_t)brightness);
+        if (berr != ESP_OK) {
+            httpd_resp_set_status(req, "500 Internal Server Error");
+            return httpd_resp_sendstr(req, "{\"ok\":false,\"error\":\"brightness_save_failed\"}");
+        }
+        (void)display_set_brightness((uint8_t)brightness);
+    }
+
     set_no_cache(req);
     (void)httpd_resp_set_type(req, "application/json; charset=utf-8");
-    return httpd_resp_sendstr(req, gbt_can_get_tx_enabled()
-        ? "{\"ok\":true,\"tx_enabled\":true}"
-        : "{\"ok\":true,\"tx_enabled\":false}");
+    char out[160];
+    (void)snprintf(out, sizeof(out), "{\"ok\":true,\"tx_enabled\":%s,\"brightness_percent\":%u}",
+                   gbt_can_get_tx_enabled() ? "true" : "false",
+                   (unsigned)display_get_brightness());
+    return httpd_resp_sendstr(req, out);
 }
 
 static esp_err_t can_raw_post(httpd_req_t *req)

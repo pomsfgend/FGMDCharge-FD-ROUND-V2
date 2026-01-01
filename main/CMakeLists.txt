@@ -9,6 +9,7 @@ idf_component_register(
         "can_gbt.c"
         "gbt_tp.c"
         "display.c"
+        "diag.c"
         "touch_cst816s.c"
         "ble.c"
         "web.c"

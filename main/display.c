@@ -9,6 +9,9 @@
 #include "esp_wifi.h"
 #include "driver/temperature_sensor.h"
 #include "app_state.h"
+#include "settings.h"
+#include "diag.h"
+#include "driver/ledc.h"
 #include "touch_cst816s.h"
 #include "driver/spi_master.h"
 #include "driver/gpio.h"
@@ -49,17 +52,18 @@ static lv_obj_t *s_sys_mac;
 static lv_obj_t *s_sys_heap;
 static lv_obj_t *s_sys_touch;
 static lv_obj_t *s_sys_status;
+static lv_obj_t *s_sys_brightness;
 static lv_obj_t *s_page_wifi;
 static lv_obj_t *s_wifi_list_lab[8];
 static lv_obj_t *s_wifi_status;
 static lv_obj_t *s_wifi_ip;
 static lv_obj_t *s_wifi_ta;
 static lv_obj_t *s_wifi_kb;
+static lv_obj_t *s_wifi_kb_hide;
 static int s_wifi_sel;
 static int s_wifi_count;
 static web_scan_ap_t s_wifi_aps[WEB_SCAN_MAX];
 static int s_ui_page; /* 0=charge 1=sys 2=wifi */
-static temperature_sensor_handle_t s_temps;
 static lv_color_t *s_buf1;
 static lv_color_t *s_buf2;
 static lv_disp_draw_buf_t s_draw_buf;
@@ -148,6 +152,7 @@ static void page_show(int page)
         if (page == 2) { /* keep hidden until password */ }
         else lv_obj_add_flag(s_wifi_kb, LV_OBJ_FLAG_HIDDEN);
     }
+    if (s_wifi_kb_hide && page != 2) lv_obj_add_flag(s_wifi_kb_hide, LV_OBJ_FLAG_HIDDEN);
 }
 
 
@@ -203,7 +208,7 @@ static void on_btn_scan(lv_event_t *e)
     (void)e;
     if (s_wifi_status) lv_label_set_text(s_wifi_status, "Scan...");
     s_wifi_count = web_wifi_scan(s_wifi_aps, WEB_SCAN_MAX);
-    if (s_wifi_count > 8) s_wifi_count = 8;
+    if (s_wifi_count > 6) s_wifi_count = 6;
     s_wifi_sel = 0;
     wifi_list_refresh_labels();
     if (s_wifi_status) {
@@ -249,7 +254,42 @@ static void on_btn_connect(lv_event_t *e)
 static void on_ta_focused(lv_event_t *e)
 {
     (void)e;
-    if (s_wifi_kb) lv_obj_clear_flag(s_wifi_kb, LV_OBJ_FLAG_HIDDEN);
+    if (s_wifi_kb) {
+        lv_obj_clear_flag(s_wifi_kb, LV_OBJ_FLAG_HIDDEN);
+        lv_obj_move_foreground(s_wifi_kb);
+    }
+    if (s_wifi_kb_hide) {
+        lv_obj_clear_flag(s_wifi_kb_hide, LV_OBJ_FLAG_HIDDEN);
+        lv_obj_move_foreground(s_wifi_kb_hide);
+    }
+}
+
+static void on_kb_hide(lv_event_t *e)
+{
+    (void)e;
+    if (s_wifi_kb) lv_obj_add_flag(s_wifi_kb, LV_OBJ_FLAG_HIDDEN);
+    if (s_wifi_kb_hide) lv_obj_add_flag(s_wifi_kb_hide, LV_OBJ_FLAG_HIDDEN);
+    if (s_wifi_ta) lv_obj_clear_state(s_wifi_ta, LV_STATE_FOCUSED);
+}
+
+static void on_kb_cancel(lv_event_t *e)
+{
+    on_kb_hide(e);
+}
+
+static void on_brightness_changed(lv_event_t *e)
+{
+    lv_obj_t *slider = lv_event_get_target(e);
+    uint8_t value = (uint8_t)lv_slider_get_value(slider);
+    (void)display_set_brightness(value);
+    if (s_sys_brightness) lv_label_set_text_fmt(s_sys_brightness, "Яркость: %u%%", (unsigned)value);
+}
+
+static void on_brightness_released(lv_event_t *e)
+{
+    lv_obj_t *slider = lv_event_get_target(e);
+    uint8_t value = (uint8_t)lv_slider_get_value(slider);
+    (void)settings_set_brightness(value);
 }
 
 static void ui_create(void)
@@ -323,9 +363,21 @@ static void ui_create(void)
     s_sys_status = make_label(s_page_sys, "WiFi: idle", 14);
     lv_obj_align(s_sys_status, LV_ALIGN_TOP_LEFT, 10, 164);
 
+    s_sys_brightness = make_label(s_page_sys, "Яркость: 100%", 14);
+    lv_obj_align(s_sys_brightness, LV_ALIGN_TOP_LEFT, 10, 186);
+    lv_obj_t *brightness = lv_slider_create(s_page_sys);
+    lv_obj_set_width(brightness, 200);
+    lv_obj_set_height(brightness, 18);
+    lv_obj_align(brightness, LV_ALIGN_TOP_MID, 0, 208);
+    lv_slider_set_range(brightness, 10, 100);
+    lv_slider_set_value(brightness, settings_get_brightness(), LV_ANIM_OFF);
+    lv_label_set_text_fmt(s_sys_brightness, "Яркость: %u%%", (unsigned)settings_get_brightness());
+    lv_obj_add_event_cb(brightness, on_brightness_changed, LV_EVENT_VALUE_CHANGED, NULL);
+    lv_obj_add_event_cb(brightness, on_brightness_released, LV_EVENT_RELEASED, NULL);
+
     lv_obj_t *btn_rst = lv_btn_create(s_page_sys);
     lv_obj_set_size(btn_rst, 200, 40);
-    lv_obj_align(btn_rst, LV_ALIGN_TOP_MID, 0, 196);
+    lv_obj_align(btn_rst, LV_ALIGN_TOP_MID, 0, 238);
     lv_obj_add_event_cb(btn_rst, on_btn_wifi_rst, LV_EVENT_CLICKED, NULL);
     lv_obj_t *bl = lv_label_create(btn_rst);
     lv_label_set_text(bl, "RESTART WiFi");
@@ -346,7 +398,7 @@ static void ui_create(void)
     lv_obj_t *wt = make_label(s_page_wifi, "WiFi SCAN / STA", 14);
     lv_obj_align(wt, LV_ALIGN_TOP_MID, 0, 2);
 
-    for (int i = 0; i < 8; ++i) {
+    for (int i = 0; i < 6; ++i) {
         s_wifi_list_lab[i] = make_label(s_page_wifi, "", 14);
         lv_obj_align(s_wifi_list_lab[i], LV_ALIGN_TOP_LEFT, 4, 20 + i * 16);
     }
@@ -354,7 +406,7 @@ static void ui_create(void)
     s_wifi_status = make_label(s_page_wifi, "Scan for APs", 14);
     lv_obj_align(s_wifi_status, LV_ALIGN_TOP_LEFT, 4, 150);
     s_wifi_ip = make_label(s_page_wifi, "STA IP: -", 14);
-    lv_obj_align(s_wifi_ip, LV_ALIGN_TOP_LEFT, 4, 168);
+    lv_obj_align(s_wifi_ip, LV_ALIGN_TOP_LEFT, 4, 136);
 
     s_wifi_ta = lv_textarea_create(s_page_wifi);
     lv_obj_set_size(s_wifi_ta, 230, 28);
@@ -366,33 +418,46 @@ static void ui_create(void)
 
     lv_obj_t *bscan = lv_btn_create(s_page_wifi);
     lv_obj_set_size(bscan, 70, 26);
-    lv_obj_align(bscan, LV_ALIGN_TOP_LEFT, 4, 218);
+    lv_obj_align(bscan, LV_ALIGN_TOP_LEFT, 4, 194);
     lv_obj_add_event_cb(bscan, on_btn_scan, LV_EVENT_CLICKED, NULL);
     lv_obj_t *l1 = lv_label_create(bscan); lv_label_set_text(l1, "SCAN"); lv_obj_center(l1);
 
     lv_obj_t *bup = lv_btn_create(s_page_wifi);
     lv_obj_set_size(bup, 40, 26);
-    lv_obj_align(bup, LV_ALIGN_TOP_LEFT, 80, 218);
+    lv_obj_align(bup, LV_ALIGN_TOP_LEFT, 80, 194);
     lv_obj_add_event_cb(bup, on_btn_sel_up, LV_EVENT_CLICKED, NULL);
     lv_obj_t *l2 = lv_label_create(bup); lv_label_set_text(l2, "UP"); lv_obj_center(l2);
 
     lv_obj_t *bdn = lv_btn_create(s_page_wifi);
     lv_obj_set_size(bdn, 40, 26);
-    lv_obj_align(bdn, LV_ALIGN_TOP_LEFT, 126, 218);
+    lv_obj_align(bdn, LV_ALIGN_TOP_LEFT, 126, 194);
     lv_obj_add_event_cb(bdn, on_btn_sel_dn, LV_EVENT_CLICKED, NULL);
     lv_obj_t *l3 = lv_label_create(bdn); lv_label_set_text(l3, "DN"); lv_obj_center(l3);
 
     lv_obj_t *bcon = lv_btn_create(s_page_wifi);
     lv_obj_set_size(bcon, 60, 26);
-    lv_obj_align(bcon, LV_ALIGN_TOP_LEFT, 172, 218);
+    lv_obj_align(bcon, LV_ALIGN_TOP_LEFT, 172, 194);
     lv_obj_add_event_cb(bcon, on_btn_connect, LV_EVENT_CLICKED, NULL);
     lv_obj_t *l4 = lv_label_create(bcon); lv_label_set_text(l4, "JOIN"); lv_obj_center(l4);
 
     s_wifi_kb = lv_keyboard_create(scr);
-    lv_obj_set_size(s_wifi_kb, CUBE_LCD_H_RES, 100);
+    lv_obj_set_size(s_wifi_kb, CUBE_LCD_H_RES, 150);
     lv_obj_align(s_wifi_kb, LV_ALIGN_BOTTOM_MID, 0, 0);
     lv_keyboard_set_textarea(s_wifi_kb, s_wifi_ta);
+    lv_keyboard_set_mode(s_wifi_kb, LV_KEYBOARD_MODE_TEXT_LOWER);
+    lv_obj_add_event_cb(s_wifi_kb, on_kb_cancel, LV_EVENT_CANCEL, NULL);
+    lv_obj_add_event_cb(s_wifi_kb, on_kb_cancel, LV_EVENT_READY, NULL);
     lv_obj_add_flag(s_wifi_kb, LV_OBJ_FLAG_HIDDEN);
+
+    s_wifi_kb_hide = lv_btn_create(scr);
+    lv_obj_set_size(s_wifi_kb_hide, CUBE_LCD_H_RES, 24);
+    lv_obj_align(s_wifi_kb_hide, LV_ALIGN_BOTTOM_MID, 0, -150);
+    lv_obj_add_event_cb(s_wifi_kb_hide, on_kb_hide, LV_EVENT_CLICKED, NULL);
+    lv_obj_add_flag(s_wifi_kb_hide, LV_OBJ_FLAG_HIDDEN);
+    lv_obj_t *kb_hide_label = lv_label_create(s_wifi_kb_hide);
+    lv_label_set_text(kb_hide_label, "СКРЫТЬ КЛАВИАТУРУ");
+    lv_obj_set_style_text_font(kb_hide_label, &lv_font_ru_14, 0);
+    lv_obj_center(kb_hide_label);
 
     /* --- bottom nav --- */
     lv_obj_t *btn_ch = lv_btn_create(scr);
@@ -426,6 +491,66 @@ static void ui_create(void)
     s_wifi_sel = 0;
     s_wifi_count = 0;
     page_show(0);
+}
+
+
+static uint8_t s_brightness = 100;
+static bool s_bl_pwm_ready;
+
+static esp_err_t backlight_pwm_init(void)
+{
+#if CUBE_LCD_BL_PWM_GPIO >= 0
+    ledc_timer_config_t timer = {
+        .speed_mode = LEDC_LOW_SPEED_MODE,
+        .timer_num = LEDC_TIMER_0,
+        .duty_resolution = LEDC_TIMER_10_BIT,
+        .freq_hz = CUBE_LCD_BL_PWM_HZ,
+        .clk_cfg = LEDC_AUTO_CLK,
+    };
+    esp_err_t err = ledc_timer_config(&timer);
+    if (err != ESP_OK) return err;
+    ledc_channel_config_t ch = {
+        .gpio_num = CUBE_LCD_BL_PWM_GPIO,
+        .speed_mode = LEDC_LOW_SPEED_MODE,
+        .channel = LEDC_CHANNEL_0,
+        .intr_type = LEDC_INTR_DISABLE,
+        .timer_sel = LEDC_TIMER_0,
+        .duty = 1023,
+        .hpoint = 0,
+    };
+    err = ledc_channel_config(&ch);
+    if (err == ESP_OK) {
+        s_bl_pwm_ready = true;
+        ESP_LOGW(TAG, "backlight PWM ready GPIO%d %dHz", CUBE_LCD_BL_PWM_GPIO, CUBE_LCD_BL_PWM_HZ);
+    }
+    return err;
+#else
+    return ESP_ERR_NOT_SUPPORTED;
+#endif
+}
+
+uint8_t display_get_brightness(void)
+{
+    return s_brightness;
+}
+
+esp_err_t display_set_brightness(uint8_t percent)
+{
+    if (percent < 10U) percent = 10U;
+    if (percent > 100U) percent = 100U;
+    s_brightness = percent;
+#if CUBE_LCD_BL_PWM_GPIO >= 0
+    if (s_bl_pwm_ready) {
+        uint32_t duty = ((uint32_t)percent * 1023U) / 100U;
+        esp_err_t err = ledc_set_duty(LEDC_LOW_SPEED_MODE, LEDC_CHANNEL_0, duty);
+        if (err != ESP_OK) return err;
+        return ledc_update_duty(LEDC_LOW_SPEED_MODE, LEDC_CHANNEL_0);
+    }
+#endif
+    if (CUBE_LCD_BL_GPIO >= 0) {
+        return gpio_set_level(CUBE_LCD_BL_GPIO, percent >= 50U ? 1 : 0);
+    }
+    return ESP_ERR_NOT_SUPPORTED;
 }
 
 esp_err_t display_init(void) {
@@ -525,6 +650,13 @@ esp_err_t display_init(void) {
     } else {
         ESP_LOGI(TAG, "backlight GPIO disabled");
     }
+    if (CUBE_LCD_BL_PWM_GPIO >= 0) {
+        if (backlight_pwm_init() == ESP_OK) {
+            (void)display_set_brightness(settings_get_brightness());
+        } else {
+            ESP_LOGW(TAG, "backlight PWM unavailable; using digital backlight");
+        }
+    }
 
     /* Smoke test: several patterns. One of them should be visible if SPI wiring is OK. */
     {
@@ -555,7 +687,7 @@ esp_err_t display_init(void) {
             }
             heap_caps_free(line);
             ESP_LOGW(TAG, "panel smoke: white + RGB bars + swapped bars");
-            vTaskDelay(pdMS_TO_TICKS(100));
+            vTaskDelay(pdMS_TO_TICKS(10));
         }
     }
 
@@ -571,17 +703,10 @@ esp_err_t display_init(void) {
     lv_indev_drv_init(&s_touch_drv);
     s_touch_drv.type = LV_INDEV_TYPE_POINTER;
     s_touch_drv.read_cb = touch_lvgl_read;
+    s_touch_drv.read_period = 10;
     if (!lv_indev_drv_register(&s_touch_drv)) return ESP_FAIL;
 
-    s_temps = NULL;
-    {
-        temperature_sensor_config_t tcfg = TEMPERATURE_SENSOR_CONFIG_DEFAULT(-10, 80);
-        if (temperature_sensor_install(&tcfg, &s_temps) == ESP_OK) {
-            (void)temperature_sensor_enable(s_temps);
-        } else {
-            s_temps = NULL;
-        }
-    }
+    (void)diag_init();
     ui_create();
 
     const esp_timer_create_args_t tick_args = {
@@ -666,7 +791,7 @@ void display_set_values(void) {
     /* System page live stats */
     if (s_ui_page == 1) {
         float tc = 0.0f;
-        if (s_temps && temperature_sensor_get_celsius(s_temps, &tc) == ESP_OK) {
+        if (diag_get_temperature(&tc)) {
             int t10 = (int)(tc * 10.0f);
             if (t10 < 0) t10 = -t10;
             lv_label_set_text_fmt(s_sys_temp, "Temp CPU: %d.%d C",
@@ -674,8 +799,9 @@ void display_set_values(void) {
         } else {
             lv_label_set_text(s_sys_temp, "Temp CPU: n/a");
         }
-        lv_label_set_text_fmt(s_sys_freq, "CPU: %u MHz",
-                              (unsigned)CONFIG_ESP_DEFAULT_CPU_FREQ_MHZ);
+        lv_label_set_text_fmt(s_sys_freq, "CPU: %u MHz  Load %u%%",
+                              (unsigned)CONFIG_ESP_DEFAULT_CPU_FREQ_MHZ,
+                              (unsigned)diag_get_cpu_load_percent());
         {
             uint8_t ch = CUBE_WIFI_CHANNEL;
             wifi_config_t wcfg = {0};
@@ -722,6 +848,6 @@ void display_task(void *arg) {
     (void)arg;
     for (;;) {
         display_set_values();
-        vTaskDelay(pdMS_TO_TICKS(100));
+        vTaskDelay(pdMS_TO_TICKS(20));
     }
 }

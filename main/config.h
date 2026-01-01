@@ -26,13 +26,12 @@
 #define CUBE_LCD_CS_GPIO             4
 #define CUBE_LCD_DC_GPIO             18
 #define CUBE_LCD_SPI_HZ              20000000
-/* CRITICAL: original firmware never drove a backlight GPIO.
-   GPIO2 is strapping — driving it causes POWERON reboot loop.
-   GPIO6/7 are power relays. Keep BL = -1. */
-#define CUBE_LCD_BL_GPIO             2  /* post-init; confirmed lights panel */
-/* Optional late backlight: GPIO3 LEDC. Disabled by default — caused POWERON loop on some boards. */
-#define CUBE_LCD_BL_PWM_GPIO         (-1)
-#define CUBE_LCD_BL_PWM_HZ           60000
+/* Backlight: GPIO2 is a strap sampled only during reset. It is safe to drive
+   after boot; the current hardware was already observed to light at GPIO2=HIGH. */
+#define CUBE_LCD_BL_GPIO             2
+/* Late PWM on the same backlight pin, initialized only after panel/boot straps. */
+#define CUBE_LCD_BL_PWM_GPIO         2
+#define CUBE_LCD_BL_PWM_HZ           20000
 #define CUBE_LCD_BL_PWM_DUTY         1023
 #define CUBE_LCD_RST_GPIO            (-1)
 /* Bench toggles — dump: mirror(0,0), no invert observed; 240x280 may need gap. */
@@ -52,6 +51,8 @@
 #define CUBE_TOUCH_SCL_GPIO          8
 #define CUBE_TOUCH_I2C_PORT          0
 #define CUBE_TOUCH_ADDR              0x15
+#define CUBE_TOUCH_I2C_HZ             400000
+#define CUBE_TOUCH_READ_TIMEOUT_MS    5
 #define CUBE_TOUCH_SWAP_XY           0
 #define CUBE_TOUCH_INVERT_X          0
 #define CUBE_TOUCH_INVERT_Y          0

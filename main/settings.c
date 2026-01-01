@@ -6,6 +6,7 @@
 #include "config.h"
 
 static const char *TAG = "SETTINGS";
+#define CUBE_NVS_BRIGHTNESS "brightness"
 
 esp_err_t settings_init(void)
 {
@@ -56,6 +57,32 @@ esp_err_t settings_set_ble_name(const char *name)
     esp_err_t err = nvs_open(CUBE_NVS_NAMESPACE, NVS_READWRITE, &h);
     if (err != ESP_OK) return err;
     err = nvs_set_str(h, CUBE_NVS_BLE_NAME, name);
+    if (err == ESP_OK) err = nvs_commit(h);
+    nvs_close(h);
+    return err;
+}
+
+
+uint8_t settings_get_brightness(void)
+{
+    nvs_handle_t h;
+    uint8_t value = 100;
+    if (nvs_open(CUBE_NVS_NAMESPACE, NVS_READONLY, &h) != ESP_OK) return value;
+    uint8_t stored = 0;
+    if (nvs_get_u8(h, CUBE_NVS_BRIGHTNESS, &stored) == ESP_OK && stored >= 10U && stored <= 100U) {
+        value = stored;
+    }
+    nvs_close(h);
+    return value;
+}
+
+esp_err_t settings_set_brightness(uint8_t percent)
+{
+    if (percent < 10U || percent > 100U) return ESP_ERR_INVALID_ARG;
+    nvs_handle_t h;
+    esp_err_t err = nvs_open(CUBE_NVS_NAMESPACE, NVS_READWRITE, &h);
+    if (err != ESP_OK) return err;
+    err = nvs_set_u8(h, CUBE_NVS_BRIGHTNESS, percent);
     if (err == ESP_OK) err = nvs_commit(h);
     nvs_close(h);
     return err;
