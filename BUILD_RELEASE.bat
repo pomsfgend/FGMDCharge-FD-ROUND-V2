@@ -129,6 +129,10 @@ idf.py fullclean
 if errorlevel 1 goto FAIL
 
 echo.
+echo Forcing sdkconfig policy before build...
+python tools\force_sdkconfig.py
+if errorlevel 1 goto FAIL
+
 echo Building (this takes a few minutes)...
 idf.py build
 if errorlevel 1 goto FAIL

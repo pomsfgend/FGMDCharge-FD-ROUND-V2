@@ -1,16 +1,14 @@
 FGMDCharge / FD_ROUND V2 — Release 2.0.5
 =======================================
 
-Changes from 2.0.4:
-1) Fixed nested-comment compile error in web_assets.c (/* inside /*).
-2) Size optimization so the app fits into the original OTA slot 0x190000:
-   - CONFIG_COMPILER_OPTIMIZATION_SIZE=y
-   - reduced log level
-   - aggressively disabled unused LVGL widgets/features (only obj+label+2 fonts needed)
-   - reduced WiFi/LWIP/HTTPD buffers
-   - trimmed some Bluedroid options that are not required for advertising+GATTS
-3) force_sdkconfig.py updated accordingly.
-4) Version bumped to 2.0.5.
+Build fixes:
+1) Nested comment in web_assets.c fixed.
+2) Version strings unified to 2.0.5 (static_audit / verify_release).
+3) BUILD_RELEASE.bat rewritten: always shows output, always pauses on error,
+   rejects paths with spaces, CRLF line endings. START_BUILD.cmd added.
+4) LVGL config: CONFIG_LV_USE_IMG=y (required by animimg headers) and
+   CONFIG_LV_USE_ANIMIMG=n. Previous over-aggressive widget disable broke
+   the LVGL dependency chain.
+5) Size optimization kept (COMPILER_OPTIMIZATION_SIZE, reduced buffers).
 
-Binary must stay <= 0x190000 (1638400 bytes) to match the original partition layout
-used by FLASH_RELEASE_OTA1.bat (writes only the app image into the existing OTA1 slot).
+Binary must stay <= 0x190000 to match original OTA slot layout.
