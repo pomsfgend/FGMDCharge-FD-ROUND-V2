@@ -30,8 +30,8 @@ static lv_obj_t *s_request;
 static lv_obj_t *s_time;
 static lv_obj_t *s_status;
 static lv_obj_t *s_can;
-static lv_color_t s_buf1[CUBE_LCD_UI_H_RES * 30];
-static lv_color_t s_buf2[CUBE_LCD_UI_H_RES * 30];
+static lv_color_t s_buf1[CUBE_LCD_H_RES * 40];
+static lv_color_t s_buf2[CUBE_LCD_H_RES * 40];
 static lv_disp_draw_buf_t s_draw_buf;
 static lv_disp_drv_t s_disp_drv;
 static lv_indev_drv_t s_touch_drv;
@@ -49,13 +49,13 @@ static bool lcd_flush_done(esp_lcd_panel_io_handle_t panel_io,
 }
 
 static void lv_flush(lv_disp_drv_t *drv, const lv_area_t *area, lv_color_t *color_p) {
+    /* Synchronous flush: avoids tear/noise when DMA completion races LVGL. */
     esp_err_t err = esp_lcd_panel_draw_bitmap(s_panel, area->x1, area->y1,
                                                area->x2 + 1, area->y2 + 1, color_p);
     if (err != ESP_OK) {
         ESP_LOGW(TAG, "LCD flush failed: %s", esp_err_to_name(err));
-        lv_disp_flush_ready(drv);
     }
-    /* On success, the panel-IO completion callback calls lv_disp_flush_ready. */
+    lv_disp_flush_ready(drv);
 }
 
 static void tick_cb(void *arg) {
@@ -92,42 +92,39 @@ static lv_obj_t *make_card(lv_obj_t *parent, lv_coord_t x, lv_coord_t y, lv_coor
 }
 
 static void ui_create(void) {
-    /* Landscape 280x240 after 90° CCW */
     lv_obj_t *scr = lv_scr_act();
     lv_obj_set_style_bg_color(scr, lv_color_hex(0x07111C), 0);
     lv_obj_set_style_bg_opa(scr, LV_OPA_COVER, 0);
     lv_obj_clear_flag(scr, LV_OBJ_FLAG_SCROLLABLE);
 
     lv_obj_t *title = make_label(scr, "GB/T DC CHARGER", 14);
-    lv_obj_align(title, LV_ALIGN_TOP_MID, 0, 4);
+    lv_obj_align(title, LV_ALIGN_TOP_MID, 0, 6);
 
-    (void)make_card(scr, 6, 24, 132, 70, "VOLTAGE", &s_voltage);
-    (void)make_card(scr, 142, 24, 132, 70, "CURRENT", &s_current);
+    (void)make_card(scr, 8, 28, 108, 72, "VOLTAGE", &s_voltage);
+    (void)make_card(scr, 124, 28, 108, 72, "CURRENT", &s_current);
 
     s_power = make_label(scr, "POWER ---- W", 14);
-    lv_obj_align(s_power, LV_ALIGN_TOP_LEFT, 8, 100);
+    lv_obj_align(s_power, LV_ALIGN_TOP_MID, 0, 108);
     s_stage = make_label(scr, "STAGE: --", 14);
-    lv_obj_align(s_stage, LV_ALIGN_TOP_LEFT, 150, 100);
-
-    s_request = make_label(scr, "REQ --.-V --.-A", 14);
-    lv_obj_align(s_request, LV_ALIGN_TOP_LEFT, 8, 122);
+    lv_obj_align(s_stage, LV_ALIGN_TOP_MID, 0, 130);
+    s_request = make_label(scr, "REQ --.- V  --.- A", 14);
+    lv_obj_align(s_request, LV_ALIGN_TOP_MID, 0, 152);
     s_time = make_label(scr, "TIME ---- min", 14);
-    lv_obj_align(s_time, LV_ALIGN_TOP_LEFT, 150, 122);
-
+    lv_obj_align(s_time, LV_ALIGN_TOP_MID, 0, 174);
     s_status = make_label(scr, "STATUS --", 14);
-    lv_obj_align(s_status, LV_ALIGN_TOP_LEFT, 8, 144);
+    lv_obj_align(s_status, LV_ALIGN_TOP_MID, 0, 196);
     s_can = make_label(scr, "CAN 250k RX 0", 14);
-    lv_obj_align(s_can, LV_ALIGN_TOP_LEFT, 150, 144);
+    lv_obj_align(s_can, LV_ALIGN_TOP_MID, 0, 218);
 
     static char wifi_line[48];
     (void)snprintf(wifi_line, sizeof(wifi_line), "WiFi %s", CUBE_WIFI_SSID);
     lv_obj_t *hint = make_label(scr, wifi_line, 14);
-    lv_obj_align(hint, LV_ALIGN_BOTTOM_LEFT, 8, -8);
+    lv_obj_align(hint, LV_ALIGN_BOTTOM_MID, 0, -28);
 
     static char pass_line[40];
     (void)snprintf(pass_line, sizeof(pass_line), "PASS %s", CUBE_WIFI_PASSWORD);
     lv_obj_t *hint2 = make_label(scr, pass_line, 14);
-    lv_obj_align(hint2, LV_ALIGN_BOTTOM_RIGHT, -8, -8);
+    lv_obj_align(hint2, LV_ALIGN_BOTTOM_MID, 0, -10);
 }
 
 esp_err_t display_init(void) {
@@ -158,11 +155,11 @@ esp_err_t display_init(void) {
     err = esp_lcd_new_panel_io_spi((esp_lcd_spi_bus_handle_t)SPI2_HOST, &io_cfg, &s_panel_io);
     if (err != ESP_OK) return err;
 
-    /* ILI9341 path from dump; 90° CCW for upright UI; RGB fixes blue cast. */
+    /* Portrait 240x280 — same as original dump lcd_main (no swap_xy). */
     esp_lcd_panel_dev_config_t panel_cfg = {
         .reset_gpio_num = CUBE_LCD_RST_GPIO,
         .bits_per_pixel = 16,
-        .rgb_endian = LCD_RGB_ENDIAN_RGB,
+        .rgb_endian = LCD_RGB_ENDIAN_BGR,
     };
     ESP_LOGW(TAG, "panel create ILI9341...");
     err = esp_lcd_new_panel_ili9341(s_panel_io, &panel_cfg, &s_panel);
@@ -172,12 +169,10 @@ esp_err_t display_init(void) {
     }
     if ((err = esp_lcd_panel_reset(s_panel)) != ESP_OK) return err;
     if ((err = esp_lcd_panel_init(s_panel)) != ESP_OK) return err;
-    (void)esp_lcd_panel_invert_color(s_panel, false);
-    /* 90° left (CCW): swap XY + mirror Y (common for these modules). */
-    if ((err = esp_lcd_panel_swap_xy(s_panel, true)) != ESP_OK) return err;
-    if ((err = esp_lcd_panel_mirror(s_panel, false, true)) != ESP_OK) return err;
+    (void)esp_lcd_panel_invert_color(s_panel, true);
+    if ((err = esp_lcd_panel_mirror(s_panel, false, false)) != ESP_OK) return err;
     if ((err = esp_lcd_panel_disp_on_off(s_panel, true)) != ESP_OK) return err;
-    ESP_LOGW(TAG, "panel on (90deg CCW, RGB)");
+    ESP_LOGW(TAG, "panel on (portrait BGR invert)");
 
     /* Backlight GPIO2 AFTER panel init (boot strapping already sampled).
        Do not touch GPIO6/GPIO20 (output commutation relays). */
@@ -195,26 +190,12 @@ esp_err_t display_init(void) {
         }
     }
 
-    {
-        /* After swap_xy, draw in logical 280x240 space. */
-        enum { LINE = 280 };
-        uint16_t *line = calloc(LINE, sizeof(uint16_t));
-        if (line) {
-            for (int y = 0; y < 240; ++y) {
-                uint16_t c = (y < 80) ? 0xF800u : (y < 160) ? 0x07E0u : 0x001Fu;
-                for (int x = 0; x < LINE; ++x) line[x] = c;
-                (void)esp_lcd_panel_draw_bitmap(s_panel, 0, y, LINE, y + 1, line);
-            }
-            free(line);
-            ESP_LOGW(TAG, "RGB band probe drawn (rot)");
-        }
-    }
 
     lv_init();
-    lv_disp_draw_buf_init(&s_draw_buf, s_buf1, s_buf2, CUBE_LCD_UI_H_RES * 30);
+    lv_disp_draw_buf_init(&s_draw_buf, s_buf1, s_buf2, CUBE_LCD_H_RES * 40);
     lv_disp_drv_init(&s_disp_drv);
-    s_disp_drv.hor_res = CUBE_LCD_UI_H_RES;
-    s_disp_drv.ver_res = CUBE_LCD_UI_V_RES;
+    s_disp_drv.hor_res = CUBE_LCD_H_RES;
+    s_disp_drv.ver_res = CUBE_LCD_V_RES;
     s_disp_drv.flush_cb = lv_flush;
     s_disp_drv.draw_buf = &s_draw_buf;
     s_display = lv_disp_drv_register(&s_disp_drv);
@@ -242,7 +223,7 @@ esp_err_t display_init(void) {
     if ((err = esp_timer_start_periodic(s_tick_timer, 1000)) != ESP_OK) return err;
 
     app_state_set_display(true);
-    ESP_LOGI(TAG, "ILI9341 UI %dx%d (panel %dx%d rot90)", CUBE_LCD_UI_H_RES, CUBE_LCD_UI_V_RES, CUBE_LCD_H_RES, CUBE_LCD_V_RES);
+    ESP_LOGI(TAG, "ILI9341 portrait %dx%d", CUBE_LCD_H_RES, CUBE_LCD_V_RES);
     return ESP_OK;
 }
 

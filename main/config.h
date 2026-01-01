@@ -17,9 +17,6 @@
 /* LCD confirmed from the original dump. */
 #define CUBE_LCD_H_RES               240
 #define CUBE_LCD_V_RES               280
-/* After 90° left (CCW): LVGL uses swapped logical size */
-#define CUBE_LCD_UI_H_RES            280
-#define CUBE_LCD_UI_V_RES            240
 #define CUBE_LCD_MOSI_GPIO           5
 #define CUBE_LCD_MISO_GPIO           (-1)
 #define CUBE_LCD_SCLK_GPIO           19
