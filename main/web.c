@@ -480,8 +480,32 @@ esp_err_t web_init(void)
     if (err != ESP_OK && err != ESP_ERR_INVALID_STATE) return err;
     (void)esp_event_handler_register(WIFI_EVENT, WIFI_EVENT_AP_STACONNECTED, &wifi_ap_event_handler, NULL);
     (void)esp_event_handler_register(WIFI_EVENT, WIFI_EVENT_AP_STADISCONNECTED, &wifi_ap_event_handler, NULL);
-    if (!esp_netif_create_default_wifi_ap()) return ESP_ERR_NO_MEM;
-    (void)esp_netif_create_default_wifi_sta();
+    esp_netif_t *ap_netif = esp_netif_create_default_wifi_ap();
+    if (!ap_netif) return ESP_ERR_NO_MEM;
+    {
+        esp_netif_ip_info_t ip_info;
+        memset(&ip_info, 0, sizeof(ip_info));
+        (void)esp_netif_str_to_ip4("192.168.4.1", &ip_info.ip);
+        (void)esp_netif_str_to_ip4("192.168.4.1", &ip_info.gw);
+        (void)esp_netif_str_to_ip4("255.255.255.0", &ip_info.netmask);
+        (void)esp_netif_dhcps_stop(ap_netif);
+        if ((err = esp_netif_set_ip_info(ap_netif, &ip_info)) != ESP_OK) {
+            ESP_LOGE(TAG, "set_ip_info: %s", esp_err_to_name(err));
+            return err;
+        }
+        {
+            uint8_t dns_offer = 1;
+            (void)esp_netif_dhcps_option(ap_netif, ESP_NETIF_OP_SET,
+                                         ESP_NETIF_DOMAIN_NAME_SERVER,
+                                         &dns_offer, sizeof(dns_offer));
+        }
+        if ((err = esp_netif_dhcps_start(ap_netif)) != ESP_OK && err != ESP_ERR_ESP_NETIF_DHCP_ALREADY_STARTED) {
+            ESP_LOGE(TAG, "dhcps_start: %s", esp_err_to_name(err));
+            return err;
+        }
+        ESP_LOGW(TAG, "AP IP 192.168.4.1 DHCP ON");
+    }
+
 
     wifi_init_config_t cfg = WIFI_INIT_CONFIG_DEFAULT();
     err = esp_wifi_init(&cfg);
@@ -527,9 +551,12 @@ esp_err_t web_init(void)
     {
         uint8_t mac[6] = {0};
         (void)esp_wifi_get_mac(WIFI_IF_AP, mac);
-        ESP_LOGW(TAG, "SoftAP %s OPEN ch=%u MAC=%02X:%02X:%02X:%02X:%02X:%02X",
-                 CUBE_WIFI_SSID, (unsigned)CUBE_WIFI_CHANNEL,
-                 mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
+        ESP_LOGW(TAG, "SoftAP %s auth=%s ch=%u MAC=%02X:%02X:%02X:%02X:%02X:%02X pass=%s",
+                 CUBE_WIFI_SSID,
+                 (strlen(CUBE_WIFI_PASSWORD) >= 8U) ? "WPA2" : "OPEN",
+                 (unsigned)CUBE_WIFI_CHANNEL,
+                 mac[0], mac[1], mac[2], mac[3], mac[4], mac[5],
+                 (strlen(CUBE_WIFI_PASSWORD) >= 8U) ? CUBE_WIFI_PASSWORD : "(none)");
     }
 
 
