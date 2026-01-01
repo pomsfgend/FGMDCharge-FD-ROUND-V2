@@ -30,6 +30,7 @@ extern const uint8_t web_app_js[];
 extern const size_t web_app_js_len;
 
 static const char *TAG = "WEB";
+static int s_ap_clients;
 static httpd_handle_t s_server;
 
 static void set_no_cache(httpd_req_t *req)
@@ -489,7 +490,6 @@ static esp_err_t session_stop_post(httpd_req_t *req)
 
 
 static int s_ap_channel = CUBE_WIFI_CHANNEL;
-static int s_ap_clients;
 static char s_scan_ssid[8][33];
 static int s_scan_n;
 static char s_sta_ip[20] = "--";
