@@ -653,13 +653,13 @@ static void build_ui(void)
     s_log_lbl = line(s_scr_chg, "лог", 298);
     lv_obj_set_width(s_log_lbl, 216);
     lv_label_set_long_mode(s_log_lbl, LV_LABEL_LONG_WRAP);
-    lv_obj_t *orig = lv_btn_create(s_scr_chg);
-    lv_obj_set_size(orig, 200, 36);
-    lv_obj_set_pos(orig, 12, 430);
-    lv_obj_add_event_cb(orig, boot_old_cb, LV_EVENT_CLICKED, NULL);
-    lv_obj_t *orig_l = lv_label_create(orig);
-    lv_label_set_text(orig_l, "оригинал");
-    lv_obj_center(orig_l);
+    lv_obj_t *ob = lv_btn_create(s_scr_chg);
+    lv_obj_set_size(ob, 200, 36);
+    lv_obj_set_pos(ob, 12, 430);
+    lv_obj_add_event_cb(ob, boot_old_cb, LV_EVENT_CLICKED, NULL);
+    lv_obj_t *obl = lv_label_create(ob);
+    lv_label_set_text(obl, "оригинал");
+    lv_obj_center(obl);
     s_status = line(s_scr_chg, "3 включения = слот", 476);
 
 
