@@ -81,7 +81,13 @@ void app_main(void) {
     /* SoftAP first for scan visibility, then BLE. */
     err = web_init();
     if (err != ESP_OK) ESP_LOGE(TAG, "Web init failed: %s", esp_err_to_name(err));
-    else ESP_LOGW(TAG, "stage: Web AP ok");
+    else {
+        ESP_LOGW(TAG, "stage: Web AP ok");
+#if (CUBE_WIFI_SCAN_WINDOW_MS > 0)
+        ESP_LOGW(TAG, "WiFi scan window %d ms — look for SSID now", CUBE_WIFI_SCAN_WINDOW_MS);
+        vTaskDelay(pdMS_TO_TICKS(CUBE_WIFI_SCAN_WINDOW_MS));
+#endif
+    }
 
 
     err = display_init();
@@ -94,7 +100,6 @@ void app_main(void) {
     }
 #if CUBE_BLE_ENABLE
 #if (CUBE_BLE_START_DELAY_MS > 0)
-    ESP_LOGW(TAG, "BLE delay %d ms (SoftAP first)", CUBE_BLE_START_DELAY_MS);
     vTaskDelay(pdMS_TO_TICKS(CUBE_BLE_START_DELAY_MS));
 #endif
     err = cube_ble_init();
@@ -103,10 +108,10 @@ void app_main(void) {
     } else if (xTaskCreate(cube_ble_task, "myTask_BLE", 4096, NULL, 3, NULL) != pdPASS) {
         ESP_LOGE(TAG, "BLE task creation failed");
     } else {
-        ESP_LOGW(TAG, "stage: BLE ok");
+        ESP_LOGW(TAG, "stage: BLE ok (name=FGMDCharge)");
     }
 #else
-    ESP_LOGW(TAG, "stage: BLE disabled (CUBE_BLE_ENABLE=0) — SoftAP only");
+    ESP_LOGW(TAG, "stage: BLE disabled");
 #endif
 
     if (xTaskCreate(myTask_Timer, "myTask_Timer", 4096, NULL, 2, NULL) != pdPASS) {

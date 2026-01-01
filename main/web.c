@@ -481,6 +481,7 @@ esp_err_t web_init(void)
     (void)esp_event_handler_register(WIFI_EVENT, WIFI_EVENT_AP_STACONNECTED, &wifi_ap_event_handler, NULL);
     (void)esp_event_handler_register(WIFI_EVENT, WIFI_EVENT_AP_STADISCONNECTED, &wifi_ap_event_handler, NULL);
     if (!esp_netif_create_default_wifi_ap()) return ESP_ERR_NO_MEM;
+    (void)esp_netif_create_default_wifi_sta();
 
     wifi_init_config_t cfg = WIFI_INIT_CONFIG_DEFAULT();
     err = esp_wifi_init(&cfg);
@@ -504,19 +505,22 @@ esp_err_t web_init(void)
         ap.ap.authmode = WIFI_AUTH_OPEN;
         ap.ap.password[0] = 0;
     }
-    if ((err = esp_wifi_set_mode(WIFI_MODE_AP)) != ESP_OK) return err;
+    /* APSTA: some phones only show SoftAP when radio is also in station-capable mode. */
+    if ((err = esp_wifi_set_mode(WIFI_MODE_APSTA)) != ESP_OK) return err;
     if ((err = esp_wifi_set_config(WIFI_IF_AP, &ap)) != ESP_OK) return err;
-    /* Exact path from 2.0.5 where client got 192.168.4.2 — no country/protocol overrides. */
     (void)esp_wifi_set_ps(WIFI_PS_NONE);
     (void)esp_wifi_set_bandwidth(WIFI_IF_AP, WIFI_BW_HT20);
+    (void)esp_wifi_set_protocol(WIFI_IF_AP, WIFI_PROTOCOL_11B | WIFI_PROTOCOL_11G | WIFI_PROTOCOL_11N);
     if ((err = esp_wifi_start()) != ESP_OK && err != ESP_ERR_INVALID_STATE) return err;
+    /* Max TX (~20–21 dBm). Units are 0.25 dBm. */
+    (void)esp_wifi_set_max_tx_power(80);
     {
         uint8_t mac[6] = {0};
         (void)esp_wifi_get_mac(WIFI_IF_AP, mac);
-        ESP_LOGW(TAG, "SoftAP UP SSID=%s OPEN ch=%u MAC=%02X:%02X:%02X:%02X:%02X:%02X",
+        ESP_LOGW(TAG, "SoftAP UP SSID=%s OPEN ch=%u MAC=%02X:%02X:%02X:%02X:%02X:%02X TX=max",
                  CUBE_WIFI_SSID, (unsigned)CUBE_WIFI_CHANNEL,
                  mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
-        ESP_LOGW(TAG, "Connect phone to '%s' (no password), open http://192.168.4.1/",
+        ESP_LOGW(TAG, ">>> SCAN PHONE NOW for '%s' (no password) http://192.168.4.1/",
                  CUBE_WIFI_SSID);
     }
 
