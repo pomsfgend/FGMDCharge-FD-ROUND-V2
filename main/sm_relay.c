@@ -32,7 +32,6 @@ static uint32_t s_last_bsm_ms = 0;
 static bool     s_crm00 = false;
 static bool     s_crmaa = false;
 static uint32_t s_last_brm_ms = 0;
-static uint32_t s_last_bcp_ms = 0;
 static uint32_t s_last_rx_count = 0;
 static uint32_t s_last_chg_ms = 0;
 static uint32_t s_auto_hold_until = 0;
@@ -105,14 +104,6 @@ static void tx_bam(uint32_t pgn, const uint8_t *payload, uint16_t len)
         (void)gbt_can_send(0x1CEB56F4u, dt, 8);
         vTaskDelay(pdMS_TO_TICKS(10));
     }
-}
-
-
-static bool st_proto_is_2011(void)
-{
-    cube_state_snapshot_t snap;
-    app_state_snapshot(&snap);
-    return snap.protocol == 2;
 }
 
 static void tx_brm(void)
