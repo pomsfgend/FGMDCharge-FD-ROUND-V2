@@ -6,9 +6,8 @@
 void bootloader_reset(void);
 
 #define OTADATA 0xD000
-#define CHOICE ((volatile uint32_t *)0x50001FF0)
+#define STORE0  0x600080B0u
 #define MAGIC_OLD 0x01D0F00Du
-#define MAGIC_FORCED 0x0F0C3D01u
 
 static int entry_ok(const uint8_t *e, uint32_t *seq_out)
 {
@@ -16,7 +15,7 @@ static int entry_ok(const uint8_t *e, uint32_t *seq_out)
     memcpy(&seq, e, 4);
     memcpy(&crc, e + 28, 4);
     if (seq == 0 || seq == 0xFFFFFFFFu) return 0;
-    c4 = esp_rom_crc32_le(0xFFFFFFFF, e, 4);
+    c4 = esp_rom_crc32_le(0xFFFFFFFF, (const uint8_t *)&seq, 4);
     c28 = esp_rom_crc32_le(0xFFFFFFFF, e, 28);
     if (crc != c4 && crc != c28) return 0;
     *seq_out = seq;
@@ -25,13 +24,13 @@ static int entry_ok(const uint8_t *e, uint32_t *seq_out)
 
 static uint32_t active_seq(int *slot_out)
 {
-    uint8_t sec[64];
     uint32_t best = 0;
     int slot = 0;
-    bootloader_flash_read(OTADATA, sec, sizeof(sec), false);
-    for (int i = 0; i < 2; i++) {
+    for (int sec = 0; sec < 2; sec++) {
+        uint8_t e[32];
+        bootloader_flash_read(OTADATA + sec * 0x1000, e, sizeof(e), false);
         uint32_t seq = 0;
-        if (!entry_ok(sec + i * 32, &seq)) continue;
+        if (!entry_ok(e, &seq)) continue;
         if (seq >= best) {
             best = seq;
             slot = (int)((seq - 1) & 1);
@@ -49,31 +48,26 @@ static void write_slot(int slot, uint32_t prev)
     uint8_t entry[32];
     memset(entry, 0xFF, sizeof(entry));
     memcpy(entry, &seq, 4);
-    uint32_t crc = esp_rom_crc32_le(0xFFFFFFFF, entry, 28);
+    uint32_t crc = esp_rom_crc32_le(0xFFFFFFFF, (uint8_t *)&seq, 4);
     memcpy(entry + 28, &crc, 4);
-    uint8_t page[64];
-    memcpy(page, entry, 32);
-    memcpy(page + 32, entry, 32);
-    bootloader_flash_erase_range(OTADATA, 0x1000);
-    bootloader_flash_write(OTADATA, page, sizeof(page), false);
-    esp_rom_printf("BOOT wrote seq %u slot %d\n", (unsigned)seq, slot);
+    for (int sec = 0; sec < 2; sec++) {
+        bootloader_flash_erase_range(OTADATA + sec * 0x1000, 0x1000);
+        bootloader_flash_write(OTADATA + sec * 0x1000, entry, sizeof(entry), false);
+    }
+    esp_rom_printf("BOOT wrote seq %u slot %d both sectors\n", (unsigned)seq, slot);
 }
 
 void bootloader_after_init(void)
 {
     int slot = 0;
     uint32_t seq = active_seq(&slot);
-    esp_rom_printf("BOOT choice %08x seq %u slot %d\n", (unsigned)*CHOICE, (unsigned)seq, slot);
-    if (*CHOICE == MAGIC_OLD) {
+    uint32_t scratch = *(volatile uint32_t *)STORE0;
+    esp_rom_printf("BOOT scratch %08x seq %u slot %d\n", (unsigned)scratch, (unsigned)seq, slot);
+    if (scratch == MAGIC_OLD) {
         esp_rom_printf("BOOT keep old until power off\n");
         return;
     }
-    if (*CHOICE == MAGIC_FORCED) {
-        esp_rom_printf("BOOT menu already forced\n");
-        return;
-    }
     if (slot != 1) {
-        *CHOICE = MAGIC_FORCED;
         write_slot(1, seq);
         esp_rom_printf("BOOT power -> menu, reset\n");
         bootloader_reset();

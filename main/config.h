@@ -1,12 +1,12 @@
 #pragma once
 
 #define CUBE_FW_NAME                 "FD_ROUND_V2"
-#define CUBE_FW_VERSION              "2.8.2"
+#define CUBE_FW_VERSION              "2.8.3"
 
 /* SoftAP */
 #define CUBE_WEB_KEY                 ""
 #define CUBE_WIFI_SSID               "Cube"
-#define CUBE_WIFI_PASSWORD           "123456789"
+#define CUBE_WIFI_PASSWORD           "12345678"
 #define CUBE_WIFI_CHANNEL            6
 #define CUBE_WIFI_MAX_CONNECTIONS    4
 #define CUBE_WIFI_OPEN               0

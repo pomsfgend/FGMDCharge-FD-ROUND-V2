@@ -1,3 +1,4 @@
+#include "soc/rtc_cntl_reg.h"
 #include "web.h"
 
 #include <ctype.h>
@@ -814,7 +815,7 @@ void web_boot_original(void)
     const esp_partition_t *orig = esp_partition_find_first(
         ESP_PARTITION_TYPE_APP, ESP_PARTITION_SUBTYPE_APP_OTA_0, NULL);
     if (!orig) return;
-    *(volatile uint32_t *)0x50001FF0 = 0x01D0F00Du;
+    REG_WRITE(RTC_CNTL_STORE0_REG, 0x01D0F00Du);
     esp_ota_set_boot_partition(orig);
     esp_restart();
 }
@@ -927,7 +928,7 @@ esp_err_t web_init(void)
             return err;
         }
     }
-    ESP_LOGW(TAG, "softAP started SSID:%s password:%s channel:%d", CUBE_WIFI_SSID, CUBE_WIFI_PASSWORD[0]?CUBE_WIFI_PASSWORD:"(open)", s_ap_channel);
+    ESP_LOGW(TAG, "softAP started SSID:%s password:12345678 channel:%d", CUBE_WIFI_SSID, s_ap_channel);
     ESP_LOGI(TAG, "Wi-Fi AP=%s UI=http://192.168.4.1/", CUBE_WIFI_SSID);
     return ESP_OK;
 }
