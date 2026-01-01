@@ -166,6 +166,7 @@ static lv_obj_t *s_card_u;
 static lv_obj_t *s_card_i;
 static lv_obj_t *s_dots;
 static void gesture_cb(lv_event_t *e);
+static void apply_field(void);
 static void refresh_scan_label(void);
 static void resize_edges(void);
 static void stop_hold_cb(lv_event_t *e);
@@ -384,7 +385,6 @@ static void join_cb(lv_event_t *e)
     pad_hide();
 }
 
-static void apply_field(void);
 static lv_obj_t *s_edge_l;
 static lv_obj_t *s_edge_r;
 
@@ -570,7 +570,7 @@ static void build_ui(void)
 {
     s_scr_chg = lv_scr_act();
     style_screen(s_scr_chg);
-    line(s_scr_chg, "ДОМ 2.7.0", 8);
+    line(s_scr_chg, "ДОМ 2.7.1", 8);
     lv_obj_add_flag(s_scr_chg, LV_OBJ_FLAG_SCROLLABLE);
     s_card_u = card(s_scr_chg, 10, 40, &s_voltage, "V");
     s_card_i = card(s_scr_chg, 122, 40, &s_current, "A");
@@ -673,7 +673,7 @@ static void build_ui(void)
     lv_obj_set_height(s_can_lbl, 110);
     s_scr_sys = lv_obj_create(NULL);
     style_screen(s_scr_sys);
-    line(s_scr_sys, "СИСТЕМА 2.7.0", 4);
+    line(s_scr_sys, "СИСТЕМА 2.7.1", 4);
     s_sys_temp = line(s_scr_sys, "CPU -- C", 28);
     s_sys_cpu = line(s_scr_sys, "F 160 MHz", 48);
     s_sys_load = line(s_scr_sys, "Load -- %", 68);
