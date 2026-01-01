@@ -4,7 +4,6 @@
 #include "bootloader_flash_priv.h"
 
 void bootloader_reset(void);
-int esp_rom_get_reset_reason(int cpu_no);
 
 #define OTADATA 0xD000
 
