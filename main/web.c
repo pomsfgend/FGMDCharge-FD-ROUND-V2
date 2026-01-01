@@ -149,9 +149,7 @@ static esp_err_t status_get(httpd_req_t *req)
         "\"ccs_charge_permit\":%u,\"ccs_status_raw\":%u,\"power_w\":%ld,"
         "\"cro_status_raw\":%u,\"cst_status_raw\":%u,\"csd_time_min\":%u,\"csd_energy_0p1kwh\":%u,"
         "\"bcl_voltage_0p1v\":%u,\"bcl_current_0p1a\":%d,\"bcl_mode\":%u,"
-        "\"ble\":%s,\"notify\":%s,\"indicate\":%s,\"display\":%s,\"touch\":%s,\"touch_pressed":%s,"
-        "\"protocol\":\"%s\",\"voltage_v\":%.1f,\"current_a\":%.1f,\"power_w\":%ld,\"time_min\":%u,"
-        "\"permit\":\"%s\",\"ccs\":\"%s\",\"can\":\"%s\",\"limit_v\":\"%.1f\",\"limit_i\":\"%.1f\",\"request\":\"%.1f/%.1f\",\"mode\":\"%s\",\"wifi\":\"%s\",\"sub_state\":%u}",
+        "\"ble\":%s,\"notify\":%s,\"indicate\":%s,\"display\":%s,\"touch\":%s,\"touch_pressed\":%s,"\"protocol\":\"%s\",\"voltage_v\":%.1f,\"current_a\":%.1f,\"power_w\":%ld,\"time_min\":%u,"\"permit\":\"%s\",\"ccs\":\"%s\",\"can\":\"%s\",\"limit_v\":\"%.1f\",\"limit_i\":\"%.1f\",\"request\":\"%.1f/%.1f\",\"mode\":\"%s\",\"wifi\":\"%s\",\"sub_state\":%u}",
         CUBE_FW_NAME, CUBE_FW_VERSION,
         s.can_up ? "true" : "false", s.tx_enabled ? "true" : "false",
         (unsigned long)s.rx_count, (unsigned long)s.tx_count,

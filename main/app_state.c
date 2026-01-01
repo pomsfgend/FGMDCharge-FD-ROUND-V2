@@ -135,6 +135,11 @@ int app_state_log_text(char *out, int out_len)
     return o;
 }
 
+void app_state_set_soc(uint8_t soc)
+{
+    s_state.soc_percent = soc > 100 ? 100 : soc;
+}
+
 void app_state_set_vin(const char *vin)
 {
     if (!vin) return;
