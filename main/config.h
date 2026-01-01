@@ -4,7 +4,7 @@
 #define CUBE_FW_VERSION              "2.0.5"
 
 /* Web API protection. Change before installing on a real vehicle/charging setup. */
-#define CUBE_WEB_KEY                 "change-me-2026"
+#define CUBE_WEB_KEY                 "FDcube2026"
 #define CUBE_WIFI_SSID               "FGMDCharge-V2"
 #define CUBE_WIFI_PASSWORD           "FDcube2026"  /* change before field use */
 #define CUBE_WIFI_CHANNEL            1
@@ -23,11 +23,10 @@
 #define CUBE_LCD_CS_GPIO             4
 #define CUBE_LCD_DC_GPIO             18
 #define CUBE_LCD_SPI_HZ              20000000
-/* Backlight GPIO unknown from dump. GPIO2=strapping, GPIO6=RELAY (clicked).
-   Leave disabled until proven. Status LED also unknown. */
-#define CUBE_LCD_BL_GPIO             (-1)
+/* Backlight: GPIO2=strap, GPIO6=relay. Try GPIO20 (common on C3 LCD modules). */
+#define CUBE_LCD_BL_GPIO             20
 #define CUBE_LCD_RST_GPIO            (-1)
-#define CUBE_STATUS_LED_GPIO         (-1)
+#define CUBE_STATUS_LED_GPIO         7
 #define CUBE_LCD_QUEUE_DEPTH         10
 #define CUBE_LCD_MAX_TRANSFER        38400
 

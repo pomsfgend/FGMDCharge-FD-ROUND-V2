@@ -154,8 +154,7 @@ esp_err_t display_init(void) {
     err = esp_lcd_new_panel_io_spi((esp_lcd_spi_bus_handle_t)SPI2_HOST, &io_cfg, &s_panel_io);
     if (err != ESP_OK) return err;
 
-    /* Do NOT drive GPIO6 — on this board it toggles the power relay (audible click).
-       Backlight pin is still unproven from dump1.bin; leave it alone. */
+    /* GPIO6 = relay (do not touch). GPIO2 = strapping. BL try GPIO20, status LED GPIO7. */
     if (CUBE_LCD_BL_GPIO >= 0) {
         gpio_config_t bl = {
             .pin_bit_mask = 1ULL << CUBE_LCD_BL_GPIO,
@@ -168,8 +167,19 @@ esp_err_t display_init(void) {
             (void)gpio_set_level(CUBE_LCD_BL_GPIO, 1);
             ESP_LOGW(TAG, "backlight GPIO%d = ON", CUBE_LCD_BL_GPIO);
         }
-    } else {
-        ESP_LOGW(TAG, "backlight GPIO not set (safe); panel-only path");
+    }
+    if (CUBE_STATUS_LED_GPIO >= 0) {
+        gpio_config_t led = {
+            .pin_bit_mask = 1ULL << CUBE_STATUS_LED_GPIO,
+            .mode = GPIO_MODE_OUTPUT,
+            .pull_up_en = GPIO_PULLUP_DISABLE,
+            .pull_down_en = GPIO_PULLDOWN_DISABLE,
+            .intr_type = GPIO_INTR_DISABLE,
+        };
+        if (gpio_config(&led) == ESP_OK) {
+            (void)gpio_set_level(CUBE_STATUS_LED_GPIO, 1);
+            ESP_LOGW(TAG, "status LED GPIO%d = ON", CUBE_STATUS_LED_GPIO);
+        }
     }
 
     esp_lcd_panel_dev_config_t panel_cfg = {
