@@ -68,29 +68,3 @@
 #define CUBE_LVGL_TICK_MS            5
 #define CUBE_LVGL_TASK_MS            10
 #define CUBE_LVGL_TASK_PRIO          4
-
-/* State machine / CAN queues (required by app_state, can_gbt, sm_relay) */
-#define CUBE_SM_TIMEBASE_MS              10
-#define CUBE_CAN_TX_QUEUE                16
-#define CUBE_CAN_RX_QUEUE                32
-#define CUBE_CAN_HISTORY                 48
-#define CUBE_RELAY_HANDOFF_MS            300
-
-/* BCL defaults: 400.0 V / 10.0 A, max 450.0 V */
-#define CUBE_DEFAULT_REQ_VOLTAGE_0P1V    4000
-#define CUBE_DEFAULT_REQ_CURRENT_0P1A    100
-#define CUBE_DEFAULT_MAX_VOLTAGE_0P1V    4500
-
-/* NVS */
-#define CUBE_NVS_NAMESPACE               "storage"
-#define CUBE_NVS_BLE_NAME                "ble_name"
-#define CUBE_NVS_ALLDATA                 "alldata"
-
-/* BLE GATT (Bluedroid compiled, start gated by CUBE_BLE_ENABLE) */
-#define CUBE_BLE_SERVICE_UUID            0xFFE0
-#define CUBE_BLE_CHAR1_UUID              0xFFE1
-#define CUBE_BLE_CHAR2_UUID              0xFFE2
-#define CUBE_BLE_CHAR3_UUID              0xFFE3
-
-/* alias used by adc_pwm.c */
-#define CUBE_LCD_BL_PWM_DUTY             CUBE_LCD_BL_PWM_DUTY_DEFAULT
