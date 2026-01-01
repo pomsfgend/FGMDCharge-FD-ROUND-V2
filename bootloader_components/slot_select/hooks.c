@@ -1,17 +1,16 @@
 #include <string.h>
 #include "esp_rom_crc.h"
-#include "bootloader_flash.h"
+#include "esp_rom_spiflash.h"
+#include "esp_rom_sys.h"
 
-/* Three power-ons toggle ota_0 / ota_1. No GPIO. Counter lives in the
-   unused tail of the otadata partition, so neither app has to know. */
+/* Three power-ons toggle ota_0/ota_1. ROM flash API, no GPIO. */
 #define OTADATA 0xD000
 #define COUNT_AT 0xE800
-#define COUNT_MAX 3
 
 static int current_slot(void)
 {
     uint32_t seq = 0xFFFFFFFF;
-    bootloader_flash_read(OTADATA, &seq, 4, false);
+    esp_rom_spiflash_read(OTADATA, &seq, 4);
     if (seq == 0 || seq == 0xFFFFFFFF) return 1;
     return (int)((seq - 1) & 1);
 }
@@ -20,28 +19,27 @@ static void write_slot(int slot)
 {
     uint32_t seq = (uint32_t)slot + 1;
     uint32_t crc = esp_rom_crc32_le(0xFFFFFFFF, (uint8_t *)&seq, 4);
-    uint8_t entry[32];
-    memset(entry, 0xFF, sizeof(entry));
-    memcpy(entry, &seq, 4);
-    memcpy(entry + 28, &crc, 4);
-    uint8_t page[64];
-    memcpy(page, entry, 32);
-    memcpy(page + 32, entry, 32);
-    bootloader_flash_erase_range(OTADATA, 0x1000);
-    bootloader_flash_write(OTADATA, page, sizeof(page), false);
+    uint32_t page[16];
+    memset(page, 0xFF, sizeof(page));
+    page[0] = seq;
+    page[7] = crc;
+    page[8] = seq;
+    page[15] = crc;
+    esp_rom_spiflash_erase_sector(OTADATA / 0x1000);
+    esp_rom_spiflash_write(OTADATA, page, sizeof(page));
 }
 
 void bootloader_after_init(void)
 {
-    uint8_t marks[COUNT_MAX];
-    bootloader_flash_read(COUNT_AT, marks, COUNT_MAX, false);
-    int n = 0;
-    while (n < COUNT_MAX && marks[n] == 0x00) n++;
-    if (n >= COUNT_MAX - 1) {
+    uint32_t marks[2] = {0xFFFFFFFF, 0xFFFFFFFF};
+    esp_rom_spiflash_read(COUNT_AT, marks, 8);
+    esp_rom_printf("BOOT count marks %08x %08x\n", marks[0], marks[1]);
+    int n = (marks[0] == 0) + (marks[0] == 0 && marks[1] == 0);
+    if (n >= 2) {
         write_slot(current_slot() ^ 1);
-        bootloader_flash_erase_range(0xE000, 0x1000);
+        esp_rom_spiflash_erase_sector(0xE000 / 0x1000);
         return;
     }
-    uint8_t zero = 0x00;
-    bootloader_flash_write(COUNT_AT + n, &zero, 1, false);
+    uint32_t zero = 0;
+    esp_rom_spiflash_write(COUNT_AT + (n * 4), &zero, 4);
 }

@@ -203,7 +203,7 @@ static void gesture_cb(lv_event_t *e)
     if (dx < 0) dx = -dx;
     if (dy < 0) dy = -dy;
     if (dx < 48 || dx < dy * 2) return;
-    return;
+    apply_page((s_page + (pt.x < s_down.x ? 1 : 2)) % 3);
 }
 
 static void stop_hold_cb(lv_event_t *e)
@@ -377,11 +377,31 @@ static lv_obj_t *line(lv_obj_t *parent, const char *txt, int y)
     return l;
 }
 
+
+static void nav_cb(lv_event_t *e)
+{
+    apply_page((int)(intptr_t)lv_event_get_user_data(e));
+}
+static void add_nav(lv_obj_t *scr)
+{
+    const char *nm[] = {"CHG", "SYS", "WIFI"};
+    for (int i = 0; i < 3; ++i) {
+        lv_obj_t *b = lv_btn_create(scr);
+        lv_obj_set_size(b, 70, 28);
+        lv_obj_set_pos(b, 8 + i * 76, 248);
+        lv_obj_set_style_bg_color(b, lv_color_hex(i == 0 ? 0x1F6F5B : 0x1A2430), 0);
+        lv_obj_add_event_cb(b, nav_cb, LV_EVENT_CLICKED, (void *)(intptr_t)i);
+        lv_obj_t *l = lv_label_create(b);
+        lv_label_set_text(l, nm[i]);
+        lv_obj_set_style_text_color(l, lv_color_hex(0xF4F7FB), 0);
+        lv_obj_center(l);
+    }
+}
 static void build_ui(void)
 {
     s_scr_chg = lv_scr_act();
     style_screen(s_scr_chg);
-    line(s_scr_chg, "CUBE 2.5.3", 22);
+    line(s_scr_chg, "CUBE 2.5.4", 22);
     s_card_u = card(s_scr_chg, 10, 40, &s_voltage, "V");
     s_card_i = card(s_scr_chg, 122, 40, &s_current, "A");
     (void)s_card_u; (void)s_card_i;
@@ -398,7 +418,8 @@ static void build_ui(void)
     lv_obj_t *stop_lbl = lv_label_create(stop);
     lv_label_set_text(stop_lbl, "HOLD STOP");
     lv_obj_center(stop_lbl);
-    s_dots = line(s_scr_chg, "o - -", 240);
+    s_dots = line(s_scr_chg, "CHG  SYS  WIFI", 228);
+    add_nav(s_scr_chg);
 
     s_scr_sys = lv_obj_create(NULL);
     style_screen(s_scr_sys);
@@ -488,6 +509,9 @@ static void build_ui(void)
 
     line(s_scr_wifi, "-  -  o   swipe", 204);
     make_pad(s_scr_wifi);
+    add_nav(s_scr_chg);
+    add_nav(s_scr_sys);
+    add_nav(s_scr_wifi);
 }
 
 esp_err_t display_init(void)
