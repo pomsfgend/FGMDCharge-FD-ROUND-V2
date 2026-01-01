@@ -1,4 +1,4 @@
-# FGMDCharge / FD_ROUND V2 — Release 2.0.4
+# FGMDCharge / FD_ROUND V2 — Release 2.0.5
 
 Канонический Windows-релиз для ESP32-C3 на ESP-IDF 5.0.9.
 
@@ -12,7 +12,7 @@
 
 Первичное обновление не стирает OTA0 и перед записью сохраняет полный 4 MiB backup.
 
-## Что исправлено в 2.0.4
+## Что исправлено в 2.0.5
 
 - Исправлена линковка Bluedroid BLE: стек и legacy BLE 4.2 advertising явно включены в `sdkconfig.defaults`.
 - HTML/CSS/JS компилируются в `main/web_assets.c` как статические массивы; linker `EMBED_*` символы не используются.
