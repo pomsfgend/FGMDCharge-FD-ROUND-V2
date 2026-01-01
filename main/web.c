@@ -508,11 +508,17 @@ esp_err_t web_init(void)
     }
     if ((err = esp_wifi_set_mode(WIFI_MODE_AP)) != ESP_OK) return err;
     if ((err = esp_wifi_set_config(WIFI_IF_AP, &ap)) != ESP_OK) return err;
-    /* Keep the AP awake and use the broad ESP32-C3 802.11b/g/n compatibility set. */
+    /* Keep the AP awake; max TX power; world country for broadest channel legality. */
     (void)esp_wifi_set_ps(WIFI_PS_NONE);
     (void)esp_wifi_set_protocol(WIFI_IF_AP, WIFI_PROTOCOL_11B | WIFI_PROTOCOL_11G | WIFI_PROTOCOL_11N);
     (void)esp_wifi_set_bandwidth(WIFI_IF_AP, WIFI_BW_HT20);
+    (void)esp_wifi_set_country_code("01", true); /* world safe */
     if ((err = esp_wifi_start()) != ESP_OK && err != ESP_ERR_INVALID_STATE) return err;
+    /* 84 quarter-dBm units ≈ 21 dBm — max for ESP32-C3 class modules. */
+    (void)esp_wifi_set_max_tx_power(84);
+    ESP_LOGW(TAG, "AP start SSID=%s ch=%u auth=%s tx_power=max",
+             CUBE_WIFI_SSID, (unsigned)CUBE_WIFI_CHANNEL,
+             (strlen(CUBE_WIFI_PASSWORD) >= 8U) ? "WPA2" : "OPEN");
 
     httpd_config_t hc = HTTPD_DEFAULT_CONFIG();
     hc.max_uri_handlers = 28;
@@ -527,7 +533,7 @@ esp_err_t web_init(void)
         return err;
     }
 
-    /* Specific routes first. Wildcard /* MUST be last or IDF reports
+    /* Specific routes first. Wildcard catch-all MUST be last or IDF reports
        ESP_ERR_HTTPD_HANDLER_EXISTS / wrong match order. */
     const httpd_uri_t uri[] = {
         {.uri = "/", .method = HTTP_GET, .handler = root_get},
@@ -559,6 +565,6 @@ esp_err_t web_init(void)
             return err;
         }
     }
-    ESP_LOGI(TAG, "Wi-Fi AP=%s (WPA2); Web UI=http://192.168.4.1/", CUBE_WIFI_SSID);
+    ESP_LOGI(TAG, "Wi-Fi AP=%s; Web UI=http://192.168.4.1/ (open AP if password empty)", CUBE_WIFI_SSID);
     return ESP_OK;
 }

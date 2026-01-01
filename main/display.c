@@ -46,6 +46,12 @@ static bool lcd_flush_done(esp_lcd_panel_io_handle_t panel_io,
                            esp_lcd_panel_io_event_data_t *edata, void *user_ctx) {
     (void)panel_io;
     (void)edata;
+    /* Only signal LVGL after display driver is registered. Smoke-fill and
+       early panel draws run with the same SPI callback; calling
+       lv_disp_flush_ready on an unregistered drv causes Store access fault. */
+    if (!s_display) {
+        return false;
+    }
     lv_disp_drv_t *drv = (lv_disp_drv_t *)user_ctx;
     if (drv) {
         lv_disp_flush_ready(drv);
@@ -184,19 +190,18 @@ esp_err_t display_init(void) {
     err = esp_lcd_new_panel_io_spi((esp_lcd_spi_bus_handle_t)SPI2_HOST, &io_cfg, &s_panel_io);
     if (err != ESP_OK) return err;
 
-    /* 240x280 panels on these cubes are almost always ST7789 (dump strings
-       still said ILI9341). ST7789 needs Y gap + color invert. */
+    /* Dump strings + RE: ILI9341 via esp_lcd. 240x280 logical window.
+       LVGL has CONFIG_LV_COLOR_16_SWAP=y → panel RGB endian RGB. */
     esp_lcd_panel_dev_config_t panel_cfg = {
         .reset_gpio_num = CUBE_LCD_RST_GPIO,
         .bits_per_pixel = 16,
-        /* BGR is the common byte order for ST7789/ILI modules with LVGL. */
-        .rgb_endian = LCD_RGB_ENDIAN_BGR,
+        .rgb_endian = LCD_RGB_ENDIAN_RGB,
     };
 #if CUBE_LCD_USE_ST7789
     ESP_LOGW(TAG, "panel create ST7789 240x280...");
     err = esp_lcd_new_panel_st7789(s_panel_io, &panel_cfg, &s_panel);
 #else
-    ESP_LOGW(TAG, "panel create ILI9341...");
+    ESP_LOGW(TAG, "panel create ILI9341 240x280...");
     err = esp_lcd_new_panel_ili9341(s_panel_io, &panel_cfg, &s_panel);
 #endif
     if (err != ESP_OK) {
@@ -205,12 +210,18 @@ esp_err_t display_init(void) {
     }
     if ((err = esp_lcd_panel_reset(s_panel)) != ESP_OK) return err;
     if ((err = esp_lcd_panel_init(s_panel)) != ESP_OK) return err;
-    /* ST7789 240x280 window is offset inside 240x320 GRAM. */
+#if CUBE_LCD_USE_ST7789
     (void)esp_lcd_panel_set_gap(s_panel, 0, 20);
     (void)esp_lcd_panel_invert_color(s_panel, true);
+#else
+    /* ILI9341 path from original dump: no gap, no invert command observed. */
+    (void)esp_lcd_panel_set_gap(s_panel, 0, 0);
+    (void)esp_lcd_panel_invert_color(s_panel, false);
+#endif
     if ((err = esp_lcd_panel_mirror(s_panel, false, false)) != ESP_OK) return err;
+    if ((err = esp_lcd_panel_swap_xy(s_panel, false)) != ESP_OK) return err;
     if ((err = esp_lcd_panel_disp_on_off(s_panel, true)) != ESP_OK) return err;
-    ESP_LOGW(TAG, "panel on (ST7789 gap_y=20 invert=1 BGR)");
+    ESP_LOGW(TAG, "panel on (ST7789=%d RGB gap/invert per driver)", CUBE_LCD_USE_ST7789);
 
     /* Smoke test: fill full screen so user sees life even if LVGL fonts fail. */
     {
@@ -227,7 +238,8 @@ esp_err_t display_init(void) {
             }
             heap_caps_free(line);
             ESP_LOGW(TAG, "panel smoke fill: red body + blue top bar");
-            vTaskDelay(pdMS_TO_TICKS(300));
+            /* Let SPI DMA finish before LVGL registers the same callback path. */
+            vTaskDelay(pdMS_TO_TICKS(50));
         }
     }
 

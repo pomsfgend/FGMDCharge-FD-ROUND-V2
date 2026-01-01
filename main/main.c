@@ -87,6 +87,11 @@ void app_main(void) {
         ESP_LOGW(TAG, "stage: LCD/LVGL ok");
     }
 
+    /* SoftAP first (better scan visibility), then BLE. */
+    err = web_init();
+    if (err != ESP_OK) ESP_LOGE(TAG, "Web init failed: %s", esp_err_to_name(err));
+    else ESP_LOGW(TAG, "stage: Web AP ok");
+
     err = cube_ble_init();
     if (err != ESP_OK) {
         ESP_LOGE(TAG, "BLE init failed: %s", esp_err_to_name(err));
@@ -99,10 +104,6 @@ void app_main(void) {
     if (xTaskCreate(myTask_Timer, "myTask_Timer", 4096, NULL, 2, NULL) != pdPASS) {
         ESP_LOGE(TAG, "Timer task creation failed");
     }
-
-    err = web_init();
-    if (err != ESP_OK) ESP_LOGE(TAG, "Web init failed: %s", esp_err_to_name(err));
-    else ESP_LOGW(TAG, "stage: Web AP ok");
 
     ESP_LOGW(TAG, "READY %s CAN_TX=%d WiFi=%s key=%s", CUBE_FW_VERSION,
              gbt_can_get_tx_enabled(), CUBE_WIFI_SSID, CUBE_WEB_KEY);
