@@ -1,4 +1,4 @@
-Release 2.2.5: НЕ используйте idf.py flash для первого теста этого проекта.
+Release 2.2.6: НЕ используйте idf.py flash для первого теста этого проекта.
 
 Сначала BUILD_RELEASE.bat, затем FLASH_RELEASE_OTA1.bat.
 Первый скрипт прошивки сохраняет полный 4 MiB backup и пишет только application в OTA1.

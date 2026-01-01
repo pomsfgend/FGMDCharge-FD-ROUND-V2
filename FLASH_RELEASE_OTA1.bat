@@ -85,7 +85,7 @@ echo OTA1 UPDATED AND SELECTED
 echo Old OTA0 and the rest of the flash were not overwritten.
 echo Reboot/reset the cube and run 03_MONITOR.bat if diagnostics are needed.
 echo ================================================================
-echo Wi-Fi: FGMDCharge-V2 / FDcube2026 (WPA2)
+echo Wi-Fi: Cube / 123456789 (WPA2)
 echo Web:   http://192.168.4.1/
 echo BLE:   FGMDCharge
 echo.

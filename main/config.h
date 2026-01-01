@@ -1,12 +1,12 @@
 #pragma once
 
 #define CUBE_FW_NAME                 "FD_ROUND_V2"
-#define CUBE_FW_VERSION              "2.2.5"
+#define CUBE_FW_VERSION              "2.2.6"
 
 /* Web API protection. Change before installing on a real vehicle/charging setup. */
 #define CUBE_WEB_KEY                 ""  /* local SoftAP: no API key */
-#define CUBE_WIFI_SSID               "FGMDCharge-V2"
-#define CUBE_WIFI_PASSWORD           ""  /* OPEN — official example path */
+#define CUBE_WIFI_SSID               "Cube"
+#define CUBE_WIFI_PASSWORD           "123456789"
 #define CUBE_WIFI_CHANNEL            1
 #define CUBE_WIFI_MAX_CONNECTIONS    4
 
@@ -91,7 +91,7 @@
 #define CUBE_BLE_START_DELAY_MS      0
 
 /* 0 = do not start BLE (max SoftAP visibility on shared RF). */
-#define CUBE_BLE_ENABLE              1
+#define CUBE_BLE_ENABLE              0
 
 /* After SoftAP up, wait so user can scan before display draws power. */
 #define CUBE_WIFI_SCAN_WINDOW_MS     0
