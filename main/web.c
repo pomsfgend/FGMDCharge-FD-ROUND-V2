@@ -582,6 +582,39 @@ static void wifi_boot_scan_task(void *arg)
     vTaskDelete(NULL);
 }
 
+
+static esp_err_t log_get(httpd_req_t *req)
+{
+    set_security_headers(req);
+    char buf[1200];
+    app_state_log_text(buf, sizeof(buf));
+    set_no_cache(req);
+    httpd_resp_set_type(req, "text/plain; charset=utf-8");
+    return httpd_resp_sendstr(req, buf);
+}
+
+static esp_err_t setpoints_post(httpd_req_t *req)
+{
+    set_security_headers(req);
+    char body[160] = {0};
+    int n = httpd_req_recv(req, body, sizeof(body) - 1);
+    if (n < 0) return ESP_FAIL;
+    body[n] = 0;
+    int v = 0, i = 0, soc = -1;
+    char vin[18] = {0};
+    sscanf(body, "v=%d&i=%d&soc=%d&vin=%17s", &v, &i, &soc, vin);
+    if (v < 2000) v = 2000;
+    if (v > 5000) v = 5000;
+    if (i < 10) i = 10;
+    if (i > 2500) i = 2500;
+    app_state_set_bcl((uint16_t)v, (int16_t)i, 1);
+    if (soc >= 0 && soc <= 100) app_state_set_soc((uint8_t)soc);
+    if (vin[0]) app_state_set_vin(vin);
+    app_state_log("setpoints updated, session not stopped");
+    httpd_resp_set_type(req, "application/json");
+    return httpd_resp_sendstr(req, "{\"ok\":true}");
+}
+
 esp_err_t web_init(void)
 {
     esp_err_t err = esp_netif_init();
@@ -663,6 +696,8 @@ esp_err_t web_init(void)
         {.uri = "/api/can/recent", .method = HTTP_GET, .handler = can_recent_get},
         {.uri = "/api/can", .method = HTTP_GET, .handler = can_recent_get},
         {.uri = "/api/start", .method = HTTP_POST, .handler = session_start_post},
+        {.uri = "/api/log", .method = HTTP_GET, .handler = log_get},
+        {.uri = "/api/setpoints", .method = HTTP_POST, .handler = setpoints_post},
         {.uri = "/api/stop", .method = HTTP_POST, .handler = session_stop_post},
         {.uri = "/api/tx_enable", .method = HTTP_POST, .handler = session_start_post},
         {.uri = "/api/ota", .method = HTTP_POST, .handler = update_post},

@@ -111,6 +111,43 @@ void app_state_set_ccs(uint16_t out_v, int16_t out_i_0p1a, uint16_t charge_time_
     unlock_state();
 }
 
+static char s_log[12][80];
+static int s_log_n;
+static char s_vin[18] = "UNKNOWNVIN000000";
+
+void app_state_log(const char *msg)
+{
+    if (!msg) return;
+    int i = s_log_n % 12;
+    snprintf(s_log[i], sizeof(s_log[i]), "%lu %s", (unsigned long)now_ms(), msg);
+    s_log_n++;
+}
+
+int app_state_log_text(char *out, int out_len)
+{
+    if (!out || out_len < 8) return 0;
+    int o = 0;
+    int start = s_log_n > 12 ? s_log_n - 12 : 0;
+    for (int n = start; n < s_log_n && o < out_len - 2; ++n) {
+        o += snprintf(out + o, (size_t)(out_len - o), "%s\n", s_log[n % 12]);
+    }
+    if (o == 0) o = snprintf(out, (size_t)out_len, "no events\n");
+    return o;
+}
+
+void app_state_set_soc(uint8_t soc)
+{
+    s_state.soc_percent = soc > 100 ? 100 : soc;
+}
+
+void app_state_set_vin(const char *vin)
+{
+    if (!vin) return;
+    snprintf(s_vin, sizeof(s_vin), "%s", vin);
+}
+
+const char *app_state_vin(void) { return s_vin; }
+
 void app_state_set_bcl(uint16_t requested_v, int16_t requested_i_0p1a, uint8_t mode)
 {
     lock_state();
@@ -321,7 +358,10 @@ void app_state_can_rx(const cube_can_frame_t *f, bool charger_frame)
     s_state.rx_count++;
     if (charger_frame) s_state.last_charger_rx_ms = now_ms();
     if (f && f->id == 0x1826F456u) s_state.protocol = 1;          /* CHM: GB/T 27930-2015 */
-    else if (f && f->id == 0x1801F456u && s_state.protocol == 0) s_state.protocol = 2; /* CRM only: 2011 */
+    else if (f && f->id == 0x1801F456u && s_state.protocol == 0) { s_state.protocol = 2; app_state_log("CRM without CHM -> GBT-2011"); }
+    if (f && f->id == 0x1826F456u) app_state_log("CHM -> GBT-2015");
+    if (f && f->id == 0x081FF456u) app_state_log("CEM charger error, session kept");
+    if (f && f->id == 0x101AF456u) app_state_log("CST from charger, session kept");
     unlock_state();
 }
 
