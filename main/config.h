@@ -3,7 +3,7 @@
 #define CUBE_FW_NAME                 "FD_ROUND_V2"
 #define CUBE_FW_VERSION              "2.3.0"
 
-/* SoftAP */
+/* SoftAP — Cube / 123456789 (WPA2, visible) */
 #define CUBE_WEB_KEY                 ""
 #define CUBE_WIFI_SSID               "Cube"
 #define CUBE_WIFI_PASSWORD           "123456789"
@@ -13,9 +13,8 @@
 
 #define CUBE_TX_COMPILED_ENABLE      1
 #define CUBE_TX_DEFAULT_ENABLED      0
-#define CUBE_HTTP_MAX_UPLOAD       (0x190000)
 
-/* LCD ST7789 240x280 */
+/* LCD ST7789 240x280 — working on hardware */
 #define CUBE_LCD_USE_ST7789          1
 #define CUBE_LCD_H_RES               240
 #define CUBE_LCD_V_RES               280
@@ -60,7 +59,7 @@
 #define CUBE_RELAY_A_GPIO            6
 #define CUBE_RELAY_B_GPIO            7
 
-/* BLE off by default */
+/* BLE off by default while SoftAP stable */
 #define CUBE_BLE_ENABLE              0
 #define CUBE_BLE_NAME                "FGMDCharge"
 
