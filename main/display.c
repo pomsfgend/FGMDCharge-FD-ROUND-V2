@@ -376,8 +376,7 @@ static void build_ui(void)
     s_sys_heap = big_label(s_scr_sys, "Heap --", 86);
     s_sys_wifi = big_label(s_scr_sys, "AP Cube", 106);
     s_sys_touch = big_label(s_scr_sys, "Touch --", 126);
-    s_br_label = big_label(s_scr_sys, "Bright 70%", 146);
-    /* slider kept: user brightness control */
+    s_br_label = big_label(s_scr_sys, "Bright 70%", 148);
     lv_obj_t *sl = lv_slider_create(s_scr_sys);
     lv_obj_set_width(sl, 200);
     lv_slider_set_range(sl, 5, 100);
@@ -623,8 +622,10 @@ void display_set_values(void)
         snprintf(b, sizeof(b), "WiFi %s / %s", CUBE_WIFI_SSID, CUBE_WIFI_PASSWORD);
         lv_label_set_text(s_status, b);
     }
-    /* Brightness stays on the SYS slider; do not override it. */
-    (void)tc;
+    /* Thermal hint */
+    if (tc > 75.0f && s_brightness > 40) {
+        display_set_brightness(40);
+    }
     display_unlock();
 }
 
