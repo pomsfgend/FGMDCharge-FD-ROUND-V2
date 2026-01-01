@@ -111,7 +111,7 @@ void app_state_set_ccs(uint16_t out_v, int16_t out_i_0p1a, uint16_t charge_time_
     unlock_state();
 }
 
-static char s_log[12][80];
+static char s_log[20][96];
 static int s_log_n;
 static float s_energy_wh;
 static float s_cap_wh = 7500.0f;
@@ -121,7 +121,7 @@ static char s_vin[18] = "UNKNOWNVIN000000";
 void app_state_log(const char *msg)
 {
     if (!msg) return;
-    int i = s_log_n % 12;
+    int i = s_log_n % 20;
     snprintf(s_log[i], sizeof(s_log[i]), "%lu %s", (unsigned long)now_ms(), msg);
     s_log_n++;
 }
@@ -130,9 +130,9 @@ int app_state_log_text(char *out, int out_len)
 {
     if (!out || out_len < 8) return 0;
     int o = 0;
-    int start = s_log_n > 12 ? s_log_n - 12 : 0;
+    int start = s_log_n > 20 ? s_log_n - 20 : 0;
     for (int n = start; n < s_log_n && o < out_len - 2; ++n) {
-        o += snprintf(out + o, (size_t)(out_len - o), "%s\n", s_log[n % 12]);
+        o += snprintf(out + o, (size_t)(out_len - o), "%s\n", s_log[n % 20]);
     }
     if (o == 0) o = snprintf(out, (size_t)out_len, "no events\n");
     return o;

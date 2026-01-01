@@ -2,6 +2,7 @@
 #include "esp_rom_sys.h"
 #include "esp_rom_crc.h"
 #include "bootloader_flash_priv.h"
+#include "soc/rtc_cntl_reg.h"
 
 #define OTADATA 0xD000
 #define COUNT_AT 0xE800
@@ -31,14 +32,18 @@ static void write_slot(int slot)
 
 void bootloader_after_init(void)
 {
-    uint32_t marks[2] = {0xFFFFFFFF, 0xFFFFFFFF};
-    bootloader_flash_read(COUNT_AT, marks, 8, false);
-    esp_rom_printf("BOOT marks %08x %08x slot %d\n", marks[0], marks[1], current_slot());
-    int n = (marks[0] == 0) + (marks[0] == 0 && marks[1] == 0);
-    if (n >= 2) {
+    uint32_t reason = REG_READ(RTC_CNTL_RESET_STATE_REG) & 0x3Fu;
+    uint32_t marks[3] = {0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF};
+    bootloader_flash_read(COUNT_AT, marks, 12, false);
+    esp_rom_printf("BOOT reason %u marks %08x %08x %08x slot %d\n",
+                   (unsigned)reason, marks[0], marks[1], marks[2], current_slot());
+    /* Only a real power-on counts. Software resets from the original app do not. */
+    if (reason != 1u) return;
+    int n = (marks[0] == 0) + (marks[0] == 0 && marks[1] == 0) + (marks[0] == 0 && marks[1] == 0 && marks[2] == 0);
+    if (n >= 3) {
         write_slot(current_slot() ^ 1);
         bootloader_flash_erase_range(0xE000, 0x1000);
-        esp_rom_printf("BOOT switched slot\n");
+        esp_rom_printf("BOOT switched slot after 3 power cycles\n");
         return;
     }
     uint32_t zero = 0;

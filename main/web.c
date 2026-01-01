@@ -497,7 +497,7 @@ static esp_err_t session_stop_post(httpd_req_t *req)
 
 
 static int s_ap_channel = CUBE_WIFI_CHANNEL;
-static char s_scan_ssid[8][33];
+static char s_scan_ssid[16][33];
 static int s_scan_n;
 static char s_sta_ip[20] = "--";
 static char s_join_ssid[33];
@@ -536,8 +536,8 @@ esp_err_t web_scan_now(void)
         ESP_LOGW(TAG, "scan failed: %s", esp_err_to_name(err));
         return err;
     }
-    uint16_t n = 8;
-    wifi_ap_record_t rec[8];
+    uint16_t n = 16;
+    wifi_ap_record_t rec[16];
     memset(rec, 0, sizeof(rec));
     if (esp_wifi_scan_get_ap_records(&n, rec) != ESP_OK) n = 0;
     s_scan_n = (int)n;
@@ -577,7 +577,7 @@ esp_err_t web_wifi_restart(void)
     if (err == ESP_OK) {
         (void)esp_wifi_set_max_tx_power(84);
         ESP_LOGW(TAG, "WiFi restarted SSID=%s", CUBE_WIFI_SSID);
-        (void)web_scan_now();
+        /* scan stays in the background task so the AP stays up */
     } else {
         ESP_LOGE(TAG, "WiFi restart failed: %s", esp_err_to_name(err));
     }
@@ -588,12 +588,31 @@ esp_err_t web_wifi_restart(void)
 static void wifi_boot_scan_task(void *arg)
 {
     (void)arg;
-    vTaskDelay(pdMS_TO_TICKS(400));
-    ESP_LOGW(TAG, "background scan start");
-    (void)web_scan_now();
-    (void)esp_wifi_set_max_tx_power(84);
-    ESP_LOGW(TAG, "background scan done, AP stays up");
-    vTaskDelete(NULL);
+    /* AP must beacon first. A blocking scan at 400 ms drops the SoftAP. */
+    vTaskDelay(pdMS_TO_TICKS(12000));
+    for (;;) {
+        wifi_scan_config_t scan = {
+            .show_hidden = true,
+            .scan_type = WIFI_SCAN_TYPE_ACTIVE,
+        };
+        if (esp_wifi_scan_start(&scan, false) == ESP_OK) {
+            vTaskDelay(pdMS_TO_TICKS(2200));
+            uint16_t n = 16;
+            wifi_ap_record_t rec[16];
+            memset(rec, 0, sizeof(rec));
+            if (esp_wifi_scan_get_ap_records(&n, rec) == ESP_OK) {
+                if (n > 16) n = 16;
+                s_scan_n = (int)n;
+                for (int i = 0; i < s_scan_n; ++i) {
+                    memcpy(s_scan_ssid[i], rec[i].ssid, 32);
+                    s_scan_ssid[i][32] = 0;
+                    ESP_LOGW(TAG, "scan[%d] %s rssi=%d ch=%u", i, s_scan_ssid[i], rec[i].rssi, rec[i].primary);
+                }
+            }
+        }
+        (void)esp_wifi_set_max_tx_power(84);
+        vTaskDelay(pdMS_TO_TICKS(20000));
+    }
 }
 
 
@@ -757,7 +776,7 @@ static esp_err_t setpoints_post(httpd_req_t *req)
 static esp_err_t wifi_scan_get(httpd_req_t *req)
 {
     set_security_headers(req);
-    (void)web_scan_now();
+    /* scan stays in the background task so the AP stays up */
     char buf[700];
     size_t used = 0;
     appendf(buf, sizeof(buf), &used, "{\"ok\":true,\"nets\":[");
@@ -869,8 +888,7 @@ esp_err_t web_init(void)
     (void)esp_wifi_set_ps(WIFI_PS_NONE);
     (void)esp_wifi_set_protocol(WIFI_IF_AP, WIFI_PROTOCOL_11B | WIFI_PROTOCOL_11G | WIFI_PROTOCOL_11N);
     (void)esp_wifi_set_bandwidth(WIFI_IF_AP, WIFI_BW_HT20);
-    (void)esp_wifi_set_country_code("01", true);
-    if ((err = esp_wifi_start()) != ESP_OK && err != ESP_ERR_INVALID_STATE) return err;
+        if ((err = esp_wifi_start()) != ESP_OK && err != ESP_ERR_INVALID_STATE) return err;
     (void)esp_wifi_set_max_tx_power(84);
     (void)esp_wifi_set_max_tx_power(84);
     ESP_LOGW(TAG, "APSTA up now SSID=%s ch=%u HTTP first, scan in background",

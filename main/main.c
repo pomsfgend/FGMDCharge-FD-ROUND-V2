@@ -14,9 +14,26 @@
 #include "esp_ota_ops.h"
 #include "nvs.h"
 #include "esp_timer.h"
+#include "esp_log.h"
+#include <stdio.h>
+#include <stdarg.h>
 #include "sm_relay.h"
 
 static const char *TAG = "MAIN";
+
+static vprintf_like_t s_prev_log;
+static int console_hook(const char *fmt, va_list ap)
+{
+    char b[100];
+    va_list cp;
+    va_copy(cp, ap);
+    vsnprintf(b, sizeof(b), fmt, cp);
+    va_end(cp);
+    for (char *q = b; *q; ++q) if (*q == '\n' || *q == '\r') *q = 0;
+    if (b[0]) app_state_log(b);
+    return s_prev_log ? s_prev_log(fmt, ap) : vprintf(fmt, ap);
+}
+
 void adc_pwm_init(void);
 
 static void myTask_Timer(void *arg)
@@ -52,6 +69,7 @@ void app_main(void) {
     }
 
     app_state_init();
+    s_prev_log = esp_log_set_vprintf(console_hook);
 
     err = settings_init();
     if (err != ESP_OK) ESP_LOGW(TAG, "settings init failed: %s", esp_err_to_name(err));
@@ -82,6 +100,10 @@ void app_main(void) {
     if (err != ESP_OK) ESP_LOGW(TAG, "touch init failed: %s", esp_err_to_name(err));
     else ESP_LOGW(TAG, "stage: touch ok");
 
+    err = web_init();
+    if (err != ESP_OK) ESP_LOGE(TAG, "Web init failed: %s", esp_err_to_name(err));
+    else ESP_LOGW(TAG, "stage: Web AP ok");
+
     err = display_init();
     if (err != ESP_OK) {
         ESP_LOGE(TAG, "display init failed: %s", esp_err_to_name(err));
@@ -91,11 +113,7 @@ void app_main(void) {
         ESP_LOGW(TAG, "stage: LCD/LVGL ok");
     }
 
-    /* SoftAP first for scan visibility, then BLE. */
-    err = web_init();
-    if (err != ESP_OK) ESP_LOGE(TAG, "Web init failed: %s", esp_err_to_name(err));
-    else ESP_LOGW(TAG, "stage: Web AP ok");
-
+    /* Web AP already started before the display. */
     #if CUBE_BLE_ENABLE
     err = cube_ble_init();
 #else

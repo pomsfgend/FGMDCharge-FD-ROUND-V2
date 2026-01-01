@@ -49,7 +49,7 @@ static int s_brightness = CUBE_LCD_BL_PWM_DUTY_DEFAULT;
 
 /* UI */
 static lv_obj_t *s_scr_chg, *s_scr_ses, *s_scr_set, *s_scr_sys, *s_scr_wifi, *s_scr_log;
-static lv_obj_t *s_ses_kwh, *s_ses_soc, *s_ses_min, *s_log_lbl, *s_can_lbl;
+static lv_obj_t *s_ses_kwh, *s_ses_soc, *s_ses_min, *s_ses_req, *s_log_lbl, *s_can_lbl;
 static int s_pending_boot;
 static int s_edge = 28;
 static lv_obj_t *s_voltage, *s_current, *s_power, *s_stage, *s_status;
@@ -166,6 +166,8 @@ static lv_obj_t *s_card_u;
 static lv_obj_t *s_card_i;
 static lv_obj_t *s_dots;
 static void gesture_cb(lv_event_t *e);
+static void refresh_scan_label(void);
+static void resize_edges(void);
 static void stop_hold_cb(lv_event_t *e);
 
 static void style_screen(lv_obj_t *scr)
@@ -175,8 +177,6 @@ static void style_screen(lv_obj_t *scr)
     lv_obj_set_style_text_color(scr, lv_color_hex(0xE8EEF4), 0);
     lv_obj_clear_flag(scr, LV_OBJ_FLAG_SCROLLABLE);
     lv_obj_set_style_text_font(scr, &lv_font_ru_14, 0);
-    lv_obj_add_event_cb(scr, gesture_cb, LV_EVENT_PRESSED, NULL);
-    lv_obj_add_event_cb(scr, gesture_cb, LV_EVENT_RELEASED, NULL);
     }
 
 static void apply_page(int p)
@@ -190,10 +190,14 @@ static void apply_page(int p)
     s_page = p;
     if (s_pad) lv_obj_add_flag(s_pad, LV_OBJ_FLAG_HIDDEN);
     if (pages[p]) {
-        lv_scr_load_anim_t anim = (p == prev + 1 || (prev == 5 && p == 0))
-            ? LV_SCR_LOAD_ANIM_MOVE_LEFT : LV_SCR_LOAD_ANIM_MOVE_RIGHT;
-        lv_scr_load_anim(pages[p], anim, 180, 0, false);
+        lv_scr_load(pages[p]);
+        if (p == 3) {
+            if (s_scan_lbl) lv_label_set_text(s_scan_lbl, "SCAN...");
+            (void)web_scan_now();
+            refresh_scan_label();
+        }
     }
+    (void)prev;
 }
 
 static lv_point_t s_down;
@@ -212,14 +216,20 @@ static void gesture_cb(lv_event_t *e)
     int dy = pt.y - s_down.y;
     if (dx < 0) dx = -dx;
     if (dy < 0) dy = -dy;
-    if (s_down.x > s_edge && s_down.x < 240 - s_edge) return;
-    if (dx < 36 || dx < dy) return;
+    /* Only the edge bars send this event. Ignore a short or vertical move. */
+    if (dx < 48 || dx < dy * 2) return;
     apply_page(s_page + (pt.x < s_down.x ? 1 : -1));
 }
 
 static void stop_hold_cb(lv_event_t *e)
 {
     if (lv_event_get_code(e) == LV_EVENT_LONG_PRESSED) sm_stop_session();
+}
+
+static void session_go_cb(lv_event_t *e)
+{
+    (void)e;
+    sm_start_session();
 }
 
 static void br_cb(lv_event_t *e)
@@ -250,6 +260,14 @@ static int s_set_soc = 20;
 static float s_cap_kwh = 7.5f;
 static lv_obj_t *s_set_lbl;
 static lv_obj_t *s_vin_ta;
+static lv_obj_t *s_v_ta;
+static lv_obj_t *s_i_ta;
+static lv_obj_t *s_soc_ta;
+static lv_obj_t *s_kwh_ta;
+static lv_obj_t *s_pass_box;
+static lv_obj_t *s_pass_title;
+static lv_obj_t *s_ip_box;
+static lv_obj_t *s_ip_msg;
 static lv_obj_t *s_ota_box;
 static lv_obj_t *s_ota_bar;
 static lv_obj_t *s_ota_txt;
@@ -260,8 +278,9 @@ static void pad_key_cb(lv_event_t *e)
     const char *k = (const char *)lv_event_get_user_data(e);
     lv_obj_t *ta = s_active_ta ? s_active_ta : s_wifi_ta;
     if (!ta || !k) return;
-    if (strcmp(k, "DEL") == 0) { lv_textarea_del_char(ta); return; }
-    if (strcmp(k, "HIDE") == 0) { pad_hide(); return; }
+    if (strcmp(k, "C") == 0) { lv_textarea_set_text(ta, ""); return; }
+    if (strcmp(k, "OK") == 0) { apply_field(); pad_hide(); return; }
+    if (k[0] < '0' || k[0] > '9') return;
     lv_textarea_add_text(ta, k);
 }
 
@@ -285,12 +304,30 @@ static void wifi_rst_cb(lv_event_t *e)
     web_wifi_restart();
 }
 
+static void pass_close_cb(lv_event_t *e)
+{
+    (void)e;
+    pad_hide();
+    if (s_pass_box) lv_obj_add_flag(s_pass_box, LV_OBJ_FLAG_HIDDEN);
+    if (s_ip_box) lv_obj_add_flag(s_ip_box, LV_OBJ_FLAG_HIDDEN);
+}
+
+static void show_pass(const char *ssid)
+{
+    if (s_pass_title) lv_label_set_text(s_pass_title, ssid && ssid[0] ? ssid : "network");
+    if (s_wifi_ta) lv_textarea_set_text(s_wifi_ta, "");
+    s_active_ta = s_wifi_ta;
+    if (s_pass_box) {
+        lv_obj_clear_flag(s_pass_box, LV_OBJ_FLAG_HIDDEN);
+        lv_obj_move_foreground(s_pass_box);
+    }
+    pad_show();
+}
+
 static void net_pick_cb(lv_event_t *e)
 {
     s_pick = (int)(intptr_t)lv_event_get_user_data(e);
-    s_active_ta = s_wifi_ta;
-    if (s_wifi_ta) lv_obj_clear_flag(s_wifi_ta, LV_OBJ_FLAG_HIDDEN);
-    pad_show();
+    show_pass(web_scan_ssid(s_pick));
 }
 static void refresh_scan_label(void)
 {
@@ -304,6 +341,7 @@ static void refresh_scan_label(void)
         lv_obj_set_height(b, 28);
         lv_obj_set_style_bg_color(b, lv_color_hex(i == s_pick ? 0x1F6F5B : 0x1A2430), 0);
         lv_obj_add_event_cb(b, net_pick_cb, LV_EVENT_CLICKED, (void *)(intptr_t)i);
+        lv_obj_set_pos(b, 4, i * 34);
         lv_obj_t *l = lv_label_create(b);
         lv_label_set_text(l, web_scan_ssid(i));
         lv_obj_set_style_text_color(l, lv_color_hex(0xF4F7FB), 0);
@@ -342,36 +380,30 @@ static void join_cb(lv_event_t *e)
     }
     (void)web_sta_join(ssid, pass);
     if (s_ip_lbl) lv_label_set_text(s_ip_lbl, "joining...");
+    if (s_pass_title) lv_label_set_text(s_pass_title, "connecting...");
     pad_hide();
-    lv_obj_add_flag(s_wifi_ta, LV_OBJ_FLAG_HIDDEN);
 }
+
+static void apply_field(void);
+static lv_obj_t *s_edge_l;
+static lv_obj_t *s_edge_r;
 
 static void make_pad(lv_obj_t *parent)
 {
     s_pad = lv_obj_create(parent);
-    lv_obj_set_size(s_pad, 232, 156);
-    lv_obj_align(s_pad, LV_ALIGN_BOTTOM_MID, 0, -8);
+    lv_obj_set_size(s_pad, 228, 168);
+    lv_obj_align(s_pad, LV_ALIGN_BOTTOM_MID, 0, -4);
     lv_obj_set_style_bg_color(s_pad, lv_color_hex(0x101820), 0);
     lv_obj_set_style_bg_opa(s_pad, LV_OPA_COVER, 0);
     lv_obj_set_style_border_width(s_pad, 0, 0);
     lv_obj_set_style_pad_all(s_pad, 4, 0);
     lv_obj_clear_flag(s_pad, LV_OBJ_FLAG_SCROLLABLE);
-    const char *keys[] = {
-        "1","2","3","4","5","6","7","8","9","0",
-        "A","B","C","D","E","F","G","H","I","J",
-        "K","L","M","N","O","P","Q","R","S","T",
-        "U","V","W","X","Y","Z","DEL","HIDE"
-    };
-    lv_obj_set_size(s_pad, 232, 200);
-    lv_obj_add_flag(s_pad, LV_OBJ_FLAG_SCROLLABLE);
-    for (int i = 0; i < 38; ++i) {
+    const char *keys[] = {"1","2","3","4","5","6","7","8","9","C","0","OK"};
+    for (int i = 0; i < 12; ++i) {
         lv_obj_t *b = lv_btn_create(s_pad);
-        if (!b) {
-            ESP_LOGE(TAG, "LVGL OOM pad key %d", i);
-            break;
-        }
-        lv_obj_set_size(b, 42, 32);
-        lv_obj_set_pos(b, (i % 5) * 46, (i / 5) * 36);
+        if (!b) break;
+        lv_obj_set_size(b, 68, 36);
+        lv_obj_set_pos(b, (i % 3) * 74, (i / 3) * 40);
         lv_obj_set_style_bg_color(b, lv_color_hex(0x1A2430), 0);
         lv_obj_set_style_shadow_width(b, 0, 0);
         lv_obj_add_event_cb(b, pad_key_cb, LV_EVENT_CLICKED, (void *)keys[i]);
@@ -382,6 +414,34 @@ static void make_pad(lv_obj_t *parent)
         lv_obj_center(l);
     }
     lv_obj_add_flag(s_pad, LV_OBJ_FLAG_HIDDEN);
+}
+
+static void resize_edges(void)
+{
+    if (s_edge_l) lv_obj_set_width(s_edge_l, s_edge);
+    if (s_edge_r) lv_obj_set_width(s_edge_r, s_edge);
+}
+
+static void make_edges(lv_obj_t *parent)
+{
+    s_edge_l = lv_obj_create(parent);
+    lv_obj_set_size(s_edge_l, s_edge, 280);
+    lv_obj_align(s_edge_l, LV_ALIGN_LEFT_MID, 0, 0);
+    lv_obj_set_style_bg_color(s_edge_l, lv_color_hex(0x1F6F5B), 0);
+    lv_obj_set_style_bg_opa(s_edge_l, LV_OPA_30, 0);
+    lv_obj_set_style_border_width(s_edge_l, 0, 0);
+    lv_obj_clear_flag(s_edge_l, LV_OBJ_FLAG_SCROLLABLE);
+    lv_obj_add_event_cb(s_edge_l, gesture_cb, LV_EVENT_PRESSED, NULL);
+    lv_obj_add_event_cb(s_edge_l, gesture_cb, LV_EVENT_RELEASED, NULL);
+    s_edge_r = lv_obj_create(parent);
+    lv_obj_set_size(s_edge_r, s_edge, 280);
+    lv_obj_align(s_edge_r, LV_ALIGN_RIGHT_MID, 0, 0);
+    lv_obj_set_style_bg_color(s_edge_r, lv_color_hex(0x1F6F5B), 0);
+    lv_obj_set_style_bg_opa(s_edge_r, LV_OPA_30, 0);
+    lv_obj_set_style_border_width(s_edge_r, 0, 0);
+    lv_obj_clear_flag(s_edge_r, LV_OBJ_FLAG_SCROLLABLE);
+    lv_obj_add_event_cb(s_edge_r, gesture_cb, LV_EVENT_PRESSED, NULL);
+    lv_obj_add_event_cb(s_edge_r, gesture_cb, LV_EVENT_RELEASED, NULL);
 }
 
 static lv_obj_t *card(lv_obj_t *parent, int x, int y, lv_obj_t **value, const char *cap)
@@ -421,10 +481,35 @@ static lv_obj_t *line(lv_obj_t *parent, const char *txt, int y)
     lv_label_set_long_mode(l, LV_LABEL_LONG_CLIP);
     lv_obj_set_style_text_color(l, lv_color_hex(0xD5DEE8), 0);
     lv_obj_align(l, LV_ALIGN_TOP_LEFT, 12, y);
-    lv_obj_add_event_cb(l, gesture_cb, LV_EVENT_GESTURE, NULL);
     return l;
 }
 
+
+static void apply_field(void)
+{
+    int v = s_v_ta ? atoi(lv_textarea_get_text(s_v_ta)) : s_set_v;
+    int i = s_i_ta ? atoi(lv_textarea_get_text(s_i_ta)) : s_set_i;
+    int soc = s_soc_ta ? atoi(lv_textarea_get_text(s_soc_ta)) : s_set_soc;
+    float cap = s_kwh_ta ? (float)atof(lv_textarea_get_text(s_kwh_ta)) : s_cap_kwh;
+    if (v < 50) v = 50;
+    if (v > 500) v = 500;
+    if (i < 1) i = 1;
+    if (i > 250) i = 250;
+    if (soc < 0) soc = 0;
+    if (soc > 100) soc = 100;
+    if (cap < 1.0f) cap = 1.0f;
+    if (cap > 200.0f) cap = 200.0f;
+    s_set_v = v; s_set_i = i; s_set_soc = soc; s_cap_kwh = cap;
+    app_state_set_bcl((uint16_t)(v * 10), (int16_t)(i * 10), 1);
+    app_state_set_battery_vi((uint16_t)(v * 10), (int16_t)(i * 10));
+    app_state_set_soc((uint8_t)soc);
+    app_state_set_cap_kwh(cap);
+    if (s_set_lbl) {
+        char b[48];
+        snprintf(b, sizeof(b), "set %dV %dA SOC%d %.1fkWh", v, i, soc, (double)cap);
+        lv_label_set_text(s_set_lbl, b);
+    }
+}
 
 static void step_cb(lv_event_t *e)
 {
@@ -471,6 +556,7 @@ static void edge_cb(lv_event_t *e)
         snprintf(b, sizeof(b), "swipe %d px", s_edge);
         lv_label_set_text(s_edge_lbl, b);
     }
+    resize_edges();
 }
 
 static void boot_old_cb(lv_event_t *e)
@@ -484,7 +570,7 @@ static void build_ui(void)
 {
     s_scr_chg = lv_scr_act();
     style_screen(s_scr_chg);
-    line(s_scr_chg, "ДОМ 2.6.0", 8);
+    line(s_scr_chg, "ДОМ 2.7.0", 8);
     lv_obj_add_flag(s_scr_chg, LV_OBJ_FLAG_SCROLLABLE);
     s_card_u = card(s_scr_chg, 10, 40, &s_voltage, "V");
     s_card_i = card(s_scr_chg, 122, 40, &s_current, "A");
@@ -514,39 +600,58 @@ static void build_ui(void)
     s_ses_min = line(s_scr_ses, "время --", 36);
     s_ses_kwh = line(s_scr_ses, "кВтч --", 58);
     s_ses_soc = line(s_scr_ses, "оценка от 7.5", 80);
+    s_ses_req = line(s_scr_ses, "запрос --", 104);
+    lv_obj_t *go = lv_btn_create(s_scr_ses);
+    lv_obj_set_size(go, 200, 36);
+    lv_obj_align(go, LV_ALIGN_TOP_MID, 0, 140);
+    lv_obj_set_style_bg_color(go, lv_color_hex(0x1F6F5B), 0);
+    lv_obj_add_event_cb(go, session_go_cb, LV_EVENT_CLICKED, NULL);
+    lv_obj_t *gl = lv_label_create(go); lv_label_set_text(gl, "START"); lv_obj_center(gl);
     s_scr_set = lv_obj_create(NULL);
     style_screen(s_scr_set);
     lv_obj_add_flag(s_scr_set, LV_OBJ_FLAG_SCROLLABLE);
     line(s_scr_set, "ЗАРЯДКА", 8);
-    s_set_lbl = line(s_scr_set, "240V 50A 7.5kWh", 32);
-    s_vin_ta = lv_textarea_create(s_scr_set);
-    lv_obj_set_size(s_vin_ta, 216, 28);
-    lv_obj_set_pos(s_vin_ta, 12, 54);
-    lv_textarea_set_one_line(s_vin_ta, true);
-    lv_textarea_set_max_length(s_vin_ta, 17);
-    lv_textarea_set_placeholder_text(s_vin_ta, "VIN");
-    lv_textarea_set_text(s_vin_ta, app_state_vin());
-    lv_obj_add_event_cb(s_vin_ta, ta_focus_cb, LV_EVENT_CLICKED, NULL);
-    s_active_ta = s_vin_ta;
+    s_set_lbl = line(s_scr_set, "поле, цифры, OK", 28);
+    line(s_scr_set, "V", 50);
+    s_v_ta = lv_textarea_create(s_scr_set);
+    lv_obj_set_size(s_v_ta, 120, 32);
+    lv_obj_set_pos(s_v_ta, 70, 46);
+    lv_textarea_set_one_line(s_v_ta, true);
+    lv_textarea_set_max_length(s_v_ta, 4);
+    lv_textarea_set_text(s_v_ta, "240");
+    lv_obj_add_event_cb(s_v_ta, ta_focus_cb, LV_EVENT_CLICKED, NULL);
+    line(s_scr_set, "A", 88);
+    s_i_ta = lv_textarea_create(s_scr_set);
+    lv_obj_set_size(s_i_ta, 120, 32);
+    lv_obj_set_pos(s_i_ta, 70, 84);
+    lv_textarea_set_one_line(s_i_ta, true);
+    lv_textarea_set_max_length(s_i_ta, 4);
+    lv_textarea_set_text(s_i_ta, "50");
+    lv_obj_add_event_cb(s_i_ta, ta_focus_cb, LV_EVENT_CLICKED, NULL);
+    line(s_scr_set, "SOC", 126);
+    s_soc_ta = lv_textarea_create(s_scr_set);
+    lv_obj_set_size(s_soc_ta, 120, 32);
+    lv_obj_set_pos(s_soc_ta, 70, 122);
+    lv_textarea_set_one_line(s_soc_ta, true);
+    lv_textarea_set_max_length(s_soc_ta, 3);
+    lv_textarea_set_text(s_soc_ta, "20");
+    lv_obj_add_event_cb(s_soc_ta, ta_focus_cb, LV_EVENT_CLICKED, NULL);
+    line(s_scr_set, "kWh", 164);
+    s_kwh_ta = lv_textarea_create(s_scr_set);
+    lv_obj_set_size(s_kwh_ta, 120, 32);
+    lv_obj_set_pos(s_kwh_ta, 70, 160);
+    lv_textarea_set_one_line(s_kwh_ta, true);
+    lv_textarea_set_max_length(s_kwh_ta, 5);
+    lv_textarea_set_text(s_kwh_ta, "7.5");
+    lv_obj_add_event_cb(s_kwh_ta, ta_focus_cb, LV_EVENT_CLICKED, NULL);
+    s_active_ta = s_v_ta;
     {
-        const char *nm[] = {"V+","V-","A+","A-","kWh+","kWh-","S+","S-"};
-        const int id[] = {1,2,3,4,5,6,7,8};
-        for (int i = 0; i < 8; ++i) {
-            lv_obj_t *b = lv_btn_create(s_scr_set);
-            lv_obj_set_size(b, 52, 28);
-            lv_obj_set_pos(b, 8 + (i % 4) * 56, 92 + (i / 4) * 34);
-            lv_obj_set_style_shadow_width(b, 0, 0);
-            lv_obj_add_event_cb(b, step_cb, LV_EVENT_CLICKED, (void *)(intptr_t)id[i]);
-            lv_obj_t *l = lv_label_create(b);
-            lv_label_set_text(l, nm[i]);
-            lv_obj_center(l);
-        }
         const char *pn[] = {"авто", "2015", "2011"};
         const int pv[] = {0, 1, 2};
         for (int i = 0; i < 3; ++i) {
             lv_obj_t *b = lv_btn_create(s_scr_set);
             lv_obj_set_size(b, 70, 28);
-            lv_obj_set_pos(b, 8 + i * 76, 168);
+            lv_obj_set_pos(b, 8 + i * 76, 210);
             lv_obj_set_style_shadow_width(b, 0, 0);
             lv_obj_add_event_cb(b, proto_cb, LV_EVENT_CLICKED, (void *)(intptr_t)pv[i]);
             lv_obj_t *l = lv_label_create(b);
@@ -560,14 +665,15 @@ static void build_ui(void)
     line(s_scr_log, "ЛОГИ ESP", 8);
     s_log_lbl = line(s_scr_log, "нет событий", 28);
     lv_label_set_long_mode(s_log_lbl, LV_LABEL_LONG_WRAP);
-    lv_obj_set_height(s_log_lbl, 100);
+    lv_obj_set_width(s_log_lbl, 216);
+    lv_obj_set_height(s_log_lbl, 200);
     line(s_scr_log, "ЛОГИ CAN", 136);
     s_can_lbl = line(s_scr_log, "нет кадров", 156);
     lv_label_set_long_mode(s_can_lbl, LV_LABEL_LONG_WRAP);
     lv_obj_set_height(s_can_lbl, 110);
     s_scr_sys = lv_obj_create(NULL);
     style_screen(s_scr_sys);
-    line(s_scr_sys, "СИСТЕМА 2.6.0", 4);
+    line(s_scr_sys, "СИСТЕМА 2.7.0", 4);
     s_sys_temp = line(s_scr_sys, "CPU -- C", 28);
     s_sys_cpu = line(s_scr_sys, "F 160 MHz", 48);
     s_sys_load = line(s_scr_sys, "Load -- %", 68);
@@ -615,7 +721,7 @@ static void build_ui(void)
     lv_obj_set_size(ob, 160, 28);
     lv_obj_set_pos(ob, 12, 346);
     lv_obj_add_event_cb(ob, boot_old_cb, LV_EVENT_CLICKED, NULL);
-    lv_obj_t *obl = lv_label_create(ob); lv_label_set_text(obl, "ОРИГИНАЛ"); lv_obj_center(obl);
+    lv_obj_t *obl = lv_label_create(ob); lv_label_set_text(obl, "ОРИГИНАЛ"); /* back: 3 power cycles */ lv_obj_center(obl);
     line(s_scr_sys, "OTA с сайта = полоса", 382);
 
 
@@ -624,18 +730,12 @@ static void build_ui(void)
     line(s_scr_wifi, "СЕТЬ", 2);
     lv_obj_add_flag(s_scr_wifi, LV_OBJ_FLAG_SCROLLABLE);
     s_list = lv_obj_create(s_scr_wifi);
-    lv_obj_set_size(s_list, 220, 150);
-    lv_obj_align(s_list, LV_ALIGN_TOP_MID, 0, 24);
+    lv_obj_set_size(s_list, 220, 200);
+    lv_obj_align(s_list, LV_ALIGN_TOP_MID, 0, 22);
     lv_obj_add_flag(s_list, LV_OBJ_FLAG_SCROLLABLE);
-    s_scan_lbl = line(s_scr_wifi, "nets: --", 176);
-    s_wifi_ta = lv_textarea_create(s_scr_wifi);
-    lv_obj_set_size(s_wifi_ta, 220, 28);
-    lv_obj_align(s_wifi_ta, LV_ALIGN_TOP_MID, 0, 196);
-    lv_textarea_set_placeholder_text(s_wifi_ta, "password");
-    lv_obj_add_flag(s_wifi_ta, LV_OBJ_FLAG_HIDDEN);
-    lv_textarea_set_one_line(s_wifi_ta, true);
-    lv_obj_add_event_cb(s_wifi_ta, ta_focus_cb, LV_EVENT_CLICKED, NULL);
-    s_ip_lbl = line(s_scr_wifi, "STA IP --", 228);
+    lv_obj_set_style_pad_row(s_list, 4, 0);
+    s_scan_lbl = line(s_scr_wifi, "nets: --", 226);
+    s_ip_lbl = line(s_scr_wifi, "AP 192.168.4.1", 248);
 
     lv_obj_t *sc = lv_btn_create(s_scr_wifi);
     lv_obj_set_size(sc, 70, 32);
@@ -644,28 +744,52 @@ static void build_ui(void)
     lv_obj_add_event_cb(sc, scan_cb, LV_EVENT_CLICKED, NULL);
     lv_obj_t *slb = lv_label_create(sc); lv_label_set_text(slb, "SCAN"); lv_obj_center(slb);
 
-    lv_obj_t *up = lv_btn_create(s_scr_wifi);
-    lv_obj_set_size(up, 36, 32);
-    lv_obj_align(up, LV_ALIGN_TOP_LEFT, 82, 258);
-    lv_obj_set_style_shadow_width(up, 0, 0);
-    lv_obj_add_event_cb(up, pick_cb, LV_EVENT_CLICKED, (void *)(intptr_t)-1);
-    lv_obj_t *ul = lv_label_create(up); lv_label_set_text(ul, "-"); lv_obj_center(ul);
-
-    lv_obj_t *dn = lv_btn_create(s_scr_wifi);
-    lv_obj_set_size(dn, 36, 32);
-    lv_obj_align(dn, LV_ALIGN_TOP_LEFT, 122, 258);
-    lv_obj_set_style_shadow_width(dn, 0, 0);
-    lv_obj_add_event_cb(dn, pick_cb, LV_EVENT_CLICKED, (void *)(intptr_t)1);
-    lv_obj_t *dl = lv_label_create(dn); lv_label_set_text(dl, "+"); lv_obj_center(dl);
-
-    lv_obj_t *jn = lv_btn_create(s_scr_wifi);
-    lv_obj_set_size(jn, 70, 32);
-    lv_obj_align(jn, LV_ALIGN_TOP_LEFT, 164, 258);
-    lv_obj_set_style_shadow_width(jn, 0, 0);
-    lv_obj_add_event_cb(jn, join_cb, LV_EVENT_CLICKED, NULL);
-    lv_obj_t *jl = lv_label_create(jn); lv_label_set_text(jl, "JOIN"); lv_obj_center(jl);
+    line(s_scr_wifi, "tap net, digits, CONNECT", 248);
 
     lv_obj_set_style_text_font(lv_layer_top(), &lv_font_ru_14, 0);
+    make_edges(lv_layer_top());
+    s_pass_box = lv_obj_create(lv_layer_top());
+    lv_obj_set_size(s_pass_box, 228, 118);
+    lv_obj_align(s_pass_box, LV_ALIGN_TOP_MID, 0, 8);
+    lv_obj_set_style_bg_color(s_pass_box, lv_color_hex(0x101820), 0);
+    lv_obj_set_style_bg_opa(s_pass_box, LV_OPA_COVER, 0);
+    lv_obj_set_style_border_color(s_pass_box, lv_color_hex(0x1F6F5B), 0);
+    lv_obj_set_style_border_width(s_pass_box, 2, 0);
+    lv_obj_clear_flag(s_pass_box, LV_OBJ_FLAG_SCROLLABLE);
+    s_pass_title = lv_label_create(s_pass_box);
+    lv_label_set_text(s_pass_title, "password");
+    lv_obj_align(s_pass_title, LV_ALIGN_TOP_LEFT, 8, 6);
+    s_wifi_ta = lv_textarea_create(s_pass_box);
+    lv_obj_set_size(s_wifi_ta, 200, 32);
+    lv_obj_align(s_wifi_ta, LV_ALIGN_TOP_MID, 0, 28);
+    lv_textarea_set_one_line(s_wifi_ta, true);
+    lv_textarea_set_max_length(s_wifi_ta, 16);
+    lv_textarea_set_placeholder_text(s_wifi_ta, "digits");
+    lv_obj_add_event_cb(s_wifi_ta, ta_focus_cb, LV_EVENT_CLICKED, NULL);
+    lv_obj_t *okb = lv_btn_create(s_pass_box);
+    lv_obj_set_size(okb, 96, 30);
+    lv_obj_align(okb, LV_ALIGN_BOTTOM_LEFT, 8, -6);
+    lv_obj_add_event_cb(okb, join_cb, LV_EVENT_CLICKED, NULL);
+    lv_obj_t *okl = lv_label_create(okb); lv_label_set_text(okl, "CONNECT"); lv_obj_center(okl);
+    lv_obj_t *clb = lv_btn_create(s_pass_box);
+    lv_obj_set_size(clb, 96, 30);
+    lv_obj_align(clb, LV_ALIGN_BOTTOM_RIGHT, -8, -6);
+    lv_obj_add_event_cb(clb, pass_close_cb, LV_EVENT_CLICKED, NULL);
+    lv_obj_t *cll = lv_label_create(clb); lv_label_set_text(cll, "CLOSE"); lv_obj_center(cll);
+    lv_obj_add_flag(s_pass_box, LV_OBJ_FLAG_HIDDEN);
+    s_ip_box = lv_obj_create(lv_layer_top());
+    lv_obj_set_size(s_ip_box, 220, 96);
+    lv_obj_align(s_ip_box, LV_ALIGN_CENTER, 0, -20);
+    lv_obj_set_style_bg_color(s_ip_box, lv_color_hex(0x101820), 0);
+    lv_obj_set_style_bg_opa(s_ip_box, LV_OPA_COVER, 0);
+    lv_obj_set_style_border_color(s_ip_box, lv_color_hex(0x1F6FEB), 0);
+    lv_obj_set_style_border_width(s_ip_box, 2, 0);
+    s_ip_msg = lv_label_create(s_ip_box);
+    lv_label_set_text(s_ip_msg, "IP");
+    lv_label_set_long_mode(s_ip_msg, LV_LABEL_LONG_WRAP);
+    lv_obj_set_width(s_ip_msg, 200);
+    lv_obj_align(s_ip_msg, LV_ALIGN_CENTER, 0, 0);
+    lv_obj_add_flag(s_ip_box, LV_OBJ_FLAG_HIDDEN);
     make_pad(lv_layer_top());
     s_ota_box = lv_obj_create(lv_layer_top());
     lv_obj_set_size(s_ota_box, 220, 86);
@@ -779,7 +903,7 @@ esp_err_t display_init(void)
     }
 
     lv_init();
-    size_t buf_px = CUBE_LCD_H_RES * 20;
+    size_t buf_px = CUBE_LCD_H_RES * 40;
     s_buf1 = heap_caps_malloc(buf_px * sizeof(lv_color_t), MALLOC_CAP_DMA);
     s_buf2 = heap_caps_malloc(buf_px * sizeof(lv_color_t), MALLOC_CAP_DMA);
     if (!s_buf1 || !s_buf2) return ESP_ERR_NO_MEM;
@@ -916,6 +1040,14 @@ void display_set_values(void)
     if (s_status) {
         snprintf(b, sizeof(b), "VIN %s", app_state_vin());
         lv_label_set_text(s_status, b);
+    }
+    if (s_ip_box && s_ip_msg && web_sta_ip()[0] >= '1' && web_sta_ip()[0] <= '9') {
+        char msg[96];
+        snprintf(msg, sizeof(msg), "STA %s\nhttp://%s\nAP Cube 192.168.4.1\npass %s",
+                 web_sta_ip(), web_sta_ip(), CUBE_WIFI_PASSWORD);
+        lv_label_set_text(s_ip_msg, msg);
+        lv_obj_clear_flag(s_ip_box, LV_OBJ_FLAG_HIDDEN);
+        if (s_pass_box) lv_obj_add_flag(s_pass_box, LV_OBJ_FLAG_HIDDEN);
     }
     /* Brightness stays on the SYS slider; do not override it. */
     (void)tc;
