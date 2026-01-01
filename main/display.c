@@ -203,7 +203,8 @@ static void gesture_cb(lv_event_t *e)
     int dy = pt.y - s_down.y;
     if (dx < 0) dx = -dx;
     if (dy < 0) dy = -dy;
-    if (dx < 48 || dx < dy * 2) return;
+    if (s_down.x > 28 && s_down.x < 212) return;
+    if (dx < 36 || dx < dy) return;
     apply_page((s_page + (pt.x < s_down.x ? 1 : 2)) % 3);
 }
 
@@ -385,15 +386,11 @@ static lv_obj_t *line(lv_obj_t *parent, const char *txt, int y)
 }
 
 
-static void nav_cb(lv_event_t *e)
-{
-    apply_page((int)(intptr_t)lv_event_get_user_data(e));
-}
 static void build_ui(void)
 {
     s_scr_chg = lv_scr_act();
     style_screen(s_scr_chg);
-    line(s_scr_chg, "CUBE 2.5.5", 22);
+    line(s_scr_chg, "CUBE 2.5.6", 22);
     s_card_u = card(s_scr_chg, 10, 40, &s_voltage, "V");
     s_card_i = card(s_scr_chg, 122, 40, &s_current, "A");
     (void)s_card_u; (void)s_card_i;

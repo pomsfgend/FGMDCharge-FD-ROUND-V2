@@ -593,6 +593,16 @@ static void wifi_boot_scan_task(void *arg)
 }
 
 
+
+static esp_err_t ota_url_post(httpd_req_t *req)
+{
+    set_security_headers(req);
+    char body[320] = {0};
+    int n = httpd_req_recv(req, body, sizeof(body) - 1);
+    (void)n;
+    httpd_resp_set_type(req, "text/plain; charset=utf-8");
+    return httpd_resp_sendstr(req, "URL saved on page. Flash the file from the phone button in this build; Windows SMB is not in the cube yet.");
+}
 static esp_err_t log_get(httpd_req_t *req)
 {
     set_security_headers(req);
@@ -766,6 +776,7 @@ esp_err_t web_init(void)
         {.uri = "/api/stop", .method = HTTP_POST, .handler = session_stop_post},
         {.uri = "/api/tx_enable", .method = HTTP_POST, .handler = session_start_post},
         {.uri = "/api/ota", .method = HTTP_POST, .handler = update_post},
+        {.uri = "/api/ota/url", .method = HTTP_POST, .handler = ota_url_post},
         {.uri = "/api/settings", .method = HTTP_GET, .handler = settings_get},
         {.uri = "/api/settings", .method = HTTP_POST, .handler = settings_post},
         {.uri = "/api/can/raw", .method = HTTP_POST, .handler = can_raw_post},
