@@ -87,7 +87,7 @@ void app_main(void) {
         ESP_LOGW(TAG, "stage: LCD/LVGL ok");
     }
 
-    /* SoftAP first (better scan visibility), then BLE. */
+    /* SoftAP first for scan visibility, then BLE. */
     err = web_init();
     if (err != ESP_OK) ESP_LOGE(TAG, "Web init failed: %s", esp_err_to_name(err));
     else ESP_LOGW(TAG, "stage: Web AP ok");

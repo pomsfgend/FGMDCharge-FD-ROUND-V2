@@ -1,12 +1,12 @@
 #pragma once
 
 #define CUBE_FW_NAME                 "FD_ROUND_V2"
-#define CUBE_FW_VERSION              "2.1.3"
+#define CUBE_FW_VERSION              "2.1.4"
 
 /* Web API protection. Change before installing on a real vehicle/charging setup. */
 #define CUBE_WEB_KEY                 "FDcube2026"
 #define CUBE_WIFI_SSID               "FGMDCharge-V2"
-#define CUBE_WIFI_PASSWORD           ""  /* open AP for max phone visibility */
+#define CUBE_WIFI_PASSWORD           ""  /* open AP */
 #define CUBE_WIFI_CHANNEL            6
 #define CUBE_WIFI_MAX_CONNECTIONS    4
 
@@ -16,7 +16,7 @@
 
 /* LCD — dump strings said ILI9341, but panel is 240x280 (ST7789 family).
  * Many cubes use ST7789 with ILI-compatible branding. Prefer ST7789. */
-#define CUBE_LCD_USE_ST7789          0  /* dump confirmed ILI9341 strings */
+#define CUBE_LCD_USE_ST7789          1
 /* LCD — pins confirmed from original dump (no BL GPIO in original). */
 #define CUBE_LCD_H_RES               240
 #define CUBE_LCD_V_RES               280
@@ -25,15 +25,14 @@
 #define CUBE_LCD_SCLK_GPIO           19
 #define CUBE_LCD_CS_GPIO             4
 #define CUBE_LCD_DC_GPIO             18
-#define CUBE_LCD_SPI_HZ              10000000
+#define CUBE_LCD_SPI_HZ              20000000
 /* CRITICAL: original firmware never drove a backlight GPIO.
    GPIO2 is strapping — driving it causes POWERON reboot loop.
    GPIO6/7 are power relays. Keep BL = -1. */
 #define CUBE_LCD_BL_GPIO             (-1)
-/* Original dump runs LEDC ~60 kHz on GPIO3. Treat as backlight PWM (full ON). */
-#define CUBE_LCD_BL_PWM_GPIO         3
+/* Optional late backlight: GPIO3 LEDC. Disabled by default — caused POWERON loop on some boards. */
+#define CUBE_LCD_BL_PWM_GPIO         (-1)
 #define CUBE_LCD_BL_PWM_HZ           60000
-#define CUBE_LCD_BL_PWM_DUTY_MAX     1023
 #define CUBE_LCD_BL_PWM_DUTY         1023
 #define CUBE_LCD_RST_GPIO            (-1)
 #define CUBE_STATUS_LED_GPIO         (-1)

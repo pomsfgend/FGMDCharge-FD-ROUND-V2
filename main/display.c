@@ -90,12 +90,12 @@ static lv_obj_t *make_card(lv_obj_t *parent, lv_coord_t x, lv_coord_t y, lv_coor
     lv_obj_set_size(card, w, h);
     lv_obj_set_pos(card, x, y);
     lv_obj_clear_flag(card, LV_OBJ_FLAG_SCROLLABLE);
-    lv_obj_set_style_radius(card, 14, 0);
+    lv_obj_set_style_radius(card, 10, 0);
     lv_obj_set_style_bg_color(card, lv_color_hex(0x111F2C), 0);
     lv_obj_set_style_bg_opa(card, LV_OPA_COVER, 0);
     lv_obj_set_style_border_width(card, 1, 0);
     lv_obj_set_style_border_color(card, lv_color_hex(0x21364B), 0);
-    lv_obj_set_style_pad_all(card, 8, 0);
+    lv_obj_set_style_pad_all(card, 6, 0);
 
     lv_obj_t *cap = make_label(card, caption, 14);
     lv_obj_align(cap, LV_ALIGN_TOP_LEFT, 0, 0);
@@ -105,44 +105,39 @@ static lv_obj_t *make_card(lv_obj_t *parent, lv_coord_t x, lv_coord_t y, lv_coor
 }
 
 static void ui_create(void) {
+    /* Compact layout for 240x280 portrait (CST816 cube). */
     lv_obj_t *scr = lv_scr_act();
     lv_obj_set_style_bg_color(scr, lv_color_hex(0x07111C), 0);
     lv_obj_set_style_bg_opa(scr, LV_OPA_COVER, 0);
     lv_obj_clear_flag(scr, LV_OBJ_FLAG_SCROLLABLE);
 
-    lv_obj_t *title = make_label(scr, "GB/T DC CHARGER", 14);
-    lv_obj_align(title, LV_ALIGN_TOP_MID, 0, 6);
+    lv_obj_t *title = make_label(scr, "FGMDCharge", 14);
+    lv_obj_align(title, LV_ALIGN_TOP_MID, 0, 4);
 
-    (void)make_card(scr, 8, 28, 108, 72, "VOLTAGE", &s_voltage);
-    (void)make_card(scr, 124, 28, 108, 72, "CURRENT", &s_current);
+    /* Two metric cards: 112x64 with 8px margins fits 240 width cleanly. */
+    (void)make_card(scr, 8, 24, 112, 64, "VOLTAGE", &s_voltage);
+    (void)make_card(scr, 120, 24, 112, 64, "CURRENT", &s_current);
 
     s_power = make_label(scr, "POWER ---- W", 14);
-    lv_obj_align(s_power, LV_ALIGN_TOP_MID, 0, 108);
-    s_stage = make_label(scr, "STAGE: --", 14);
-    lv_obj_align(s_stage, LV_ALIGN_TOP_MID, 0, 130);
-    s_request = make_label(scr, "REQ --.- V  --.- A", 14);
-    lv_obj_align(s_request, LV_ALIGN_TOP_MID, 0, 152);
+    lv_obj_align(s_power, LV_ALIGN_TOP_LEFT, 10, 96);
+    s_stage = make_label(scr, "STAGE --", 14);
+    lv_obj_align(s_stage, LV_ALIGN_TOP_LEFT, 10, 118);
+    s_request = make_label(scr, "REQ --.-V --.-A", 14);
+    lv_obj_align(s_request, LV_ALIGN_TOP_LEFT, 10, 140);
     s_time = make_label(scr, "TIME ---- min", 14);
-    lv_obj_align(s_time, LV_ALIGN_TOP_MID, 0, 174);
+    lv_obj_align(s_time, LV_ALIGN_TOP_LEFT, 10, 162);
     s_status = make_label(scr, "STATUS --", 14);
-    lv_obj_align(s_status, LV_ALIGN_TOP_MID, 0, 196);
+    lv_obj_align(s_status, LV_ALIGN_TOP_LEFT, 10, 184);
     s_can = make_label(scr, "CAN 250k RX 0", 14);
-    lv_obj_align(s_can, LV_ALIGN_TOP_MID, 0, 218);
+    lv_obj_align(s_can, LV_ALIGN_TOP_LEFT, 10, 206);
 
     static char wifi_line[48];
     (void)snprintf(wifi_line, sizeof(wifi_line), "WiFi %s", CUBE_WIFI_SSID);
     lv_obj_t *hint = make_label(scr, wifi_line, 14);
-    lv_obj_align(hint, LV_ALIGN_BOTTOM_MID, 0, -28);
+    lv_obj_align(hint, LV_ALIGN_BOTTOM_LEFT, 10, -28);
 
-    if (CUBE_WIFI_PASSWORD[0]) {
-        static char pass_line[40];
-        (void)snprintf(pass_line, sizeof(pass_line), "PASS %s", CUBE_WIFI_PASSWORD);
-        lv_obj_t *hint2 = make_label(scr, pass_line, 14);
-        lv_obj_align(hint2, LV_ALIGN_BOTTOM_MID, 0, -10);
-    } else {
-        lv_obj_t *hint2 = make_label(scr, "OPEN WiFi (no pass)", 14);
-        lv_obj_align(hint2, LV_ALIGN_BOTTOM_MID, 0, -10);
-    }
+    lv_obj_t *hint2 = make_label(scr, CUBE_WIFI_PASSWORD[0] ? "WPA2 key set" : "OPEN AP 192.168.4.1", 14);
+    lv_obj_align(hint2, LV_ALIGN_BOTTOM_LEFT, 10, -10);
 }
 
 esp_err_t display_init(void) {
@@ -190,18 +185,19 @@ esp_err_t display_init(void) {
     err = esp_lcd_new_panel_io_spi((esp_lcd_spi_bus_handle_t)SPI2_HOST, &io_cfg, &s_panel_io);
     if (err != ESP_OK) return err;
 
-    /* Dump strings + RE: ILI9341 via esp_lcd. 240x280 logical window.
-       LVGL has CONFIG_LV_COLOR_16_SWAP=y → panel RGB endian RGB. */
+    /* 240x280 panels on these cubes are almost always ST7789 (dump strings
+       still said ILI9341). ST7789 needs Y gap + color invert. */
     esp_lcd_panel_dev_config_t panel_cfg = {
         .reset_gpio_num = CUBE_LCD_RST_GPIO,
         .bits_per_pixel = 16,
-        .rgb_endian = LCD_RGB_ENDIAN_RGB,
+        /* BGR is the common byte order for ST7789/ILI modules with LVGL. */
+        .rgb_endian = LCD_RGB_ENDIAN_BGR,
     };
 #if CUBE_LCD_USE_ST7789
     ESP_LOGW(TAG, "panel create ST7789 240x280...");
     err = esp_lcd_new_panel_st7789(s_panel_io, &panel_cfg, &s_panel);
 #else
-    ESP_LOGW(TAG, "panel create ILI9341 240x280...");
+    ESP_LOGW(TAG, "panel create ILI9341...");
     err = esp_lcd_new_panel_ili9341(s_panel_io, &panel_cfg, &s_panel);
 #endif
     if (err != ESP_OK) {
@@ -210,18 +206,12 @@ esp_err_t display_init(void) {
     }
     if ((err = esp_lcd_panel_reset(s_panel)) != ESP_OK) return err;
     if ((err = esp_lcd_panel_init(s_panel)) != ESP_OK) return err;
-#if CUBE_LCD_USE_ST7789
+    /* ST7789 240x280 window is offset inside 240x320 GRAM. */
     (void)esp_lcd_panel_set_gap(s_panel, 0, 20);
     (void)esp_lcd_panel_invert_color(s_panel, true);
-#else
-    /* ILI9341 path from original dump: no gap, no invert command observed. */
-    (void)esp_lcd_panel_set_gap(s_panel, 0, 0);
-    (void)esp_lcd_panel_invert_color(s_panel, false);
-#endif
     if ((err = esp_lcd_panel_mirror(s_panel, false, false)) != ESP_OK) return err;
-    if ((err = esp_lcd_panel_swap_xy(s_panel, false)) != ESP_OK) return err;
     if ((err = esp_lcd_panel_disp_on_off(s_panel, true)) != ESP_OK) return err;
-    ESP_LOGW(TAG, "panel on (ST7789=%d RGB gap/invert per driver)", CUBE_LCD_USE_ST7789);
+    ESP_LOGW(TAG, "panel on (ST7789 gap_y=20 invert=1 BGR)");
 
     /* Smoke test: fill full screen so user sees life even if LVGL fonts fail. */
     {

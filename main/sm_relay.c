@@ -135,6 +135,9 @@ static void tx_bst(void)
 
 esp_err_t sm_relay_init(void)
 {
+    /* Drive LOW before switching to output to avoid relay coil glitch/brownout. */
+    gpio_set_level(CUBE_RELAY_A_GPIO, 0);
+    gpio_set_level(CUBE_RELAY_B_GPIO, 0);
     gpio_config_t io = {
         .pin_bit_mask = (1ULL << CUBE_RELAY_A_GPIO) | (1ULL << CUBE_RELAY_B_GPIO),
         .mode = GPIO_MODE_OUTPUT,
@@ -144,9 +147,18 @@ esp_err_t sm_relay_init(void)
     };
     esp_err_t err = gpio_config(&io);
     if (err != ESP_OK) return err;
-    relays_fail_safe();
-    set_state(ST_IDLE);
-    ESP_LOGI(TAG, "relays init A=GPIO%d B=GPIO%d (both OFF)", CUBE_RELAY_A_GPIO, CUBE_RELAY_B_GPIO);
+    gpio_set_level(CUBE_RELAY_A_GPIO, 0);
+    gpio_set_level(CUBE_RELAY_B_GPIO, 0);
+    s_main = ST_IDLE;
+    s_sub = 0;
+    s_handoff = false;
+    s_entry_ms = now_ms();
+    app_state_set_main_state(ST_IDLE);
+    app_state_set_substate(0);
+    app_state_set_handoff(false);
+    app_state_set_relays(0, 0);
+    app_state_set_session(false);
+    ESP_LOGW(TAG, "relays OK A=GPIO%d B=GPIO%d both OFF", CUBE_RELAY_A_GPIO, CUBE_RELAY_B_GPIO);
     return ESP_OK;
 }
 
