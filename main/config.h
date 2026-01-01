@@ -6,7 +6,7 @@
 /* Web API protection. Change before installing on a real vehicle/charging setup. */
 #define CUBE_WEB_KEY                 ""  /* empty = no API password on local AP */
 #define CUBE_WIFI_SSID               "FGMDCharge-V2"
-#define CUBE_WIFI_PASSWORD           "FDcube2026"  /* change before field use */
+#define CUBE_WIFI_PASSWORD           ""  /* empty = open AP (no password) */
 #define CUBE_WIFI_CHANNEL            1
 #define CUBE_WIFI_MAX_CONNECTIONS    4
 

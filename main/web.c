@@ -432,6 +432,7 @@ esp_err_t web_init(void)
     if ((err = esp_wifi_set_config(WIFI_IF_AP, &ap)) != ESP_OK) return err;
     /* Ensure softAP is not in power-save that some clients reject. */
     (void)esp_wifi_set_ps(WIFI_PS_NONE);
+    (void)esp_wifi_set_bandwidth(WIFI_IF_AP, WIFI_BW_HT20);
     if ((err = esp_wifi_start()) != ESP_OK && err != ESP_ERR_INVALID_STATE) return err;
 
     httpd_config_t hc = HTTPD_DEFAULT_CONFIG();

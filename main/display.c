@@ -123,10 +123,15 @@ static void ui_create(void) {
     lv_obj_t *hint = make_label(scr, wifi_line, 14);
     lv_obj_align(hint, LV_ALIGN_BOTTOM_MID, 0, -28);
 
-    static char pass_line[40];
-    (void)snprintf(pass_line, sizeof(pass_line), "PASS %s", CUBE_WIFI_PASSWORD);
-    lv_obj_t *hint2 = make_label(scr, pass_line, 14);
-    lv_obj_align(hint2, LV_ALIGN_BOTTOM_MID, 0, -10);
+    if (CUBE_WIFI_PASSWORD[0]) {
+        static char pass_line[40];
+        (void)snprintf(pass_line, sizeof(pass_line), "PASS %s", CUBE_WIFI_PASSWORD);
+        lv_obj_t *hint2 = make_label(scr, pass_line, 14);
+        lv_obj_align(hint2, LV_ALIGN_BOTTOM_MID, 0, -10);
+    } else {
+        lv_obj_t *hint2 = make_label(scr, "OPEN WiFi (no pass)", 14);
+        lv_obj_align(hint2, LV_ALIGN_BOTTOM_MID, 0, -10);
+    }
 }
 
 esp_err_t display_init(void) {
@@ -171,13 +176,12 @@ esp_err_t display_init(void) {
     }
     if ((err = esp_lcd_panel_reset(s_panel)) != ESP_OK) return err;
     if ((err = esp_lcd_panel_init(s_panel)) != ESP_OK) return err;
-    /* dump lcd_main has immediate 20 near panel setup — 240x280 gap */
-    (void)esp_lcd_panel_set_gap(s_panel, 0, 20);
+    /* No gap: y=20 shifted content off edges. 180° from last build → mirror X+Y. */
+    (void)esp_lcd_panel_set_gap(s_panel, 0, 0);
     (void)esp_lcd_panel_invert_color(s_panel, true);
-    /* User sees horizontal mirror — flip X */
-    if ((err = esp_lcd_panel_mirror(s_panel, true, false)) != ESP_OK) return err;
+    if ((err = esp_lcd_panel_mirror(s_panel, true, true)) != ESP_OK) return err;
     if ((err = esp_lcd_panel_disp_on_off(s_panel, true)) != ESP_OK) return err;
-    ESP_LOGW(TAG, "panel on (gap y=20, mirror X, BGR invert)");
+    ESP_LOGW(TAG, "panel on (mirror XY=180, BGR invert, gap0)");
 
     /* Backlight GPIO2 AFTER panel init (boot strapping already sampled).
        Do not touch GPIO6/GPIO20 (output commutation relays). */
