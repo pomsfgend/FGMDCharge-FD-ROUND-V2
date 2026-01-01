@@ -11,10 +11,10 @@ def crc(seq:int)->int:
     return zlib.crc32(struct.pack('<I',seq), 0xFFFFFFFF) & 0xFFFFFFFF
 
 def call_read(port,path):
-    return subprocess.call([sys.executable,'-m','esptool','--chip','esp32c3','--port',port,'read-flash',hex(OTADATA),hex(SIZE),str(path)])
+    return subprocess.call([sys.executable,'-m','esptool','--chip','esp32c3','--port',port,'read_flash',hex(OTADATA),hex(SIZE),str(path)])
 
 def call_write(port,path):
-    return subprocess.call([sys.executable,'-m','esptool','--chip','esp32c3','--port',port,'write-flash',hex(OTADATA),str(path)])
+    return subprocess.call([sys.executable,'-m','esptool','--chip','esp32c3','--port',port,'write_flash',hex(OTADATA),str(path)])
 
 def show(path):
     b=path.read_bytes()
