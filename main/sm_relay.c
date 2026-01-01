@@ -137,10 +137,26 @@ static void tx_bcp(void)
     app_state_log("TX BCP 13B");
 }
 
-static void tx_bro_aa(void)
+static void tx_bro(uint8_t ready)
 {
-    uint8_t d[8] = {0xAA, 0, 0, 0, 0, 0, 0, 0};
+    uint8_t d[8] = {ready, 0, 0, 0, 0, 0, 0, 0};
     (void)gbt_can_send(0x100956F4u, d, 1);
+}
+
+static void tx_bem(uint8_t code)
+{
+    uint8_t d[8] = {code, 0, 0, 0, 0, 0, 0, 0};
+    (void)gbt_can_send(0x081E56F4u, d, 4);
+    app_state_log("TX BEM timeout, relays off");
+}
+
+static void tx_bsd(void)
+{
+    cube_state_snapshot_t st;
+    app_state_snapshot(&st);
+    uint8_t d[8] = {st.soc_percent, 0, 0, 0, 0, 0, 0, 0};
+    (void)gbt_can_send(0x181C56F4u, d, 7);
+    app_state_log("TX BSD end");
 }
 
 static void tx_bcl(void)
@@ -321,7 +337,7 @@ void sm_relay_tick(void)
             set_state(ST_PARAM_CONFIG);
         }
         if ((t - s_entry_ms) > 30000) {
-            app_state_log("CRM timeout, session kept idle");
+            tx_bem(0x01);
             set_state(ST_IDLE);
         }
         break;
@@ -336,22 +352,22 @@ void sm_relay_tick(void)
             set_state(ST_READY_WAIT_CRO);
         }
         if ((t - s_entry_ms) > 20000) {
-            app_state_log("CML timeout");
+            tx_bem(0x04);
             set_state(ST_IDLE);
         }
         break;
 
     case ST_READY_WAIT_CRO:
-        /* keep BRO AA periodic */
+        /* 2 s BRO=00: vehicle insulation / contactors not ready, then AA */
         if ((t - s_entry_ms) % 250 < CUBE_SM_TIMEBASE_MS) {
-            tx_bro_aa();
+            if ((t - s_entry_ms) < 2000) tx_bro(0x00);
+            else tx_bro(0xAA);
         }
         if (s_cro_ok) {
             set_state(ST_CHARGING);
         }
         if ((t - s_entry_ms) > 30000) {
-            ESP_LOGW(TAG, "CRO timeout");
-            set_state(ST_STOP);
+            tx_bem(0x08);
             set_state(ST_IDLE);
         }
         break;
@@ -384,6 +400,7 @@ void sm_relay_tick(void)
             st.charger_stage == CUBE_STAGE_ERROR ||
             st.charger_stage == CUBE_STAGE_SUSPENDED) {
             tx_bst();
+            tx_bsd();
             set_state(ST_STOP);
             set_state(ST_FINALIZE);
             set_state(ST_IDLE);
