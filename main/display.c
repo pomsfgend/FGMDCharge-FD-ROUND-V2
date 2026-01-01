@@ -373,7 +373,7 @@ static void build_ui(void)
 {
     s_scr_chg = lv_scr_act();
     style_screen(s_scr_chg);
-    line(s_scr_chg, "CUBE 2.4.4", 6);
+    line(s_scr_chg, "CUBE 2.4.5", 6);
     s_card_u = card(s_scr_chg, 10, 26, &s_voltage, "V");
     s_card_i = card(s_scr_chg, 122, 26, &s_current, "A");
     (void)s_card_u; (void)s_card_i;
@@ -387,9 +387,9 @@ static void build_ui(void)
     lv_obj_align(stop, LV_ALIGN_TOP_MID, 0, 182);
     lv_obj_set_style_bg_color(stop, lv_color_hex(0xE74C3C), 0);
     lv_obj_add_event_cb(stop, stop_hold_cb, LV_EVENT_LONG_PRESSED, NULL);
-    lv_obj_t *sl = lv_label_create(stop);
-    lv_label_set_text(sl, "HOLD STOP");
-    lv_obj_center(sl);
+    lv_obj_t *stop_lbl = lv_label_create(stop);
+    lv_label_set_text(stop_lbl, "HOLD STOP");
+    lv_obj_center(stop_lbl);
     s_dots = line(s_scr_chg, "o - -", 224);
 
     s_scr_sys = lv_obj_create(NULL);
