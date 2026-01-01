@@ -13,6 +13,7 @@
 #include "driver/gpio.h"
 #include "esp_log.h"
 #include "esp_timer.h"
+#include <string.h>
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 
@@ -70,11 +71,65 @@ static void set_state(uint8_t s)
 static void tx_bhm(void)
 {
     uint8_t d[8] = {0};
-    /* BHM: max voltage capability placeholder */
     uint16_t vmax = CUBE_DEFAULT_MAX_VOLTAGE_0P1V;
     d[0] = (uint8_t)(vmax & 0xFF);
     d[1] = (uint8_t)(vmax >> 8);
     (void)gbt_can_send(0x182756F4u, d, 2);
+}
+
+/* J1939 BAM: stations drop the session if BRM/BCP are not multi-frame. */
+static void tx_bam(uint32_t pgn, const uint8_t *payload, uint16_t len)
+{
+    uint8_t packets = (uint8_t)((len + 6) / 7);
+    uint8_t cm[8] = {
+        32, (uint8_t)(len & 0xFF), (uint8_t)(len >> 8), packets, 0xFF,
+        (uint8_t)(pgn & 0xFF), (uint8_t)((pgn >> 8) & 0xFF), (uint8_t)((pgn >> 16) & 0xFF)
+    };
+    (void)gbt_can_send(0x1CEC56F4u, cm, 8);
+    for (uint8_t seq = 1; seq <= packets; ++seq) {
+        uint8_t dt[8];
+        memset(dt, 0xFF, sizeof(dt));
+        dt[0] = seq;
+        uint16_t off = (uint16_t)(seq - 1) * 7;
+        for (int i = 0; i < 7 && (off + i) < len; ++i) dt[1 + i] = payload[off + i];
+        (void)gbt_can_send(0x1CEB56F4u, dt, 8);
+        vTaskDelay(pdMS_TO_TICKS(10));
+    }
+}
+
+static void tx_brm(void)
+{
+    uint8_t b[49];
+    memset(b, 0, sizeof(b));
+    b[0] = 1; b[1] = 1; b[2] = 0; /* protocol 1.1.0 */
+    b[3] = 6;                     /* lithium */
+    b[4] = 0xE8; b[5] = 0x03;     /* 100.0 Ah */
+    b[6] = 0xA0; b[7] = 0x0F;     /* 400.0 V */
+    memcpy(&b[24], "TESTVIN000000001", 17);
+    tx_bam(0x000200u, b, 49);
+    app_state_log("TX BRM 49B");
+}
+
+static void tx_bcp(void)
+{
+    cube_state_snapshot_t st;
+    app_state_snapshot(&st);
+    uint8_t b[13];
+    memset(b, 0, sizeof(b));
+    uint16_t cell = 420; /* 4.20 V */
+    uint16_t imax = (uint16_t)(4000 - 2500); /* 250 A allowed, offset -400 A */
+    uint16_t energy = 400; /* 40.0 kWh */
+    uint16_t vmax = CUBE_DEFAULT_MAX_VOLTAGE_0P1V;
+    uint16_t vnow = st.bcl_requested_voltage_raw ? st.bcl_requested_voltage_raw : 4000;
+    b[0] = (uint8_t)(cell & 0xFF); b[1] = (uint8_t)(cell >> 8);
+    b[2] = (uint8_t)(imax & 0xFF); b[3] = (uint8_t)(imax >> 8);
+    b[4] = (uint8_t)(energy & 0xFF); b[5] = (uint8_t)(energy >> 8);
+    b[6] = (uint8_t)(vmax & 0xFF); b[7] = (uint8_t)(vmax >> 8);
+    b[8] = 90; /* 40 C, offset -50 */
+    b[9] = st.soc_percent ? st.soc_percent : 50;
+    b[10] = (uint8_t)(vnow & 0xFF); b[11] = (uint8_t)(vnow >> 8);
+    tx_bam(0x000600u, b, 13);
+    app_state_log("TX BCP 13B");
 }
 
 static void tx_bro_aa(void)
@@ -170,6 +225,8 @@ void sm_start_session(void)
     }
     s_crm_ok = false;
     s_cro_ok = false;
+    s_crm00 = false;
+    s_crmaa = false;
     s_sub = 0;
     app_state_set_substate(0);
     app_state_set_session(true);
@@ -242,30 +299,39 @@ void sm_relay_tick(void)
         break;
 
     case ST_WAIT_CRM:
-        if ((t - s_last_bhm_ms) >= 200) {
+        if (st.protocol == 1 && (t - s_last_bhm_ms) >= 250) {
             tx_bhm();
             s_last_bhm_ms = t;
         }
-        /* After CRM-like activity, move to param */
-        if (s_crm_ok && (t - s_entry_ms) > 500) {
+        if (st.last.id == 0x1801F456u && st.last.dlc > 0) {
+            if (st.last.data[0] == 0xAA) s_crmaa = true;
+            else s_crm00 = true;
+        }
+        if (s_crm00 && !s_crmaa && (t - s_last_brm_ms) >= 250) {
+            tx_brm();
+            s_last_brm_ms = t;
+        }
+        if (s_crmaa) {
+            app_state_log("CRM AA, go BCP");
             set_state(ST_PARAM_CONFIG);
         }
-        /* timeout 30 s */
         if ((t - s_entry_ms) > 30000) {
-            ESP_LOGW(TAG, "WAIT_CRM timeout");
-            set_state(ST_STOP);
+            app_state_log("CRM timeout, session kept idle");
             set_state(ST_IDLE);
         }
         break;
 
     case ST_PARAM_CONFIG:
-        /* BCP long transport simplified: wait for CML then go READY */
+        if ((t - s_last_bcp_ms) >= 500) {
+            tx_bcp();
+            s_last_bcp_ms = t;
+        }
         if (st.last_cml_ms != 0 && (t - st.last_cml_ms) < 5000) {
+            app_state_log("CML ok, BRO AA");
             set_state(ST_READY_WAIT_CRO);
         }
         if ((t - s_entry_ms) > 20000) {
-            ESP_LOGW(TAG, "PARAM timeout");
-            set_state(ST_STOP);
+            app_state_log("CML timeout");
             set_state(ST_IDLE);
         }
         break;
