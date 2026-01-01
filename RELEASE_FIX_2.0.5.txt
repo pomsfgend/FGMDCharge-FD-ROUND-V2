@@ -1,14 +1,15 @@
-FGMDCharge / FD_ROUND V2 — Release 2.0.5
-=======================================
+FGMDCharge / FD_ROUND V2 — Release 2.0.5 (runtime fix)
+======================================================
 
-Build pipeline fixes:
-1) web_assets.c nested-comment error fixed
-2) version strings unified to 2.0.5
-3) BUILD_RELEASE.bat always pauses; rejects paths with spaces
-4) LVGL: stopped half-disabling widgets/themes (caused animimg and
-   unused-const-variable errors in lv_theme_default). Keep only safe
-   options: color depth, fonts 14/28, LV_USE_IMG, LV_USE_LABEL.
-5) Size: CONFIG_COMPILER_OPTIMIZATION_SIZE + reduced WiFi/LWIP buffers
+After first successful OTA1 flash, monitor showed:
+  - BLE: config advertising data failed: ESP_ERR_INVALID_ARG
+  - httpd: max_open_sockets too large (max allowed 5)
+  - Web init failed: ESP_ERR_INVALID_ARG
 
-If app still exceeds 0x190000 after -Os, next step is partition resize
-or further feature trim — only after a clean compile.
+Fixes:
+1) ble.c — ADV payload reduced to name+flags; service UUID/TX power
+   removed; flags-only fallback if name ADV still fails.
+2) web.c — httpd max_open_sockets = 4
+3) sdkconfig.defaults — CONFIG_LWIP_MAX_SOCKETS=16
+
+Rebuild + FLASH_RELEASE_OTA1.bat again (OTA0 still intact).
