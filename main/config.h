@@ -23,11 +23,10 @@
 #define CUBE_LCD_CS_GPIO             4
 #define CUBE_LCD_DC_GPIO             18
 #define CUBE_LCD_SPI_HZ              20000000
-/* NO extra GPIO for BL/LED/relay.
-   Original lcd_main only uses SPI: MOSI5 SCLK19 CS4 DC18, RST=-1.
-   GPIO6/20 are power relays — never drive them.
-   Panel is 240x280 + CST816 → ST7789 class, not classic ILI9341. */
-#define CUBE_LCD_BL_GPIO             (-1)
+/* From dump lcd_main: SPI MOSI5/SCLK19/CS4/DC18 RST=-1, driver ili9341.
+   Relays: GPIO6 and GPIO20 — NEVER drive.
+   GPIO2: only pin that previously lit the panel/LED; enable AFTER boot (not strap sample). */
+#define CUBE_LCD_BL_GPIO             2
 #define CUBE_LCD_RST_GPIO            (-1)
 #define CUBE_STATUS_LED_GPIO         (-1)
 #define CUBE_LCD_QUEUE_DEPTH         10
