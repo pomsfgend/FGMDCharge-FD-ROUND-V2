@@ -4,7 +4,11 @@
 #include "bootloader_flash_priv.h"
 #include "soc/rtc_cntl_reg.h"
 
+void bootloader_reset(void);
+
 #define OTADATA 0xD000
+#define CHOICE ((volatile uint32_t *)0x50001FF0)
+#define MAGIC_OLD 0x01D0F00Du
 
 static int current_slot(void)
 {
@@ -31,13 +35,15 @@ static void write_slot(int slot)
 
 void bootloader_after_init(void)
 {
-    uint32_t reason = REG_READ(RTC_CNTL_RESET_STATE_REG) & 0x3Fu;
     int slot = current_slot();
-    esp_rom_printf("BOOT reason %u slot %d\n", (unsigned)reason, slot);
-    /* Power-on always lands on our menu (slot 1). A software reset keeps the chosen slot. */
-    if (reason == 1u && slot != 1) {
+    esp_rom_printf("BOOT choice %08x slot %d\n", (unsigned)*CHOICE, slot);
+    if (*CHOICE == MAGIC_OLD) {
+        esp_rom_printf("BOOT keep old until power off\n");
+        return;
+    }
+    if (slot != 1) {
         write_slot(1);
-        esp_rom_printf("BOOT power-on -> our menu, reset\n");
+        esp_rom_printf("BOOT power -> menu, reset\n");
         bootloader_reset();
     }
 }

@@ -814,6 +814,7 @@ void web_boot_original(void)
     const esp_partition_t *orig = esp_partition_find_first(
         ESP_PARTITION_TYPE_APP, ESP_PARTITION_SUBTYPE_APP_OTA_0, NULL);
     if (!orig) return;
+    *(volatile uint32_t *)0x50001FF0 = 0x01D0F00Du;
     esp_ota_set_boot_partition(orig);
     esp_restart();
 }

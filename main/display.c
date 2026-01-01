@@ -627,7 +627,7 @@ static void build_ui(void)
 {
     s_scr_chg = lv_scr_act();
     style_screen(s_scr_chg);
-    line(s_scr_chg, "КУБ 2.7.9", 4);
+    line(s_scr_chg, "КУБ 2.8.0", 4);
     s_time = line(s_scr_chg, "время 0 мин", 28);
     s_relay = line(s_scr_chg, "выход OFF", 50);
     s_req_v = line(s_scr_chg, "запрос 240 В", 78);
@@ -770,7 +770,7 @@ static void build_ui(void)
     lv_obj_set_height(s_can_lbl, 110);
     s_scr_sys = lv_obj_create(NULL);
     style_screen(s_scr_sys);
-    line(s_scr_sys, "СИСТЕМА 2.7.9", 4);
+    line(s_scr_sys, "СИСТЕМА 2.8.0", 4);
     s_sys_temp = line(s_scr_sys, "CPU -- C", 28);
     s_sys_cpu = line(s_scr_sys, "F 160 MHz", 48);
     s_sys_load = line(s_scr_sys, "Load -- %", 68);
