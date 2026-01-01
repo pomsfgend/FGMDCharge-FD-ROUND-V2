@@ -121,8 +121,6 @@ float app_state_energy_kwh(void);
 void app_state_set_vin(const char *vin);
 void app_state_log(const char *msg);
 int app_state_log_text(char *out, int out_len);
-void app_state_set_vin(const char *vin);
-const char *app_state_vin(void);
 void app_state_set_cro(uint8_t status);
 void app_state_set_cst(uint8_t status);
 void app_state_set_csd(uint16_t time_min, uint16_t energy_0p1kwh);

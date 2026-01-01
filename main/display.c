@@ -385,6 +385,10 @@ static lv_obj_t *line(lv_obj_t *parent, const char *txt, int y)
 }
 
 
+static void nav_cb(lv_event_t *e)
+{
+    apply_page((int)(intptr_t)lv_event_get_user_data(e));
+}
 static void build_ui(void)
 {
     s_scr_chg = lv_scr_act();
