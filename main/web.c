@@ -408,8 +408,13 @@ esp_err_t web_init(void)
     ap.ap.ssid_len = (uint8_t)strlen(CUBE_WIFI_SSID);
     ap.ap.channel = CUBE_WIFI_CHANNEL;
     ap.ap.max_connection = CUBE_WIFI_MAX_CONNECTIONS;
+    ap.ap.ssid_hidden = 0;          /* always broadcast beacon */
+    ap.ap.beacon_interval = 100;
+    ap.ap.pmf_cfg.capable = false;
+    ap.ap.pmf_cfg.required = false;
     if (strlen(CUBE_WIFI_PASSWORD) >= 8U) {
-        ap.ap.authmode = WIFI_AUTH_WPA2_PSK;
+        /* WPA/WPA2 mixed is more compatible with phones than pure WPA2 */
+        ap.ap.authmode = WIFI_AUTH_WPA_WPA2_PSK;
         (void)snprintf((char *)ap.ap.password, sizeof(ap.ap.password), "%s", CUBE_WIFI_PASSWORD);
     } else {
         ap.ap.authmode = WIFI_AUTH_OPEN;
@@ -417,6 +422,8 @@ esp_err_t web_init(void)
     }
     if ((err = esp_wifi_set_mode(WIFI_MODE_AP)) != ESP_OK) return err;
     if ((err = esp_wifi_set_config(WIFI_IF_AP, &ap)) != ESP_OK) return err;
+    /* Ensure softAP is not in power-save that some clients reject. */
+    (void)esp_wifi_set_ps(WIFI_PS_NONE);
     if ((err = esp_wifi_start()) != ESP_OK && err != ESP_ERR_INVALID_STATE) return err;
 
     httpd_config_t hc = HTTPD_DEFAULT_CONFIG();

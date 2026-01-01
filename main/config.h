@@ -23,6 +23,11 @@
 #define CUBE_LCD_CS_GPIO             4
 #define CUBE_LCD_DC_GPIO             18
 #define CUBE_LCD_SPI_HZ              20000000
+/* Backlight / status: not proven from dump; GPIO2 is the usual BL on these modules.
+   If blank screen persists, try GPIO3 or GPIO6 via rebuild. */
+#define CUBE_LCD_BL_GPIO             2
+#define CUBE_LCD_RST_GPIO            (-1)
+#define CUBE_STATUS_LED_GPIO         3
 #define CUBE_LCD_QUEUE_DEPTH         10
 #define CUBE_LCD_MAX_TRANSFER        38400
 

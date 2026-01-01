@@ -1,10 +1,12 @@
 #include "display.h"
 #include <stdlib.h>
+#include <stdio.h>
 #include <limits.h>
 #include "config.h"
 #include "app_state.h"
 #include "touch_cst816s.h"
 #include "driver/spi_master.h"
+#include "driver/gpio.h"
 #include "esp_lcd_panel_io.h"
 #include "esp_lcd_panel_ops.h"
 #include "esp_lcd_ili9341.h"
@@ -112,8 +114,15 @@ static void ui_create(void) {
     s_can = make_label(scr, "CAN 250k  RX 0", 14);
     lv_obj_align(s_can, LV_ALIGN_BOTTOM_MID, 0, -26);
 
-    lv_obj_t *hint = make_label(scr, "Wi-Fi 192.168.4.1", 14);
-    lv_obj_align(hint, LV_ALIGN_BOTTOM_MID, 0, -8);
+    static char wifi_line[48];
+    (void)snprintf(wifi_line, sizeof(wifi_line), "WiFi %s", CUBE_WIFI_SSID);
+    lv_obj_t *hint = make_label(scr, wifi_line, 14);
+    lv_obj_align(hint, LV_ALIGN_BOTTOM_MID, 0, -28);
+
+    static char pass_line[48];
+    (void)snprintf(pass_line, sizeof(pass_line), "PASS %s", CUBE_WIFI_PASSWORD);
+    lv_obj_t *hint2 = make_label(scr, pass_line, 14);
+    lv_obj_align(hint2, LV_ALIGN_BOTTOM_MID, 0, -12);
 }
 
 esp_err_t display_init(void) {
@@ -144,15 +153,43 @@ esp_err_t display_init(void) {
     err = esp_lcd_new_panel_io_spi((esp_lcd_spi_bus_handle_t)SPI2_HOST, &io_cfg, &s_panel_io);
     if (err != ESP_OK) return err;
 
+    /* Enable backlight early so any draw is visible. */
+    if (CUBE_LCD_BL_GPIO >= 0) {
+        gpio_config_t bl = {
+            .pin_bit_mask = 1ULL << CUBE_LCD_BL_GPIO,
+            .mode = GPIO_MODE_OUTPUT,
+            .pull_up_en = GPIO_PULLUP_DISABLE,
+            .pull_down_en = GPIO_PULLDOWN_DISABLE,
+            .intr_type = GPIO_INTR_DISABLE,
+        };
+        (void)gpio_config(&bl);
+        (void)gpio_set_level(CUBE_LCD_BL_GPIO, 1);
+        ESP_LOGW(TAG, "backlight GPIO%d = ON", CUBE_LCD_BL_GPIO);
+    }
+    if (CUBE_STATUS_LED_GPIO >= 0) {
+        gpio_config_t led = {
+            .pin_bit_mask = 1ULL << CUBE_STATUS_LED_GPIO,
+            .mode = GPIO_MODE_OUTPUT,
+            .pull_up_en = GPIO_PULLUP_DISABLE,
+            .pull_down_en = GPIO_PULLDOWN_DISABLE,
+            .intr_type = GPIO_INTR_DISABLE,
+        };
+        (void)gpio_config(&led);
+        (void)gpio_set_level(CUBE_STATUS_LED_GPIO, 1);
+        ESP_LOGW(TAG, "status LED GPIO%d = ON", CUBE_STATUS_LED_GPIO);
+    }
+
     esp_lcd_panel_dev_config_t panel_cfg = {
-        .reset_gpio_num = -1,
+        .reset_gpio_num = CUBE_LCD_RST_GPIO,
         .bits_per_pixel = 16,
-        .rgb_endian = LCD_RGB_ENDIAN_RGB,
+        /* Many ILI9341 modules on these boards need BGR + invert. */
+        .rgb_endian = LCD_RGB_ENDIAN_BGR,
     };
     err = esp_lcd_new_panel_ili9341(s_panel_io, &panel_cfg, &s_panel);
     if (err != ESP_OK) return err;
     if ((err = esp_lcd_panel_reset(s_panel)) != ESP_OK) return err;
     if ((err = esp_lcd_panel_init(s_panel)) != ESP_OK) return err;
+    (void)esp_lcd_panel_invert_color(s_panel, true);
     if ((err = esp_lcd_panel_mirror(s_panel, false, false)) != ESP_OK) return err;
     if ((err = esp_lcd_panel_disp_on_off(s_panel, true)) != ESP_OK) return err;
 
