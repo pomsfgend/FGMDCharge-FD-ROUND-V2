@@ -510,7 +510,7 @@ esp_err_t web_init(void)
     if ((err = esp_wifi_set_config(WIFI_IF_AP, &ap)) != ESP_OK) return err;
     (void)esp_wifi_set_ps(WIFI_PS_NONE);
     /* Prefer b/g for maximum phone scan compatibility; 11n optional. */
-    (void)esp_wifi_set_protocol(WIFI_IF_AP, WIFI_PROTOCOL_11B | WIFI_PROTOCOL_11G);
+    (void)esp_wifi_set_protocol(WIFI_IF_AP, WIFI_PROTOCOL_11B | WIFI_PROTOCOL_11G | WIFI_PROTOCOL_11N);
     (void)esp_wifi_set_bandwidth(WIFI_IF_AP, WIFI_BW_HT20);
     (void)esp_wifi_set_country_code("01", true);
     if ((err = esp_wifi_start()) != ESP_OK && err != ESP_ERR_INVALID_STATE) return err;

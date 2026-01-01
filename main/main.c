@@ -92,6 +92,10 @@ void app_main(void) {
     if (err != ESP_OK) ESP_LOGE(TAG, "Web init failed: %s", esp_err_to_name(err));
     else ESP_LOGW(TAG, "stage: Web AP ok");
 
+#if (CUBE_BLE_START_DELAY_MS > 0)
+    ESP_LOGW(TAG, "BLE delay %d ms (SoftAP first)", CUBE_BLE_START_DELAY_MS);
+    vTaskDelay(pdMS_TO_TICKS(CUBE_BLE_START_DELAY_MS));
+#endif
     err = cube_ble_init();
     if (err != ESP_OK) {
         ESP_LOGE(TAG, "BLE init failed: %s", esp_err_to_name(err));

@@ -185,9 +185,8 @@ esp_err_t display_init(void) {
     err = esp_lcd_new_panel_io_spi((esp_lcd_spi_bus_handle_t)SPI2_HOST, &io_cfg, &s_panel_io);
     if (err != ESP_OK) return err;
 
-    /* Dump-confirmed sequence (DISPLAY_ANALYSIS_FROM_DUMP.md):
-       Install ILI9341 -> reset -> init -> mirror(false,false) -> disp_on_off(true).
-       RST=-1, BL=-1. Pins MOSI5/SCLK19/CS4/DC18 (hypothesis but SPI init succeeds). */
+    /* Working path from release 2.0.5 (user saw pixels) + dump ILI9341:
+       BGR + invert + mirror(Y) + BL GPIO2 AFTER panel init (strap already done). */
     esp_lcd_panel_dev_config_t panel_cfg = {
         .reset_gpio_num = CUBE_LCD_RST_GPIO,
         .bits_per_pixel = 16,
@@ -198,10 +197,10 @@ esp_err_t display_init(void) {
 #endif
     };
 #if CUBE_LCD_USE_ST7789
-    ESP_LOGW(TAG, "panel create ST7789 240x280...");
+    ESP_LOGW(TAG, "panel create ST7789...");
     err = esp_lcd_new_panel_st7789(s_panel_io, &panel_cfg, &s_panel);
 #else
-    ESP_LOGW(TAG, "panel create ILI9341 (dump)...");
+    ESP_LOGW(TAG, "panel create ILI9341 (2.0.5 path)...");
     err = esp_lcd_new_panel_ili9341(s_panel_io, &panel_cfg, &s_panel);
 #endif
     if (err != ESP_OK) {
@@ -212,11 +211,32 @@ esp_err_t display_init(void) {
     if ((err = esp_lcd_panel_init(s_panel)) != ESP_OK) return err;
     (void)esp_lcd_panel_set_gap(s_panel, CUBE_LCD_GAP_X, CUBE_LCD_GAP_Y);
     (void)esp_lcd_panel_invert_color(s_panel, CUBE_LCD_INVERT ? true : false);
-    if ((err = esp_lcd_panel_mirror(s_panel, false, false)) != ESP_OK) return err;
+    if ((err = esp_lcd_panel_mirror(s_panel,
+                                    CUBE_LCD_MIRROR_X ? true : false,
+                                    CUBE_LCD_MIRROR_Y ? true : false)) != ESP_OK) return err;
     if ((err = esp_lcd_panel_swap_xy(s_panel, false)) != ESP_OK) return err;
     if ((err = esp_lcd_panel_disp_on_off(s_panel, true)) != ESP_OK) return err;
-    ESP_LOGW(TAG, "panel on ILI=%d invert=%d gap=%d,%d bgr=%d",
-             !CUBE_LCD_USE_ST7789, CUBE_LCD_INVERT, CUBE_LCD_GAP_X, CUBE_LCD_GAP_Y, CUBE_LCD_BGR);
+    ESP_LOGW(TAG, "panel on invert=%d bgr=%d mirror=%d,%d",
+             CUBE_LCD_INVERT, CUBE_LCD_BGR, CUBE_LCD_MIRROR_X, CUBE_LCD_MIRROR_Y);
+
+    /* Backlight AFTER panel init — GPIO2 is strapping only at reset sample time. */
+    if (CUBE_LCD_BL_GPIO >= 0) {
+        gpio_config_t bl = {
+            .pin_bit_mask = 1ULL << CUBE_LCD_BL_GPIO,
+            .mode = GPIO_MODE_OUTPUT,
+            .pull_up_en = GPIO_PULLUP_DISABLE,
+            .pull_down_en = GPIO_PULLDOWN_DISABLE,
+            .intr_type = GPIO_INTR_DISABLE,
+        };
+        if (gpio_config(&bl) == ESP_OK) {
+            (void)gpio_set_level(CUBE_LCD_BL_GPIO, 1);
+            ESP_LOGW(TAG, "backlight GPIO%d = ON (post-init, post-strap)", CUBE_LCD_BL_GPIO);
+        } else {
+            ESP_LOGW(TAG, "backlight GPIO%d config failed", CUBE_LCD_BL_GPIO);
+        }
+    } else {
+        ESP_LOGI(TAG, "backlight GPIO disabled");
+    }
 
     /* Smoke test: several patterns. One of them should be visible if SPI wiring is OK. */
     {
@@ -250,28 +270,6 @@ esp_err_t display_init(void) {
             vTaskDelay(pdMS_TO_TICKS(100));
         }
     }
-
-    /* Original FW: no backlight GPIO. GPIO2 is strapping — do NOT drive.
-       Relays are GPIO6/GPIO7. Keep CUBE_LCD_BL_GPIO = -1.
-       Use runtime int so the compiler never evaluates 1ULL << (-1). */
-#if (CUBE_LCD_BL_GPIO >= 0) && (CUBE_LCD_BL_GPIO != 2)
-    {
-        const int bl_gpio = CUBE_LCD_BL_GPIO;
-        gpio_config_t bl = {
-            .pin_bit_mask = (1ULL << bl_gpio),
-            .mode = GPIO_MODE_OUTPUT,
-            .pull_up_en = GPIO_PULLUP_DISABLE,
-            .pull_down_en = GPIO_PULLDOWN_DISABLE,
-            .intr_type = GPIO_INTR_DISABLE,
-        };
-        if (gpio_config(&bl) == ESP_OK) {
-            (void)gpio_set_level(bl_gpio, 1);
-            ESP_LOGW(TAG, "backlight GPIO%d = ON (post-init)", bl_gpio);
-        }
-    }
-#else
-    ESP_LOGI(TAG, "backlight GPIO disabled (CUBE_LCD_BL_GPIO=%d)", CUBE_LCD_BL_GPIO);
-#endif
 
 
     lv_disp_draw_buf_init(&s_draw_buf, s_buf1, s_buf2, draw_buf_pixels);

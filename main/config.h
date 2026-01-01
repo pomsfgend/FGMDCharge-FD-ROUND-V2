@@ -1,12 +1,12 @@
 #pragma once
 
 #define CUBE_FW_NAME                 "FD_ROUND_V2"
-#define CUBE_FW_VERSION              "2.1.5"
+#define CUBE_FW_VERSION              "2.1.6"
 
 /* Web API protection. Change before installing on a real vehicle/charging setup. */
 #define CUBE_WEB_KEY                 "FDcube2026"
-#define CUBE_WIFI_SSID               "FGMDCharge"
-#define CUBE_WIFI_PASSWORD           ""  /* open AP */
+#define CUBE_WIFI_SSID               "FGMDCharge-V2"
+#define CUBE_WIFI_PASSWORD           ""  /* open AP — as in working 2.0.5 */
 #define CUBE_WIFI_CHANNEL            1
 #define CUBE_WIFI_MAX_CONNECTIONS    4
 
@@ -16,7 +16,7 @@
 
 /* LCD — dump strings said ILI9341, but panel is 240x280 (ST7789 family).
  * Many cubes use ST7789 with ILI-compatible branding. Prefer ST7789. */
-#define CUBE_LCD_USE_ST7789          0  /* dump strings: ili9341 only */
+#define CUBE_LCD_USE_ST7789          0  /* ILI9341 as dump + 2.0.5 working path */
 /* LCD — pins confirmed from original dump (no BL GPIO in original). */
 #define CUBE_LCD_H_RES               240
 #define CUBE_LCD_V_RES               280
@@ -25,21 +25,23 @@
 #define CUBE_LCD_SCLK_GPIO           19
 #define CUBE_LCD_CS_GPIO             4
 #define CUBE_LCD_DC_GPIO             18
-#define CUBE_LCD_SPI_HZ              20000000
+#define CUBE_LCD_SPI_HZ              10000000
 /* CRITICAL: original firmware never drove a backlight GPIO.
    GPIO2 is strapping — driving it causes POWERON reboot loop.
    GPIO6/7 are power relays. Keep BL = -1. */
-#define CUBE_LCD_BL_GPIO             (-1)
+#define CUBE_LCD_BL_GPIO             2  /* post-init only; strapping already sampled */
 /* Optional late backlight: GPIO3 LEDC. Disabled by default — caused POWERON loop on some boards. */
 #define CUBE_LCD_BL_PWM_GPIO         (-1)
 #define CUBE_LCD_BL_PWM_HZ           60000
 #define CUBE_LCD_BL_PWM_DUTY         1023
 #define CUBE_LCD_RST_GPIO            (-1)
 /* Bench toggles — dump: mirror(0,0), no invert observed; 240x280 may need gap. */
-#define CUBE_LCD_INVERT              0
+#define CUBE_LCD_INVERT              1
 #define CUBE_LCD_GAP_X               0
 #define CUBE_LCD_GAP_Y               0
-#define CUBE_LCD_BGR                 0
+#define CUBE_LCD_MIRROR_X            0
+#define CUBE_LCD_MIRROR_Y            1
+#define CUBE_LCD_BGR                 1
 #define CUBE_STATUS_LED_GPIO         (-1)
 #define CUBE_LCD_QUEUE_DEPTH         10
 #define CUBE_LCD_MAX_TRANSFER        38400
@@ -84,3 +86,6 @@
 #define CUBE_DEFAULT_REQ_VOLTAGE_0P1V  570   /* 57.0 V */
 #define CUBE_DEFAULT_REQ_CURRENT_0P1A  70    /* 7.0 A  */
 #define CUBE_DEFAULT_MAX_VOLTAGE_0P1V  660   /* 66.0 V */
+
+/* Start BLE after SoftAP is visible (coex). 0 = immediate. */
+#define CUBE_BLE_START_DELAY_MS      3000
