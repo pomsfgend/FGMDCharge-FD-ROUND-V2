@@ -1,7 +1,7 @@
 #pragma once
 
 #define CUBE_FW_NAME                 "FD_ROUND_V2"
-#define CUBE_FW_VERSION              "2.3.8"
+#define CUBE_FW_VERSION              "2.3.9"
 
 /* SoftAP */
 #define CUBE_WEB_KEY                 ""

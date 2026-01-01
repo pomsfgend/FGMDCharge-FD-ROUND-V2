@@ -29,6 +29,12 @@ static uint32_t s_last_bhm_ms = 0;
 static uint32_t s_last_bcl_ms = 0;
 static uint32_t s_last_bcs_ms = 0;
 static uint32_t s_last_bsm_ms = 0;
+static bool     s_crm00 = false;
+static bool     s_crmaa = false;
+static uint32_t s_last_brm_ms = 0;
+static uint32_t s_last_rx_count = 0;
+static uint32_t s_last_chg_ms = 0;
+static uint32_t s_auto_hold_until = 0;
 
 static uint32_t now_ms(void)
 {
@@ -314,7 +320,18 @@ void sm_relay_tick(void)
         s_crm_ok = true;
     }
 
+    if (st.rx_count != s_last_rx_count) {
+        s_last_rx_count = st.rx_count;
+        s_last_chg_ms = t;
+    }
+
     switch (s_main) {
+    case ST_IDLE:
+        if (t > s_auto_hold_until && s_last_chg_ms != 0 && (t - s_last_chg_ms) < 1500) {
+            app_state_log("auto start: station on CAN");
+            sm_start_session();
+        }
+        break;
     case ST_HANDSHAKE_INIT:
         set_state(ST_WAIT_CRM);
         break;
@@ -414,5 +431,10 @@ void sm_relay_tick(void)
 
     default:
         break;
+    }
+    if (s_main != ST_IDLE && s_last_chg_ms != 0 && (t - s_last_chg_ms) > 3000) {
+        app_state_log("unplug: CAN silent, relays off");
+        s_auto_hold_until = t + 8000;
+        sm_stop_session();
     }
 }
