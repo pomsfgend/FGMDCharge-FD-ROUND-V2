@@ -4,7 +4,7 @@ cd /d "%~dp0"
 set "PORT=COM14"
 set "IDF_DIR=%USERPROFILE%\esp\esp-idf-5.0.9"
 echo.
-echo  FGMDCharge / FD_ROUND V2  RELEASE 2.8.14
+echo  FGMDCharge / FD_ROUND V2  RELEASE 2.8.15
 echo  1. Build
 echo  2. One flash: bootloader + partition + original ota_0 + our ota_1 + factory backup + boot slot
 echo  3. Monitor. Then YOU power the cube.

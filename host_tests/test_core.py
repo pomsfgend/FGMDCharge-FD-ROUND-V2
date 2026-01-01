@@ -213,10 +213,11 @@ assert cml_any(bytes([0x58, 0x1B, 0xD0, 0x07, 0xD8, 0x0E, 0xA0, 0x0F])) == (7000
 assert ccs_any(bytes([0x07, 0x00, 0xA0, 0x0F, 0xEB, 0x17])) == (7, 0, 6123, 1)
 assert ccs_any(bytes([0x07, 0x00, 0xA0, 0x0F, 0xEB, 0x17, 0xFD])) == (7, 0, 6123, 1)
 
-# 250.0 A demand is encoded as 2500 + 4000, not as a negative current.
-bcp = bcp_layout(420, 2500 + 4000, 75, 4500, 90, 200, 2400)
+# 250.0 A charge demand is negative: raw = 4000 - 2500.
+# A positive raw is outside -400 A..0 A and public piles abort.
+bcp = bcp_layout(420, 4000 - 2500, 75, 4500, 90, 200, 2400)
 assert len(bcp) == 13
-assert le16(bcp[2:4]) == 6500
+assert le16(bcp[2:4]) == 1500
 assert le16(bcp[9:11]) == 200
 assert bsm_status() == bytes([1, 75, 1, 70, 1, 0x00, 0xD0])
 assert (bsm_status()[6] >> 4) & 0x03 == 0x01
@@ -243,7 +244,7 @@ assert after_unplug(1, False) == 0
 assert after_unplug(1, True) == 1
 
 cfg = (Path(__file__).resolve().parents[1] / "main" / "config.h").read_text(encoding="utf-8")
-assert '#define CUBE_FW_VERSION              "2.8.14"' in cfg
+assert '#define CUBE_FW_VERSION              "2.8.15"' in cfg
 assert "#define CUBE_TX_DEFAULT_ENABLED      1" in cfg
 
 def crc32_zip(data: bytes) -> int:

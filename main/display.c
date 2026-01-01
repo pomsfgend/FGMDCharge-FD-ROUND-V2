@@ -246,10 +246,10 @@ static lv_obj_t *s_pass_title;
 static void ask_pass(int act)
 {
     s_arm_act = act;
-    if (s_pass_title) lv_label_set_text(s_pass_title, "пароль");
+    if (s_pass_title) lv_label_set_text(s_pass_title, "код");
     if (s_wifi_ta) lv_textarea_set_text(s_wifi_ta, "");
     s_active_ta = s_wifi_ta;
-    if (s_pad_banner) lv_label_set_text(s_pad_banner, "пароль");
+    if (s_pad_banner) lv_label_set_text(s_pad_banner, "код");
     if (s_pass_box) lv_obj_add_flag(s_pass_box, LV_OBJ_FLAG_HIDDEN);
     pad_show();
 }
@@ -333,7 +333,7 @@ static void pad_key_cb(lv_event_t *e)
         lv_textarea_del_char(ta);
         if (s_pad_banner) {
             const char *t = lv_textarea_get_text(ta);
-            lv_label_set_text(s_pad_banner, (t && t[0]) ? t : (ta == s_wifi_ta ? "пароль" : ""));
+            lv_label_set_text(s_pad_banner, (t && t[0]) ? t : (ta == s_wifi_ta ? "код" : ""));
         }
         return;
     }
@@ -358,10 +358,10 @@ static void pad_key_cb(lv_event_t *e)
                     if (s_pad_banner) lv_label_set_text(s_pad_banner, nb);
                     return;
                 }
-                app_state_log(s_arm_act == 1 ? "пароль принят, ещё раз удержать выход" : "пароль принят, ещё раз удержать Вт");
+                app_state_log(s_arm_act == 1 ? "код принят, ещё раз удержать выход" : "код принят, ещё раз удержать Вт");
             } else {
                 s_unlocked = 0;
-                app_state_log("пароль не 1234");
+                app_state_log("код неверен");
             }
             pad_hide();
             if (s_pass_box) lv_obj_add_flag(s_pass_box, LV_OBJ_FLAG_HIDDEN);
@@ -516,7 +516,7 @@ static void make_pad(lv_obj_t *parent)
     lv_obj_set_style_border_width(banner, 0, 0);
     lv_obj_clear_flag(banner, LV_OBJ_FLAG_SCROLLABLE);
     s_pad_banner = lv_label_create(banner);
-    lv_label_set_text(s_pad_banner, "пароль");
+    lv_label_set_text(s_pad_banner, "код");
     lv_obj_set_style_text_color(s_pad_banner, lv_color_hex(0x07302E), 0);
     lv_obj_center(s_pad_banner);
     const char *keys[] = {"1","2","3","4","5","6","7","8","9","<","0","OK"};
@@ -762,7 +762,7 @@ static void build_ui(void)
 #undef BUB
     lv_obj_add_flag(s_scr_chg, LV_OBJ_FLAG_SCROLLABLE);
     lv_obj_set_scroll_dir(s_scr_chg, LV_DIR_VER);
-    s_dots = line(s_scr_chg, "пароль 1234 до выкл", 248);
+    s_dots = line(s_scr_chg, "удержание Вт - нагрузка", 248);
     if (s_dots) { lv_obj_set_height(s_dots, 16); lv_label_set_long_mode(s_dots, LV_LABEL_LONG_DOT); }
     s_can = line(s_scr_chg, "CAN вкл тишина", 264);
     if (s_can) { lv_obj_set_height(s_can, 16); lv_label_set_long_mode(s_can, LV_LABEL_LONG_DOT); }
@@ -788,7 +788,7 @@ static void build_ui(void)
     s_orient_lbl = line(s_scr_chg, "экран обычный", 452);
     s_log_lbl = line(s_scr_chg, "событие", 474);
     if (s_log_lbl) { lv_label_set_long_mode(s_log_lbl, LV_LABEL_LONG_DOT); lv_obj_set_height(s_log_lbl, 16); }
-    s_ip_lbl = line(s_scr_chg, "Cube  12345678", 496);
+    s_ip_lbl = line(s_scr_chg, "сеть Cube", 496);
     lv_obj_t *orig = lv_btn_create(s_scr_chg);
     lv_obj_set_size(orig, 200, 36);
     lv_obj_set_pos(orig, 12, 528);
@@ -903,7 +903,7 @@ static void build_ui(void)
     lv_obj_set_height(s_can_lbl, 110);
     s_scr_sys = lv_obj_create(NULL);
     style_screen(s_scr_sys);
-    line(s_scr_sys, "СИСТЕМА 2.8.14", 4);
+    line(s_scr_sys, "СИСТЕМА 2.8.15", 4);
     s_sys_temp = line(s_scr_sys, "CPU -- C", 28);
     s_sys_cpu = line(s_scr_sys, "F 160 MHz", 48);
     s_sys_load = line(s_scr_sys, "Load -- %", 68);
@@ -1272,8 +1272,9 @@ void display_set_values(void)
     }
     if (s_relay) lv_label_set_text(s_relay, st.relay_b ? "ON" : "OFF");
     if (s_cml) {
-        snprintf(b, sizeof(b), "CML %.1f V / %.1f A",
-                 st.cml_max_voltage_raw / 10.0, st.cml_max_current_0p1a / 10.0);
+        snprintf(b, sizeof(b), "CML %.0fV %.0fA",
+                 st.cml_max_voltage_raw / 10.0,
+                 (st.cml_max_current_0p1a < 0 ? -st.cml_max_current_0p1a : st.cml_max_current_0p1a) / 10.0);
         lv_label_set_text(s_cml, b);
     }
     if (s_can) {
@@ -1281,7 +1282,7 @@ void display_set_values(void)
         lv_label_set_text(s_can, b);
     }
     if (s_ip_lbl) {
-        snprintf(b, sizeof(b), "Cube  12345678");
+        snprintf(b, sizeof(b), "сеть Cube");
         lv_label_set_text(s_ip_lbl, b);
     }
 

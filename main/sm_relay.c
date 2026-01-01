@@ -106,6 +106,8 @@ static void end_session(void)
 }
 
 /* --- TX helpers (only when TX enabled) --- */
+static bool st_proto_is_2011(void);
+
 static void tx_bhm(void)
 {
     uint8_t d[8] = {0};
@@ -118,19 +120,23 @@ static void tx_bhm(void)
 /* J1939 BAM: stations drop the session if BRM/BCP are not multi-frame. */
 static void tx_bam(uint32_t pgn, const uint8_t *payload, uint16_t len)
 {
+    /* 2011 piles expect J1939 priority 6 on BRM/BCP/BCS. 2015 and 2023-A use 7. */
+    const int old = st_proto_is_2011();
+    const uint32_t cm_id = old ? 0x18EC56F4u : 0x1CEC56F4u;
+    const uint32_t dt_id = old ? 0x18EB56F4u : 0x1CEB56F4u;
     uint8_t packets = (uint8_t)((len + 6) / 7);
     uint8_t cm[8] = {
         32, (uint8_t)(len & 0xFF), (uint8_t)(len >> 8), packets, 0xFF,
         (uint8_t)(pgn & 0xFF), (uint8_t)((pgn >> 8) & 0xFF), (uint8_t)((pgn >> 16) & 0xFF)
     };
-    (void)gbt_can_send(0x1CEC56F4u, cm, 8);
+    (void)gbt_can_send(cm_id, cm, 8);
     for (uint8_t seq = 1; seq <= packets; ++seq) {
         uint8_t dt[8];
         memset(dt, 0xFF, sizeof(dt));
         dt[0] = seq;
         uint16_t off = (uint16_t)(seq - 1) * 7;
         for (int i = 0; i < 7 && (off + i) < len; ++i) dt[1 + i] = payload[off + i];
-        (void)gbt_can_send(0x1CEB56F4u, dt, 8);
+        (void)gbt_can_send(dt_id, dt, 8);
         vTaskDelay(pdMS_TO_TICKS(10));
     }
 }
@@ -147,8 +153,8 @@ static void tx_brm(void)
 {
     uint8_t b[49];
     memset(b, 0, sizeof(b));
-    b[0] = 1;
-    b[1] = st_proto_is_2011() ? 0 : 1;
+    b[0] = st_proto_is_2011() ? 0 : 1; /* 2011 is V1.0 -> 00 01 00, 2015 is V1.1 -> 01 01 00 */
+    b[1] = 1;
     b[2] = 0;
     b[3] = 6;                     /* ternary lithium */
     b[4] = 0xE8; b[5] = 0x03;     /* 100.0 Ah */
@@ -182,8 +188,13 @@ static void tx_bcp(void)
     uint16_t vnow = st.bcl_requested_voltage_raw ? st.bcl_requested_voltage_raw : 2400;
     uint16_t soc_01;
     if (i_abs < 0) i_abs = -i_abs;
+    if (st.last_cml_ms != 0 && st.cml_max_current_0p1a < 0) {
+        int32_t lim = -(int32_t)st.cml_max_current_0p1a;
+        if (i_abs > lim) i_abs = lim;
+    }
     if (vnow > vmax) vmax = vnow;
-    imax = i_abs + 4000; /* 0.1 A, offset -400 A, same sign as BCL */
+    /* Charge current is negative. raw = 4000 - |I|. +I is outside -400..0 A and the pile aborts. */
+    imax = 4000 - i_abs;
     if (imax < 0) imax = 0;
     if (imax > 65535) imax = 65535;
     soc_01 = (uint16_t)(st.soc_percent ? st.soc_percent : 50) * 10u;
@@ -248,8 +259,14 @@ static void tx_bcl(void)
     app_state_snapshot(&st);
     uint8_t d[8] = {0};
     uint16_t v = st.bcl_requested_voltage_raw;
-    /* GB/T current encoding: value + 4000 in 0.1 A units */
-    int32_t i_enc = (int32_t)st.bcl_requested_current_0p1a + 4000;
+    int32_t i_abs = st.bcl_requested_current_0p1a;
+    int32_t i_enc;
+    if (i_abs < 0) i_abs = -i_abs;
+    if (st.last_cml_ms != 0 && st.cml_max_current_0p1a < 0) {
+        int32_t lim = -(int32_t)st.cml_max_current_0p1a;
+        if (i_abs > lim) i_abs = lim;
+    }
+    i_enc = 4000 - i_abs;
     if (i_enc < 0) i_enc = 0;
     if (i_enc > 65535) i_enc = 65535;
     d[0] = (uint8_t)(v & 0xFF);
@@ -266,8 +283,11 @@ static void tx_bcs(void)
     app_state_snapshot(&st);
     uint8_t b[9];
     uint16_t v = st.battery_voltage_0p1v ? st.battery_voltage_0p1v : st.ccs_output_voltage_raw;
-    int32_t i_enc = (int32_t)st.battery_current_0p1a + 4000;
+    int32_t i_abs = st.battery_current_0p1a ? st.battery_current_0p1a : st.ccs_output_current_0p1a;
     uint16_t cell = 420; /* 4.20 V, group 0 */
+    int32_t i_enc;
+    if (i_abs < 0) i_abs = -i_abs;
+    i_enc = 4000 - i_abs;
     if (i_enc < 0) i_enc = 0;
     if (i_enc > 65535) i_enc = 65535;
     memset(b, 0, sizeof(b));
@@ -278,7 +298,8 @@ static void tx_bcs(void)
     b[4] = (uint8_t)(cell & 0xFF);
     b[5] = (uint8_t)(cell >> 8);
     b[6] = st.soc_percent;
-    /* bytes 7-8 remaining minutes, unknown */
+    b[7] = 0x58; /* 600 min. Zero means "finished" and a lot of piles stop. */
+    b[8] = 0x02;
     tx_bam(0x001100u, b, 9);
 }
 

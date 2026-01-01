@@ -103,10 +103,12 @@ void app_state_set_ccs(uint16_t out_v, int16_t out_i_0p1a, uint16_t charge_time_
     s_state.ccs_status_raw = permit_raw;
     s_state.last_ccs_ms = now_ms();
     s_state.last_charger_rx_ms = s_state.last_ccs_ms;
-    if ((permit_raw & 0x03U) == 0x01U) {
+    /* Permit 0 is a pause, not a stop. Ending here made the pile drop the session
+       the moment CCS said "not yet". CST, CEM and CSD are the real endings. */
+    if ((permit_raw & 0x03U) == 0x01U &&
+        (s_state.charger_stage == CUBE_STAGE_READY ||
+         s_state.charger_stage == CUBE_STAGE_CHARGING)) {
         s_state.charger_stage = CUBE_STAGE_CHARGING;
-    } else if ((permit_raw & 0x03U) == 0x00U) {
-        s_state.charger_stage = CUBE_STAGE_SUSPENDED;
     }
     s_state.charger_stage_ms = s_state.last_ccs_ms;
     unlock_state();

@@ -13,7 +13,6 @@
 #include "esp_wifi.h"
 #include "esp_event.h"
 #include "esp_netif.h"
-#include "dhcpserver/dhcpserver.h"
 #include "unistd.h"
 #include "esp_system.h"
 #include "esp_timer.h"
@@ -147,8 +146,12 @@ static esp_err_t status_get(httpd_req_t *req)
     hex8(s.last.data, s.last.dlc, last_hex, sizeof(last_hex));
     const bool online = charger_online(s.last_charger_rx_ms);
     const long power_w = calc_power_w(&s);
-    char json[3200];
-    int written = snprintf(json, sizeof(json),
+    char json[4200];
+    char cem[12];
+    int written;
+    snprintf(cem, sizeof(cem), "%02X%02X%02X%02X",
+             s.cem_data[0], s.cem_data[1], s.cem_data[2], s.cem_data[3]);
+    written = snprintf(json, sizeof(json),
         "{\"ok\":true,\"fw\":\"%s\",\"version\":\"%s\","
         "\"can\":%s,\"tx_enabled\":%s,\"rx_count\":%lu,\"tx_count\":%lu,"
         "\"last_id\":\"0x%08lX\",\"last_dlc\":%u,\"last_data\":\"%s\","
@@ -164,7 +167,11 @@ static esp_err_t status_get(httpd_req_t *req)
         "\"bcl_voltage_0p1v\":%u,\"bcl_current_0p1a\":%d,\"bcl_mode\":%u,"
         "\"ble\":%s,\"notify\":%s,\"indicate\":%s,\"display\":%s,\"touch\":%s,\"touch_pressed\":%s,"
         "\"protocol\":\"%s\",\"voltage_v\":%.1f,\"current_a\":%.1f,\"power_w\":%ld,\"time_min\":%u,"
-        "\"permit\":\"%s\",\"ccs\":\"%s\",\"can\":\"%s\",\"limit_v\":\"%.1f\",\"limit_i\":\"%.1f\",\"request\":\"%.1f/%.1f\",\"mode\":\"%s\",\"wifi\":\"%s\",\"sub_state\":%u,\"ap_channel\":%d,\"ap_clients\":%u,\"sta_ip\":\"%s\",\"energy_kwh\":%.3f,\"vin\":\"%s\",\"cap_kwh\":%.2f,\"ota_pct\":%d}",
+        "\"proto_n\":%u,\"proto_lock\":%s,\"crm_status\":%u,"
+        "\"last_crm_ms\":%lu,\"last_cml_ms\":%lu,\"last_cro_ms\":%lu,\"last_ccs_ms\":%lu,"
+        "\"last_cst_ms\":%lu,\"last_csd_ms\":%lu,\"last_cem_ms\":%lu,\"cem\":\"%s\","
+        "\"energy_kwh\":%.3f,\"vin\":\"%s\",\"cap_kwh\":%.2f,\"ota_pct\":%d,"
+        "\"ap_channel\":%d,\"ap_clients\":%u,\"sta_ip\":\"%s\"}",
         CUBE_FW_NAME, CUBE_FW_VERSION,
         s.can_up ? "true" : "false", s.tx_enabled ? "true" : "false",
         (unsigned long)s.rx_count, (unsigned long)s.tx_count,
@@ -188,14 +195,13 @@ static esp_err_t status_get(httpd_req_t *req)
         (s.ccs_output_voltage_raw ? s.ccs_output_voltage_raw : s.battery_voltage_0p1v) / 10.0,
         (s.ccs_output_current_0p1a ? s.ccs_output_current_0p1a : s.battery_current_0p1a) / 10.0,
         power_w, (unsigned)s.ccs_charge_time_min,
-        s.ccs_charge_permit ? "YES" : "NO",
-        s.ccs_status_raw ? "RUN" : "—",
-        s.can_up ? "UP" : "DOWN",
-        s.cml_max_voltage_raw / 10.0, s.cml_max_current_0p1a / 10.0,
-        s.bcl_requested_voltage_raw / 10.0, s.bcl_requested_current_0p1a / 10.0,
-        s.bcl_mode ? "CC" : "CV", CUBE_WIFI_SSID, (unsigned)s.substate,
-        web_get_ap_channel(), (unsigned)web_ap_clients(), web_sta_ip(), (double)app_state_energy_kwh(), app_state_vin(),
-        (double)app_state_cap_kwh(), safe_ota_percent());
+        (unsigned)s.protocol, app_state_protocol_locked() ? "true" : "false",
+        (unsigned)s.crm_status,
+        (unsigned long)s.last_crm_ms, (unsigned long)s.last_cml_ms, (unsigned long)s.last_cro_ms,
+        (unsigned long)s.last_ccs_ms, (unsigned long)s.last_cst_ms, (unsigned long)s.last_csd_ms,
+        (unsigned long)s.last_cem_ms, cem,
+        (double)app_state_energy_kwh(), app_state_vin(), (double)app_state_cap_kwh(), safe_ota_percent(),
+        web_get_ap_channel(), (unsigned)web_ap_clients(), web_sta_ip());
     if (written < 0 || (size_t)written >= sizeof(json)) return ESP_ERR_NO_MEM;
     set_no_cache(req);
     (void)httpd_resp_set_type(req, "application/json; charset=utf-8");
@@ -507,9 +513,19 @@ static esp_err_t captive_html_get(httpd_req_t *req)
 
 static esp_err_t portal_catchall_get(httpd_req_t *req)
 {
-    set_security_headers(req);
-    httpd_resp_set_status(req, "302 Found");
-    (void)httpd_resp_set_hdr(req, "Location", "http://192.168.4.1/");
+    /* Do not send the real page here. The phone probes random names, and a
+       redirect made it download the site several times before the browser did. */
+    (void)req;
+    httpd_resp_set_status(req, "204 No Content");
+    (void)httpd_resp_set_hdr(req, "Connection", "close");
+    return httpd_resp_send(req, NULL, 0);
+}
+
+static esp_err_t probe_discard(httpd_req_t *req)
+{
+    (void)req;
+    httpd_resp_set_status(req, "204 No Content");
+    (void)httpd_resp_set_hdr(req, "Connection", "close");
     return httpd_resp_send(req, NULL, 0);
 }
 
@@ -1028,20 +1044,6 @@ esp_err_t web_init(void)
     (void)esp_event_handler_register(IP_EVENT, IP_EVENT_STA_GOT_IP, &wifi_ip_handler, NULL);
     if (!esp_netif_create_default_wifi_ap()) return ESP_ERR_NO_MEM;
     if (!esp_netif_create_default_wifi_sta()) return ESP_ERR_NO_MEM;
-    {
-        esp_netif_t *apn = esp_netif_get_handle_from_ifkey("WIFI_AP_DEF");
-        if (apn) {
-            esp_netif_dns_info_t dns = {0};
-            dhcps_offer_t offer = OFFER_DNS;
-            dns.ip.type = ESP_IPADDR_TYPE_V4;
-            dns.ip.u_addr.ip4.addr = esp_ip4addr_aton("192.168.4.1");
-            (void)esp_netif_dhcps_stop(apn);
-            (void)esp_netif_set_dns_info(apn, ESP_NETIF_DNS_MAIN, &dns);
-            (void)esp_netif_dhcps_option(apn, ESP_NETIF_OP_SET, ESP_NETIF_DOMAIN_NAME_SERVER,
-                                         &offer, sizeof(offer));
-            (void)esp_netif_dhcps_start(apn);
-        }
-    }
 
     wifi_init_config_t cfg = WIFI_INIT_CONFIG_DEFAULT();
     /* A saved sdkconfig from an older build still has the IDF defaults
@@ -1115,7 +1117,7 @@ esp_err_t web_init(void)
     /* AP only, no scan */
 
     httpd_config_t hc = HTTPD_DEFAULT_CONFIG();
-    hc.max_uri_handlers = 40;
+    hc.max_uri_handlers = 48;
     hc.stack_size = 12288;
     hc.recv_wait_timeout = 10;
     hc.send_wait_timeout = 4;
@@ -1166,6 +1168,9 @@ esp_err_t web_init(void)
         {.uri = "/api/session/start", .method = HTTP_POST, .handler = session_start_post},
         {.uri = "/api/session/stop", .method = HTTP_POST, .handler = session_stop_post},
         {.uri = "/*", .method = HTTP_GET, .handler = portal_catchall_get},
+        {.uri = "/*", .method = HTTP_POST, .handler = probe_discard},
+        {.uri = "/*", .method = HTTP_PUT, .handler = probe_discard},
+        {.uri = "/*", .method = HTTP_HEAD, .handler = probe_discard},
     };
     for (size_t i = 0; i < sizeof(uri) / sizeof(uri[0]); ++i) {
         err = httpd_register_uri_handler(s_server, &uri[i]);
