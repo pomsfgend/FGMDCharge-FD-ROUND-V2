@@ -1,106 +1,108 @@
-FGMDCharge / FD_ROUND V2 — Release 2.0.5
+FGMDCharge / FD_ROUND V2 — Release 2.0.6
 
-Canonical source package file index (generated build directories intentionally absent).
-Runtime firmware is produced locally by BUILD_RELEASE.bat.
+Канонический исходный проект. Фактический список файлов релиза:
 
-03_MONITOR.bat	373 bytes
-AUDIT_REPORT_RU.md	3405 bytes
-BUILD_RELEASE.bat	5341 bytes
-BUILD_RELEASE.ps1	189 bytes
-CMakeLists.txt	108 bytes
-DO_NOT_FLASH_WHOLE_CHIP_FIRST.txt	502 bytes
-FLASH_RELEASE_OTA1.bat	2724 bytes
-FLASH_RELEASE_OTA1.ps1	342 bytes
-INSTALL_TOOLS_ONLY.bat	791 bytes
-README_RU.md	3683 bytes
-README_START_HERE_RU.txt	3873 bytes
-RECOVERY_ORIGINAL.bat	1178 bytes
-RELEASE_CHECKLIST_RU.txt	975 bytes
-RELEASE_FIX_2.0.5.txt	1427 bytes
-RELEASE_NOTES_RU.md	3828 bytes
-REPAIR_IDF_5_0_9.bat	998 bytes
-ROLLBACK_OTA0.bat	732 bytes
-SOURCE_TRUTH_RU.md	3487 bytes
-UPDATE_CUBE.bat	47 bytes
-analysis_original/FIRMWARE_REPORT_RU.md	11552 bytes
-analysis_original/KANONICAL_VALUES.md	485 bytes
-analysis_original/RECOVERED_HARDWARE.md	874 bytes
-analysis_original/REVERSE_ENGINEERING_STATUS.md	1080 bytes
-analysis_original/adc_pwm_region.dis	14534 bytes
-analysis_original/app_main_tasks.dis	4156 bytes
-analysis_original/ble_init_region.dis	9863 bytes
-analysis_original/can_parser.dis	11180 bytes
-analysis_original/lcd_main_region.dis	13042 bytes
-analysis_original/ota0_segments.txt	327 bytes
-analysis_original/ota0_tail.bin	79680 bytes
-analysis_original/ota1_segments.txt	327 bytes
-analysis_original/quick_check.py	491 bytes
-components/esp_lcd_ili9341/CMakeLists.txt	132 bytes
-components/esp_lcd_ili9341/LICENSE.txt	268 bytes
-components/esp_lcd_ili9341/esp_lcd_ili9341.c	11406 bytes
-components/esp_lcd_ili9341/idf_component.yml	97 bytes
-components/esp_lcd_ili9341/include/esp_lcd_ili9341.h	2266 bytes
-docs/BLE_MAP.md	724 bytes
-docs/BUILD_AND_INSTALL_RU.md	1479 bytes
-docs/CAN_MAP.md	1629 bytes
-docs/NEXT_REVERSE_PHASE.md	819 bytes
-docs/ORIGINAL_FUNCTIONS.md	892 bytes
-docs/RECOVERY_MATRIX_RU.md	1435 bytes
-docs/REVERSE_ENGINEERING.md	1149 bytes
-docs/SAFE_FLASH_RU.md	651 bytes
-docs/UI_CUSTOMIZATION_RU.md	1271 bytes
-host_tests/test_core.py	3994 bytes
-main/CMakeLists.txt	710 bytes
-main/adc_pwm.c	388 bytes
-main/app_state.c	6555 bytes
-main/app_state.h	3063 bytes
-main/ble.c	12000 bytes
-main/ble.h	203 bytes
-main/board_pins.h	33 bytes
-main/can_gbt.c	9893 bytes
-main/can_gbt.h	1707 bytes
-main/config.h	2078 bytes
-main/display.c	10343 bytes
-main/display.h	199 bytes
-main/gbt_tp.c	1832 bytes
-main/gbt_tp.h	546 bytes
-main/idf_component.yml	155 bytes
-main/main.c	2553 bytes
-main/safe_ota.c	2143 bytes
-main/safe_ota.h	319 bytes
-main/settings.c	1986 bytes
-main/settings.h	308 bytes
-main/touch_cst816s.c	3677 bytes
-main/touch_cst816s.h	219 bytes
-main/web/app.js	6061 bytes
-main/web/index.html	4285 bytes
-main/web/style.css	5115 bytes
-main/web.c	17740 bytes
-main/web.h	60 bytes
-main/web_assets.c	97040 bytes
-original/bootloader_0x1000_0x8000.bin	28672 bytes
-original/dump1.bin	4194304 bytes
-original/nvs_0x9000_0xD000.bin	16384 bytes
-original/ota0_irom.bin	926216 bytes
-original/ota0_partition_0x190000.bin	1638400 bytes
-original/ota0_tail.bin	79680 bytes
-original/ota1_irom.bin	926216 bytes
-original/ota1_partition_0x190000.bin	1638400 bytes
-original/otadata_0xD000_0xF000.bin	8192 bytes
-original/partition_table_0x8000_0x9000.bin	4096 bytes
-original/phy_init_0xF000_0x10000.bin	4096 bytes
-partitions.csv	282 bytes
-release/README.txt	602 bytes
-requirements-tools.txt	36 bytes
-sdkconfig.defaults	1014 bytes
-tools/backup_flash.py	874 bytes
-tools/check_app_image.py	1776 bytes
-tools/embed_web_assets.py	1501 bytes
-tools/flash_app_to_ota1.py	1080 bytes
-tools/force_sdkconfig.py	1331 bytes
-tools/ota_slot.py	2276 bytes
-tools/restore_full_dump.py	1065 bytes
-tools/static_audit.py	13315 bytes
-tools/verify_original_dump.py	683 bytes
-tools/verify_release.py	8192 bytes
-tools/write_release_manifest.py	780 bytes
+03_MONITOR.bat
+AUDIT_REPORT_RU.md
+BUILD_RELEASE.bat
+BUILD_RELEASE.ps1
+CMakeLists.txt
+DO_NOT_FLASH_WHOLE_CHIP_FIRST.txt
+FLASH_QUICK.bat
+FLASH_RELEASE_OTA1.bat
+FLASH_RELEASE_OTA1.ps1
+INSTALL_TOOLS_ONLY.bat
+QUICK_BUILD.bat
+README_RU.md
+README_START_HERE_RU.txt
+RECOVERY_ORIGINAL.bat
+RELEASE_CHECKLIST_RU.txt
+RELEASE_FIX_2.0.6.md
+RELEASE_NOTES_RU.md
+REPAIR_IDF_5_0_9.bat
+ROLLBACK_OTA0.bat
+SOURCE_TRUTH_RU.md
+START_BUILD.cmd
+UPDATE_CUBE.bat
+analysis_original/FIRMWARE_REPORT_RU.md
+analysis_original/KANONICAL_VALUES.md
+analysis_original/RECOVERED_HARDWARE.md
+analysis_original/REVERSE_ENGINEERING_STATUS.md
+analysis_original/adc_pwm_region.dis
+analysis_original/app_main_tasks.dis
+analysis_original/ble_init_region.dis
+analysis_original/can_parser.dis
+analysis_original/lcd_main_region.dis
+analysis_original/ota0_segments.txt
+analysis_original/ota0_tail.bin
+analysis_original/ota1_segments.txt
+analysis_original/quick_check.py
+components/esp_lcd_ili9341/CMakeLists.txt
+components/esp_lcd_ili9341/LICENSE.txt
+components/esp_lcd_ili9341/esp_lcd_ili9341.c
+components/esp_lcd_ili9341/idf_component.yml
+components/esp_lcd_ili9341/include/esp_lcd_ili9341.h
+docs/BLE_MAP.md
+docs/BUILD_AND_INSTALL_RU.md
+docs/CAN_MAP.md
+docs/NEXT_REVERSE_PHASE.md
+docs/ORIGINAL_FUNCTIONS.md
+docs/RECOVERY_MATRIX_RU.md
+docs/REVERSE_ENGINEERING.md
+docs/SAFE_FLASH_RU.md
+docs/UI_CUSTOMIZATION_RU.md
+host_tests/test_core.py
+main/CMakeLists.txt
+main/adc_pwm.c
+main/app_state.c
+main/app_state.h
+main/ble.c
+main/ble.h
+main/board_pins.h
+main/can_gbt.c
+main/can_gbt.h
+main/config.h
+main/display.c
+main/display.h
+main/gbt_tp.c
+main/gbt_tp.h
+main/idf_component.yml
+main/main.c
+main/safe_ota.c
+main/safe_ota.h
+main/settings.c
+main/settings.h
+main/touch_cst816s.c
+main/touch_cst816s.h
+main/web/app.js
+main/web/index.html
+main/web/style.css
+main/web.c
+main/web.h
+main/web_assets.c
+original/bootloader_0x1000_0x8000.bin
+original/dump1.bin
+original/nvs_0x9000_0xD000.bin
+original/ota0_irom.bin
+original/ota0_partition_0x190000.bin
+original/ota0_tail.bin
+original/ota1_irom.bin
+original/ota1_partition_0x190000.bin
+original/otadata_0xD000_0xF000.bin
+original/partition_table_0x8000_0x9000.bin
+original/phy_init_0xF000_0x10000.bin
+partitions.csv
+release/README.txt
+requirements-tools.txt
+sdkconfig.defaults
+tools/backup_flash.py
+tools/check_app_image.py
+tools/embed_web_assets.py
+tools/flash_app_to_ota1.py
+tools/force_sdkconfig.py
+tools/ota_slot.py
+tools/restore_full_dump.py
+tools/static_audit.py
+tools/verify_original_dump.py
+tools/verify_release.py
+tools/write_release_manifest.py

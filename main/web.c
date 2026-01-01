@@ -33,6 +33,8 @@ static httpd_handle_t s_server;
 
 static void set_no_cache(httpd_req_t *req)
 {
+    /* Do not force Connection: close. The UI polls status frequently and the ESP HTTP
+       server is happier when the client can reuse a keep-alive socket. */
     (void)httpd_resp_set_hdr(req, "Cache-Control", "no-store, no-cache, must-revalidate, max-age=0");
     (void)httpd_resp_set_hdr(req, "Pragma", "no-cache");
 }
@@ -49,6 +51,9 @@ static void set_security_headers(httpd_req_t *req)
 
 static bool auth(httpd_req_t *req)
 {
+    /* Empty key is a deliberate local-development mode; production build ships
+       with a non-empty write-control key. */
+    if (CUBE_WEB_KEY[0] == '\0') return true;
     size_t n = httpd_req_get_hdr_value_len(req, "X-Cube-Key");
     if (n == 0U || n >= 96U) return false;
     char key[96] = {0};
@@ -86,6 +91,12 @@ static esp_err_t css_get(httpd_req_t *req)
 static esp_err_t js_get(httpd_req_t *req)
 {
     return send_asset(req, "application/javascript; charset=utf-8", web_app_js, web_app_js_len, true);
+}
+
+static esp_err_t favicon_get(httpd_req_t *req)
+{
+    httpd_resp_set_status(req, "204 No Content");
+    return httpd_resp_send(req, NULL, 0);
 }
 
 static void hex8(const uint8_t *data, uint8_t n, char *out, size_t out_sz)
@@ -289,8 +300,8 @@ static esp_err_t settings_get(httpd_req_t *req)
     set_no_cache(req);
     (void)httpd_resp_set_type(req, "application/json; charset=utf-8");
     return httpd_resp_sendstr(req, gbt_can_get_tx_enabled()
-        ? "{\"ok\":true,\"tx_enabled\":true,\"tx_compiled\":true}"
-        : "{\"ok\":true,\"tx_enabled\":false,\"tx_compiled\":true}");
+        ? "{\"ok\":true,\"tx_enabled\":true,\"tx_compiled\":true,\"web_key_required\":true,\"wifi_auth\":\"WPA2-PSK\"}"
+        : "{\"ok\":true,\"tx_enabled\":false,\"tx_compiled\":true,\"web_key_required\":true,\"wifi_auth\":\"WPA2-PSK\"}");
 }
 
 static esp_err_t settings_post(httpd_req_t *req)
@@ -391,16 +402,62 @@ static esp_err_t update_post(httpd_req_t *req)
     return send_err;
 }
 
+static void wifi_ap_event_handler(void *arg, esp_event_base_t event_base,
+                                   int32_t event_id, void *event_data)
+{
+    (void)arg;
+    if (event_base != WIFI_EVENT) return;
+    if (event_id == WIFI_EVENT_AP_STACONNECTED) {
+        const wifi_event_ap_staconnected_t *e = (const wifi_event_ap_staconnected_t *)event_data;
+        ESP_LOGI(TAG, "STA connected %02X:%02X:%02X:%02X:%02X:%02X AID=%u",
+                 e->mac[0], e->mac[1], e->mac[2], e->mac[3], e->mac[4], e->mac[5], e->aid);
+    } else if (event_id == WIFI_EVENT_AP_STADISCONNECTED) {
+        const wifi_event_ap_stadisconnected_t *e = (const wifi_event_ap_stadisconnected_t *)event_data;
+        ESP_LOGW(TAG, "STA disconnected %02X:%02X:%02X:%02X:%02X:%02X AID=%u reason=%u",
+                 e->mac[0], e->mac[1], e->mac[2], e->mac[3], e->mac[4], e->mac[5], e->aid, e->reason);
+    }
+}
+
+static esp_err_t captive_text_get(httpd_req_t *req)
+{
+    set_security_headers(req);
+    set_no_cache(req);
+    (void)httpd_resp_set_type(req, "text/plain; charset=utf-8");
+    if (strcmp(req->uri, "/connecttest.txt") == 0) {
+        return httpd_resp_sendstr(req, "Microsoft Connect Test");
+    }
+    if (strcmp(req->uri, "/ncsi.txt") == 0) {
+        return httpd_resp_sendstr(req, "Microsoft NCSI");
+    }
+    return httpd_resp_sendstr(req, "FGMDCharge local portal");
+}
+
+static esp_err_t captive_html_get(httpd_req_t *req)
+{
+    return root_get(req);
+}
+
+static esp_err_t portal_catchall_get(httpd_req_t *req)
+{
+    /* Captive-portal clients frequently probe vendor-specific paths. Serve the
+       local UI instead of returning a 404 that makes some clients abandon the AP. */
+    return root_get(req);
+}
+
 esp_err_t web_init(void)
 {
     esp_err_t err = esp_netif_init();
     if (err != ESP_OK && err != ESP_ERR_INVALID_STATE) return err;
     err = esp_event_loop_create_default();
     if (err != ESP_OK && err != ESP_ERR_INVALID_STATE) return err;
+    (void)esp_event_handler_register(WIFI_EVENT, WIFI_EVENT_AP_STACONNECTED, &wifi_ap_event_handler, NULL);
+    (void)esp_event_handler_register(WIFI_EVENT, WIFI_EVENT_AP_STADISCONNECTED, &wifi_ap_event_handler, NULL);
     if (!esp_netif_create_default_wifi_ap()) return ESP_ERR_NO_MEM;
 
     wifi_init_config_t cfg = WIFI_INIT_CONFIG_DEFAULT();
     err = esp_wifi_init(&cfg);
+    if (err != ESP_OK) return err;
+    (void)esp_wifi_set_storage(WIFI_STORAGE_RAM);
     if (err != ESP_OK && err != ESP_ERR_INVALID_STATE) return err;
 
     wifi_config_t ap = {0};
@@ -408,8 +465,14 @@ esp_err_t web_init(void)
     ap.ap.ssid_len = (uint8_t)strlen(CUBE_WIFI_SSID);
     ap.ap.channel = CUBE_WIFI_CHANNEL;
     ap.ap.max_connection = CUBE_WIFI_MAX_CONNECTIONS;
+    ap.ap.ssid_hidden = 0;          /* always broadcast beacon */
+    ap.ap.beacon_interval = 100;
+    ap.ap.pmf_cfg.capable = true;
+    ap.ap.pmf_cfg.required = false;
     if (strlen(CUBE_WIFI_PASSWORD) >= 8U) {
+        /* WPA2-PSK/CCMP is deterministic and avoids mixed-mode roaming quirks. */
         ap.ap.authmode = WIFI_AUTH_WPA2_PSK;
+        ap.ap.pairwise_cipher = WIFI_CIPHER_TYPE_CCMP;
         (void)snprintf((char *)ap.ap.password, sizeof(ap.ap.password), "%s", CUBE_WIFI_PASSWORD);
     } else {
         ap.ap.authmode = WIFI_AUTH_OPEN;
@@ -417,20 +480,37 @@ esp_err_t web_init(void)
     }
     if ((err = esp_wifi_set_mode(WIFI_MODE_AP)) != ESP_OK) return err;
     if ((err = esp_wifi_set_config(WIFI_IF_AP, &ap)) != ESP_OK) return err;
+    /* Keep the AP awake and use the broad ESP32-C3 802.11b/g/n compatibility set. */
+    (void)esp_wifi_set_ps(WIFI_PS_NONE);
+    (void)esp_wifi_set_protocol(WIFI_IF_AP, WIFI_PROTOCOL_11B | WIFI_PROTOCOL_11G | WIFI_PROTOCOL_11N);
+    (void)esp_wifi_set_bandwidth(WIFI_IF_AP, WIFI_BW_HT20);
     if ((err = esp_wifi_start()) != ESP_OK && err != ESP_ERR_INVALID_STATE) return err;
 
     httpd_config_t hc = HTTPD_DEFAULT_CONFIG();
-    hc.max_uri_handlers = 12;
-    hc.stack_size = 8192;
-    hc.recv_wait_timeout = 30;
+    hc.max_uri_handlers = 24;
+    hc.stack_size = 12288;
+    hc.recv_wait_timeout = 10;
     hc.send_wait_timeout = 10;
     hc.lru_purge_enable = true;
-    if ((err = httpd_start(&s_server, &hc)) != ESP_OK) return err;
+    hc.uri_match_fn = httpd_uri_match_wildcard;
+    hc.max_open_sockets = 4;
+    if ((err = httpd_start(&s_server, &hc)) != ESP_OK) {
+        ESP_LOGE(TAG, "httpd_start failed: %s", esp_err_to_name(err));
+        return err;
+    }
 
     const httpd_uri_t uri[] = {
         {.uri = "/", .method = HTTP_GET, .handler = root_get},
         {.uri = "/style.css", .method = HTTP_GET, .handler = css_get},
         {.uri = "/app.js", .method = HTTP_GET, .handler = js_get},
+        {.uri = "/favicon.ico", .method = HTTP_GET, .handler = favicon_get},
+        {.uri = "/generate_204", .method = HTTP_GET, .handler = captive_html_get},
+        {.uri = "/gen_204", .method = HTTP_GET, .handler = captive_html_get},
+        {.uri = "/hotspot-detect.html", .method = HTTP_GET, .handler = captive_html_get},
+        {.uri = "/connecttest.txt", .method = HTTP_GET, .handler = captive_text_get},
+        {.uri = "/ncsi.txt", .method = HTTP_GET, .handler = captive_text_get},
+        {.uri = "/success.txt", .method = HTTP_GET, .handler = captive_text_get},
+        {.uri = "/*", .method = HTTP_GET, .handler = portal_catchall_get},
         {.uri = "/api/status", .method = HTTP_GET, .handler = status_get},
         {.uri = "/api/can/recent", .method = HTTP_GET, .handler = can_recent_get},
         {.uri = "/api/settings", .method = HTTP_GET, .handler = settings_get},
@@ -447,6 +527,6 @@ esp_err_t web_init(void)
             return err;
         }
     }
-    ESP_LOGI(TAG, "Wi-Fi AP=%s; Web UI=http://192.168.4.1/", CUBE_WIFI_SSID);
+    ESP_LOGI(TAG, "Wi-Fi AP=%s (WPA2); Web UI=http://192.168.4.1/", CUBE_WIFI_SSID);
     return ESP_OK;
 }

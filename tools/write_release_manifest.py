@@ -9,7 +9,7 @@ OUT = ROOT / "RELEASE_MANIFEST_SHA256.txt"
 SKIP = {OUT.resolve()}
 
 lines = [
-    "FGMDCharge / FD_ROUND V2 Release 2.0.5",
+    "FGMDCharge / FD_ROUND V2 Release 2.0.6",
     "SHA-256 manifest of release files (manifest file excluded from its own hash).",
     "",
 ]

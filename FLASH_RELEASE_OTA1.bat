@@ -33,14 +33,18 @@ if errorlevel 1 (
 if not exist "%BACKUP_DIR%" mkdir "%BACKUP_DIR%"
 if not defined CUBE_PORT set /p CUBE_PORT=Enter cube COM port (example COM7):
 set "PORT=%CUBE_PORT%"
-if "%PORT%"=="" exit /b 1
+if "%PORT%"=="" (
+  echo ERROR: COM port is empty.
+  pause
+  exit /b 1
+)
 
 if exist "%BACKUP_DIR%\cube_before_v2.bin" copy /y "%BACKUP_DIR%\cube_before_v2.bin" "%BACKUP_DIR%\cube_before_v2.previous.bin" >nul
 
 echo.
 echo STEP 1/3 — FULL 4 MiB BACKUP
 echo Reading flash from %PORT%...
-python -m esptool --chip esp32c3 --port "%PORT%" read-flash 0x0 0x400000 "%BACKUP_DIR%\cube_before_v2.bin"
+python -m esptool --chip esp32c3 --port "%PORT%" -b 921600 read_flash 0x0 0x400000 "%BACKUP_DIR%\cube_before_v2.bin"
 if errorlevel 1 goto FAIL
 certutil -hashfile "%BACKUP_DIR%\cube_before_v2.bin" SHA256
 
@@ -57,7 +61,7 @@ if errorlevel 2 (
   exit /b 0
 )
 
-python -m esptool --chip esp32c3 --port "%PORT%" write-flash 0x1A0000 "%APP%"
+python -m esptool --chip esp32c3 --port "%PORT%" -b 921600 write_flash 0x1A0000 "%APP%"
 if errorlevel 1 goto FAIL
 
 echo.
