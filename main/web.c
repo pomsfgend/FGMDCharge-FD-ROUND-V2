@@ -527,7 +527,7 @@ esp_err_t web_init(void)
         return err;
     }
 
-    /* Specific routes first. Wildcard catch-all MUST be last or IDF reports
+    /* Specific routes first. Wildcard /* MUST be last or IDF reports
        ESP_ERR_HTTPD_HANDLER_EXISTS / wrong match order. */
     const httpd_uri_t uri[] = {
         {.uri = "/", .method = HTTP_GET, .handler = root_get},

@@ -46,12 +46,6 @@ static bool lcd_flush_done(esp_lcd_panel_io_handle_t panel_io,
                            esp_lcd_panel_io_event_data_t *edata, void *user_ctx) {
     (void)panel_io;
     (void)edata;
-    /* Only signal LVGL after display driver is registered. Smoke-fill and
-       early panel draws run with the same SPI callback; calling
-       lv_disp_flush_ready on an unregistered drv causes Store access fault. */
-    if (!s_display) {
-        return false;
-    }
     lv_disp_drv_t *drv = (lv_disp_drv_t *)user_ctx;
     if (drv) {
         lv_disp_flush_ready(drv);
@@ -233,8 +227,7 @@ esp_err_t display_init(void) {
             }
             heap_caps_free(line);
             ESP_LOGW(TAG, "panel smoke fill: red body + blue top bar");
-            /* Let SPI DMA finish before LVGL registers the same callback path. */
-            vTaskDelay(pdMS_TO_TICKS(50));
+            vTaskDelay(pdMS_TO_TICKS(300));
         }
     }
 

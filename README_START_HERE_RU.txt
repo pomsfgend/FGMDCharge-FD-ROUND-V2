@@ -1,11 +1,6 @@
-FGMDCharge / FD_ROUND V2 — RELEASE 2.1.2
+FGMDCharge / FD_ROUND V2 — RELEASE 2.1.1
 
-ЧТО ИСПРАВЛЕНО В 2.1.2
-- DISPLAY: lcd_flush_done больше не вызывает lv_disp_flush_ready до регистрации LVGL
-  (устранён Guru Meditation Store access fault на smoke fill)
-
-
-ЧТО ИСПРАВЛЕНО В 2.1.2
+ЧТО ИСПРАВЛЕНО В 2.1.1
 - Web: URI /* перенесён в конец (ESP_ERR_HTTPD_HANDLER_EXISTS устранён)
 - LCD: ST7789 240x280, gap_y=20, invert, BGR + smoke fill при старте
 - SoftAP FGMDCharge-V2 / FDcube2026 (ssid_hidden=0)
@@ -14,7 +9,7 @@ FGMDCharge / FD_ROUND V2 — RELEASE 2.1.2
 
 Полная реконструкция логики оригинальной прошивки кубика + веб-панель.
 
-ЧТО ДОБАВЛЕНО В 2.1.2
+ЧТО ДОБАВЛЕНО В 2.1.1
 ---------------------
 1. Полный state machine GB/T battery-side (состояния 0..7).
 2. Реле по аналитике RE:
@@ -25,7 +20,7 @@ FGMDCharge / FD_ROUND V2 — RELEASE 2.1.2
 4. BLE-команды 0x66 / 0x0D / 0x0E (как в оригинале).
 5. Веб-панель показывает main_state, substate, реле, handoff, session.
 6. Кнопки Start charge / Stop в веб-UI (требуют X-Cube-Key).
-7. Исправлен критический баг 2.1.2: CUBE_LCD_BL_GPIO = -1 (GPIO2 не драйвится).
+7. Исправлен критический баг 2.1.1: CUBE_LCD_BL_GPIO = -1 (GPIO2 не драйвится).
 
 КРИТИЧЕСКИЕ ПРАВИЛА
 -------------------

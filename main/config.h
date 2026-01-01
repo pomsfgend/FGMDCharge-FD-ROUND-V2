@@ -1,7 +1,7 @@
 #pragma once
 
 #define CUBE_FW_NAME                 "FD_ROUND_V2"
-#define CUBE_FW_VERSION              "2.1.2"
+#define CUBE_FW_VERSION              "2.1.1"
 
 /* Web API protection. Change before installing on a real vehicle/charging setup. */
 #define CUBE_WEB_KEY                 "FDcube2026"
