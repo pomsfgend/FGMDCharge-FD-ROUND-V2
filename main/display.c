@@ -1,6 +1,7 @@
 #include "display.h"
 #include <stdlib.h>
 #include <stdio.h>
+#include <string.h>
 #include <limits.h>
 #include "config.h"
 #include "app_state.h"
@@ -153,7 +154,8 @@ esp_err_t display_init(void) {
     err = esp_lcd_new_panel_io_spi((esp_lcd_spi_bus_handle_t)SPI2_HOST, &io_cfg, &s_panel_io);
     if (err != ESP_OK) return err;
 
-    /* Backlight on non-strapping pin only. GPIO2 caused POWERON reboot loops. */
+    /* Do NOT drive GPIO6 — on this board it toggles the power relay (audible click).
+       Backlight pin is still unproven from dump1.bin; leave it alone. */
     if (CUBE_LCD_BL_GPIO >= 0) {
         gpio_config_t bl = {
             .pin_bit_mask = 1ULL << CUBE_LCD_BL_GPIO,
@@ -165,16 +167,15 @@ esp_err_t display_init(void) {
         if (gpio_config(&bl) == ESP_OK) {
             (void)gpio_set_level(CUBE_LCD_BL_GPIO, 1);
             ESP_LOGW(TAG, "backlight GPIO%d = ON", CUBE_LCD_BL_GPIO);
-        } else {
-            ESP_LOGW(TAG, "backlight GPIO%d config failed", CUBE_LCD_BL_GPIO);
         }
+    } else {
+        ESP_LOGW(TAG, "backlight GPIO not set (safe); panel-only path");
     }
 
-    /* Same panel path that previously completed init successfully (no BGR/invert). */
     esp_lcd_panel_dev_config_t panel_cfg = {
         .reset_gpio_num = CUBE_LCD_RST_GPIO,
         .bits_per_pixel = 16,
-        .rgb_endian = LCD_RGB_ENDIAN_RGB,
+        .rgb_endian = LCD_RGB_ENDIAN_BGR,
     };
     ESP_LOGW(TAG, "panel create...");
     err = esp_lcd_new_panel_ili9341(s_panel_io, &panel_cfg, &s_panel);
@@ -186,9 +187,27 @@ esp_err_t display_init(void) {
     if ((err = esp_lcd_panel_reset(s_panel)) != ESP_OK) return err;
     ESP_LOGW(TAG, "panel init...");
     if ((err = esp_lcd_panel_init(s_panel)) != ESP_OK) return err;
+    /* 240x280 modules (often ST7789-class with ili9341-style driver) need gap + invert. */
+    (void)esp_lcd_panel_set_gap(s_panel, 0, 20);
+    (void)esp_lcd_panel_invert_color(s_panel, true);
     if ((err = esp_lcd_panel_mirror(s_panel, false, false)) != ESP_OK) return err;
     if ((err = esp_lcd_panel_disp_on_off(s_panel, true)) != ESP_OK) return err;
-    ESP_LOGW(TAG, "panel on");
+    ESP_LOGW(TAG, "panel on (BGR+invert+gap y=20)");
+
+    /* Hardware probe: fill screen with solid colors before LVGL. */
+    {
+        enum { LINE = 240 };
+        uint16_t *line = calloc(LINE, sizeof(uint16_t));
+        if (line) {
+            for (int y = 0; y < 280; ++y) {
+                uint16_t c = (y < 90) ? 0xF800 : (y < 180) ? 0x07E0 : 0x001F; /* R/G/B bands */
+                for (int x = 0; x < LINE; ++x) line[x] = c;
+                (void)esp_lcd_panel_draw_bitmap(s_panel, 0, y, LINE, y + 1, line);
+            }
+            free(line);
+            ESP_LOGW(TAG, "RGB band probe drawn");
+        }
+    }
 
     lv_init();
     lv_disp_draw_buf_init(&s_draw_buf, s_buf1, s_buf2, CUBE_LCD_H_RES * 20);

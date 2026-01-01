@@ -23,10 +23,9 @@
 #define CUBE_LCD_CS_GPIO             4
 #define CUBE_LCD_DC_GPIO             18
 #define CUBE_LCD_SPI_HZ              20000000
-/* Backlight: GPIO2 is ESP32-C3 strapping — do NOT drive it.
-   Free non-strapping candidates: 3,6,7,20,21. Default BL try GPIO6 (active high).
-   Set to -1 to disable. */
-#define CUBE_LCD_BL_GPIO             6
+/* Backlight GPIO unknown from dump. GPIO2=strapping, GPIO6=RELAY (clicked).
+   Leave disabled until proven. Status LED also unknown. */
+#define CUBE_LCD_BL_GPIO             (-1)
 #define CUBE_LCD_RST_GPIO            (-1)
 #define CUBE_STATUS_LED_GPIO         (-1)
 #define CUBE_LCD_QUEUE_DEPTH         10
