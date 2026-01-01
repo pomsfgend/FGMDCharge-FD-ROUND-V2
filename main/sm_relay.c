@@ -106,8 +106,13 @@ static void tx_brm(void)
     b[4] = 0xE8; b[5] = 0x03;     /* 100.0 Ah */
     b[6] = 0xA0; b[7] = 0x0F;     /* 400.0 V */
     memcpy(&b[24], "TESTVIN000000001", 17);
-    tx_bam(0x000200u, b, 49);
-    app_state_log("TX BRM 49B");
+    if (st_proto_is_2011()) {
+        tx_bam(0x000200u, b, 41);
+        app_state_log("TX BRM 41B GBT-2011");
+    } else {
+        tx_bam(0x000200u, b, 49);
+        app_state_log("TX BRM 49B GBT-2015");
+    }
 }
 
 static void tx_bcp(void)
