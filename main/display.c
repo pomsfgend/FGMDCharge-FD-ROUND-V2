@@ -197,7 +197,7 @@ static void gesture_cb(lv_event_t *e)
     if (code != LV_EVENT_RELEASED || !s_arm) return;
     s_arm = false;
     if (s_page == 1 && s_down.y >= 140 && s_down.y <= 230) return;
-    if (s_page == 0 && s_down.y >= 168) return;
+    if (s_page == 0 && s_down.y >= 190) return;
     int dx = pt.x - s_down.x;
     int dy = pt.y - s_down.y;
     if (dx < 0) dx = -dx;
@@ -373,24 +373,24 @@ static void build_ui(void)
 {
     s_scr_chg = lv_scr_act();
     style_screen(s_scr_chg);
-    line(s_scr_chg, "CUBE 2.4.5", 6);
-    s_card_u = card(s_scr_chg, 10, 26, &s_voltage, "V");
-    s_card_i = card(s_scr_chg, 122, 26, &s_current, "A");
+    line(s_scr_chg, "CUBE 2.4.6", 6);
+    s_card_u = card(s_scr_chg, 10, 40, &s_voltage, "V");
+    s_card_i = card(s_scr_chg, 122, 40, &s_current, "A");
     (void)s_card_u; (void)s_card_i;
-    s_power = line(s_scr_chg, "P --", 88);
-    s_soc = line(s_scr_chg, "SOC --", 106);
-    s_stage = line(s_scr_chg, "IDLE", 124);
-    s_relay = line(s_scr_chg, "A0 B0", 142);
-    s_cml = line(s_scr_chg, "LIM --", 160);
+    s_power = line(s_scr_chg, "P --", 104);
+    s_soc = line(s_scr_chg, "SOC --", 122);
+    s_stage = line(s_scr_chg, "GB/T", 140);
+    s_relay = line(s_scr_chg, "A0 B0", 158);
+    s_cml = line(s_scr_chg, "LIM --", 176);
     lv_obj_t *stop = lv_btn_create(s_scr_chg);
     lv_obj_set_size(stop, 216, 36);
-    lv_obj_align(stop, LV_ALIGN_TOP_MID, 0, 182);
+    lv_obj_align(stop, LV_ALIGN_TOP_MID, 0, 198);
     lv_obj_set_style_bg_color(stop, lv_color_hex(0xE74C3C), 0);
     lv_obj_add_event_cb(stop, stop_hold_cb, LV_EVENT_LONG_PRESSED, NULL);
     lv_obj_t *stop_lbl = lv_label_create(stop);
     lv_label_set_text(stop_lbl, "HOLD STOP");
     lv_obj_center(stop_lbl);
-    s_dots = line(s_scr_chg, "o - -", 224);
+    s_dots = line(s_scr_chg, "o - -", 240);
 
     s_scr_sys = lv_obj_create(NULL);
     style_screen(s_scr_sys);
@@ -431,13 +431,16 @@ static void build_ui(void)
     s_scr_wifi = lv_obj_create(NULL);
     style_screen(s_scr_wifi);
     line(s_scr_wifi, "WiFi  digits", 2);
-    s_scan_lbl = lv_label_create(s_scr_wifi);
+    lv_obj_t *box = lv_obj_create(s_scr_wifi);
+    lv_obj_set_size(box, 224, 120);
+    lv_obj_align(box, LV_ALIGN_TOP_LEFT, 6, 24);
+    lv_obj_set_style_bg_opa(box, LV_OPA_TRANSP, 0);
+    lv_obj_set_style_border_width(box, 0, 0);
+    s_scan_lbl = lv_label_create(box);
     lv_label_set_text(s_scan_lbl, "nets: --");
-    lv_obj_set_width(s_scan_lbl, 224);
-    lv_obj_set_height(s_scan_lbl, 72);
-    lv_label_set_long_mode(s_scan_lbl, LV_LABEL_LONG_DOT);
+    lv_obj_set_width(s_scan_lbl, 200);
+    lv_label_set_long_mode(s_scan_lbl, LV_LABEL_LONG_WRAP);
     lv_obj_set_style_text_color(s_scan_lbl, lv_color_hex(0xD5DEE8), 0);
-    lv_obj_align(s_scan_lbl, LV_ALIGN_TOP_LEFT, 8, 22);
     s_wifi_ta = lv_textarea_create(s_scr_wifi);
     lv_obj_set_size(s_wifi_ta, 220, 32);
     lv_obj_align(s_wifi_ta, LV_ALIGN_TOP_MID, 0, 100);
@@ -594,7 +597,7 @@ void display_set_values(void)
         lv_label_set_text(s_soc, b);
     }
     if (s_stage) {
-        snprintf(b, sizeof(b), "%s %s", cube_protocol_name(st.protocol), cube_main_state_name(st.main_state));
+        snprintf(b, sizeof(b), "%s %s %s", cube_protocol_name(st.protocol), cube_main_state_name(st.main_state), (st.rx_count & 1) ? "<>" : "--");
         lv_label_set_text(s_stage, b);
     }
     if (s_relay) {

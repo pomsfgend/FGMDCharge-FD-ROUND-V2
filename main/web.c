@@ -151,7 +151,7 @@ static esp_err_t status_get(httpd_req_t *req)
         "\"bcl_voltage_0p1v\":%u,\"bcl_current_0p1a\":%d,\"bcl_mode\":%u,"
         "\"ble\":%s,\"notify\":%s,\"indicate\":%s,\"display\":%s,\"touch\":%s,\"touch_pressed\":%s,"
         "\"protocol\":\"%s\",\"voltage_v\":%.1f,\"current_a\":%.1f,\"power_w\":%ld,\"time_min\":%u,"
-        "\"permit\":\"%s\",\"ccs\":\"%s\",\"can\":\"%s\",\"limit_v\":\"%.1f\",\"limit_i\":\"%.1f\",\"request\":\"%.1f/%.1f\",\"mode\":\"%s\",\"wifi\":\"%s\",\"sub_state\":%u}",
+        "\"permit\":\"%s\",\"ccs\":\"%s\",\"can\":\"%s\",\"limit_v\":\"%.1f\",\"limit_i\":\"%.1f\",\"request\":\"%.1f/%.1f\",\"mode\":\"%s\",\"wifi\":\"%s\",\"sub_state\":%u,\"ap_channel\":%d,\"ap_clients\":%u,\"sta_ip\":\"%s\"}",
         CUBE_FW_NAME, CUBE_FW_VERSION,
         s.can_up ? "true" : "false", s.tx_enabled ? "true" : "false",
         (unsigned long)s.rx_count, (unsigned long)s.tx_count,
@@ -180,7 +180,8 @@ static esp_err_t status_get(httpd_req_t *req)
         s.can_up ? "UP" : "DOWN",
         s.cml_max_voltage_raw / 10.0, s.cml_max_current_0p1a / 10.0,
         s.bcl_requested_voltage_raw / 10.0, s.bcl_requested_current_0p1a / 10.0,
-        s.bcl_mode ? "CC" : "CV", CUBE_WIFI_SSID, (unsigned)s.substate);
+        s.bcl_mode ? "CC" : "CV", CUBE_WIFI_SSID, (unsigned)s.substate,
+        web_get_ap_channel(), (unsigned)web_ap_clients(), web_sta_ip());
     if (written < 0 || (size_t)written >= sizeof(json)) return ESP_ERR_NO_MEM;
     set_no_cache(req);
     (void)httpd_resp_set_type(req, "application/json; charset=utf-8");
@@ -429,11 +430,13 @@ static void wifi_ap_event_handler(void *arg, esp_event_base_t event_base,
     if (event_base != WIFI_EVENT) return;
     if (event_id == WIFI_EVENT_AP_STACONNECTED) {
         const wifi_event_ap_staconnected_t *e = (const wifi_event_ap_staconnected_t *)event_data;
+        s_ap_clients++;
         ESP_LOGI(TAG, "STA connected %02X:%02X:%02X:%02X:%02X:%02X AID=%u",
                  e->mac[0], e->mac[1], e->mac[2], e->mac[3], e->mac[4], e->mac[5], e->aid);
     } else if (event_id == WIFI_EVENT_AP_STADISCONNECTED) {
         /* IDF 5.0.9: wifi_event_ap_stadisconnected_t has only mac + aid (no reason). */
         const wifi_event_ap_stadisconnected_t *e = (const wifi_event_ap_stadisconnected_t *)event_data;
+        if (s_ap_clients > 0) s_ap_clients--;
         ESP_LOGW(TAG, "STA disconnected %02X:%02X:%02X:%02X:%02X:%02X AID=%u",
                  e->mac[0], e->mac[1], e->mac[2], e->mac[3], e->mac[4], e->mac[5], e->aid);
     }
@@ -486,12 +489,14 @@ static esp_err_t session_stop_post(httpd_req_t *req)
 
 
 static int s_ap_channel = CUBE_WIFI_CHANNEL;
+static int s_ap_clients;
 static char s_scan_ssid[8][33];
 static int s_scan_n;
 static char s_sta_ip[20] = "--";
 static char s_join_ssid[33];
 
 int web_get_ap_channel(void) { return s_ap_channel; }
+int web_ap_clients(void) { return s_ap_clients; }
 int web_scan_count(void) { return s_scan_n; }
 const char *web_scan_ssid(int index)
 {
@@ -607,16 +612,35 @@ static esp_err_t setpoints_post(httpd_req_t *req)
     sscanf(body, "v=%d&i=%d&soc=%d&vin=%17s", &v, &i, &soc, vin);
     if (v > 0 && v < 1000) v *= 10; /* volts from the page */
     if (i > 0 && i < 400) i *= 10;  /* amps from the page */
-    if (v < 2000) v = 2000;
+    if (v < 500) v = 500;
     if (v > 5000) v = 5000;
     if (i < 10) i = 10;
     if (i > 2500) i = 2500;
     app_state_set_bcl((uint16_t)v, (int16_t)i, 1);
+    app_state_set_battery_vi((uint16_t)v, (int16_t)i);
     if (soc >= 0 && soc <= 100) app_state_set_soc((uint8_t)soc);
     if (vin[0]) app_state_set_vin(vin);
     app_state_log("setpoints updated, session not stopped");
     httpd_resp_set_type(req, "application/json");
     return httpd_resp_sendstr(req, "{\"ok\":true}");
+}
+
+
+static esp_err_t wifi_scan_get(httpd_req_t *req)
+{
+    set_security_headers(req);
+    (void)web_scan_now();
+    char buf[700];
+    size_t used = 0;
+    appendf(buf, sizeof(buf), &used, "{\"ok\":true,\"nets\":[");
+    int n = web_scan_count();
+    for (int i = 0; i < n; i++) {
+        appendf(buf, sizeof(buf), &used, "%s\"%s\"", i ? "," : "", web_scan_ssid(i));
+    }
+    appendf(buf, sizeof(buf), &used, "]}");
+    set_no_cache(req);
+    httpd_resp_set_type(req, "application/json");
+    return httpd_resp_sendstr(req, buf);
 }
 
 esp_err_t web_init(void)
@@ -697,6 +721,7 @@ esp_err_t web_init(void)
         {.uri = "/ncsi.txt", .method = HTTP_GET, .handler = captive_text_get},
         {.uri = "/success.txt", .method = HTTP_GET, .handler = captive_text_get},
         {.uri = "/api/status", .method = HTTP_GET, .handler = status_get},
+        {.uri = "/api/wifi/scan", .method = HTTP_GET, .handler = wifi_scan_get},
         {.uri = "/api/can/recent", .method = HTTP_GET, .handler = can_recent_get},
         {.uri = "/api/can", .method = HTTP_GET, .handler = can_recent_get},
         {.uri = "/api/start", .method = HTTP_POST, .handler = session_start_post},
