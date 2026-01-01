@@ -1,0 +1,82 @@
+#include "freertos/FreeRTOS.h"
+#include "freertos/task.h"
+#include "nvs_flash.h"
+#include "esp_err.h"
+#include "esp_log.h"
+#include "app_state.h"
+#include "can_gbt.h"
+#include "display.h"
+#include "touch_cst816s.h"
+#include "ble.h"
+#include "web.h"
+#include "settings.h"
+#include "config.h"
+
+static const char *TAG = "MAIN";
+void adc_pwm_init(void);
+
+static void myTask_Timer(void *arg)
+{
+    (void)arg;
+    for (;;) {
+        app_state_housekeeping();
+        vTaskDelay(pdMS_TO_TICKS(1000));
+    }
+}
+
+void app_main(void) {
+    esp_err_t err = nvs_flash_init();
+    if (err == ESP_ERR_NVS_NO_FREE_PAGES || err == ESP_ERR_NVS_NEW_VERSION_FOUND) {
+        err = nvs_flash_erase();
+        if (err == ESP_OK) err = nvs_flash_init();
+    }
+    if (err != ESP_OK) {
+        ESP_LOGE(TAG, "NVS init failed: %s", esp_err_to_name(err));
+        return;
+    }
+
+    app_state_init();
+
+    err = settings_init();
+    if (err != ESP_OK) ESP_LOGW(TAG, "settings init failed: %s", esp_err_to_name(err));
+
+    adc_pwm_init();
+
+    err = gbt_can_init();
+    if (err != ESP_OK) {
+        ESP_LOGE(TAG, "CAN init failed: %s", esp_err_to_name(err));
+    } else if (xTaskCreate(gbt_can_task, "myTask_CAN", 4096, NULL, 4, NULL) != pdPASS) {
+        ESP_LOGE(TAG, "CAN task creation failed");
+    }
+
+    /* Initialize the touch probe before the UI starts refreshing. The LVGL
+       input driver itself is registered by display_init() and remains safe even
+       when no touch controller is present. */
+    err = touch_init();
+    if (err != ESP_OK) ESP_LOGW(TAG, "touch init failed: %s", esp_err_to_name(err));
+
+    err = display_init();
+    if (err != ESP_OK) {
+        ESP_LOGE(TAG, "display init failed: %s", esp_err_to_name(err));
+    } else if (xTaskCreate(display_task, "myTask_lcd", 6144, NULL, 2, NULL) != pdPASS) {
+        ESP_LOGE(TAG, "display task creation failed");
+    }
+
+    err = cube_ble_init();
+    if (err != ESP_OK) {
+        ESP_LOGE(TAG, "BLE init failed: %s", esp_err_to_name(err));
+    } else if (xTaskCreate(cube_ble_task, "myTask_BLE", 4096, NULL, 3, NULL) != pdPASS) {
+        ESP_LOGE(TAG, "BLE task creation failed");
+    }
+
+    if (xTaskCreate(myTask_Timer, "myTask_Timer", 4096, NULL, 2, NULL) != pdPASS) {
+        ESP_LOGE(TAG, "Timer task creation failed");
+    }
+
+    err = web_init();
+    if (err != ESP_OK) ESP_LOGE(TAG, "Web init failed: %s", esp_err_to_name(err));
+
+    ESP_LOGI(TAG, "FD_ROUND V2 %s running; CAN TX default=%d", CUBE_FW_VERSION,
+             gbt_can_get_tx_enabled());
+    for (;;) vTaskDelay(pdMS_TO_TICKS(1000));
+}

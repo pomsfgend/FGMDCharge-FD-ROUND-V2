@@ -1,0 +1,54 @@
+#pragma once
+
+#define CUBE_FW_NAME                 "FD_ROUND_V2"
+#define CUBE_FW_VERSION              "2.0.4"
+
+/* Web API protection. Change before installing on a real vehicle/charging setup. */
+#define CUBE_WEB_KEY                 "change-me-2026"
+#define CUBE_WIFI_SSID               "FGMDCharge-V2"
+#define CUBE_WIFI_PASSWORD           "FDcube2026"  /* change before field use */
+#define CUBE_WIFI_CHANNEL            1
+#define CUBE_WIFI_MAX_CONNECTIONS    4
+
+/* Safety: the new firmware boots with CAN transmission disabled. */
+#define CUBE_TX_COMPILED_ENABLE      1
+#define CUBE_TX_DEFAULT_ENABLED      0
+
+/* LCD confirmed from the original dump. */
+#define CUBE_LCD_H_RES               240
+#define CUBE_LCD_V_RES               280
+#define CUBE_LCD_MOSI_GPIO           5
+#define CUBE_LCD_MISO_GPIO           (-1)
+#define CUBE_LCD_SCLK_GPIO           19
+#define CUBE_LCD_CS_GPIO             4
+#define CUBE_LCD_DC_GPIO             18
+#define CUBE_LCD_SPI_HZ              20000000
+#define CUBE_LCD_QUEUE_DEPTH         10
+#define CUBE_LCD_MAX_TRANSFER        38400
+
+/* Touch is intentionally configurable: the controller identity was not proven from the dump. */
+#define CUBE_TOUCH_ENABLED_DEFAULT   1
+#define CUBE_TOUCH_SDA_GPIO          1
+#define CUBE_TOUCH_SCL_GPIO          8
+#define CUBE_TOUCH_I2C_PORT          0
+#define CUBE_TOUCH_ADDR              0x15
+#define CUBE_TOUCH_SWAP_XY           0
+#define CUBE_TOUCH_INVERT_X          0
+#define CUBE_TOUCH_INVERT_Y          0
+
+/* CAN/TWAI confirmed from the original dump. */
+#define CUBE_CAN_TX_GPIO             10
+#define CUBE_CAN_RX_GPIO             9
+#define CUBE_CAN_BITRATE             250000
+#define CUBE_CAN_TX_QUEUE             10
+#define CUBE_CAN_RX_QUEUE             10
+
+/* Original BLE identity. */
+#define CUBE_BLE_NAME                "FGMDCharge"
+#define CUBE_BLE_SERVICE_UUID        0xFFE0
+#define CUBE_BLE_CHAR1_UUID          0xFFE1
+#define CUBE_BLE_CHAR2_UUID          0xFFE2
+#define CUBE_BLE_CHAR3_UUID          0xFFE3
+
+#define CUBE_CAN_HISTORY              64
+#define CUBE_HTTP_MAX_UPLOAD       (0x190000)

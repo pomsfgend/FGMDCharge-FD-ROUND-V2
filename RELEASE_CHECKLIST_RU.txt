@@ -1,0 +1,19 @@
+FGMDCharge / FD_ROUND V2 — Release 2.0.4
+=======================================
+
+[ ] Архив распакован в короткий ASCII-путь.
+[ ] ESP-IDF 5.0.9 установлен.
+[ ] BUILD_RELEASE.bat завершился строкой BUILD OK.
+[ ] Host core tests: PASS.
+[ ] Static audit: PASS.
+[ ] App image check: PASS.
+[ ] Verify release: PASS.
+[ ] Перед прошивкой сохранён полный backup 4 MiB.
+[ ] Проверен `release\FGMDCharge_FD_ROUND_V2.bin`.
+[ ] В первый запуск записан только OTA1.
+[ ] Старый OTA0 сохранён.
+[ ] После загрузки доступен Wi-Fi FGMDCharge-V2.
+[ ] Web UI открывается по http://192.168.4.1/.
+[ ] CAN TX остаётся OFF до отдельной проверки.
+[ ] При необходимости есть откат через ROLLBACK_OTA0.bat.
+[ ] При тяжёлой аварии есть RECOVERY_ORIGINAL.bat.

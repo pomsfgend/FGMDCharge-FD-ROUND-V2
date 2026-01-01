@@ -1,0 +1,5 @@
+SPDX-License-Identifier: Apache-2.0
+
+This directory contains the Espressif ILI9341 LCD component implementation,
+adapted only to make the release self-contained. Copyright 2022-2026 Espressif
+Systems (Shanghai) CO LTD. See https://www.apache.org/licenses/LICENSE-2.0.

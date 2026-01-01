@@ -1,0 +1,25 @@
+FGMDCharge / FD_ROUND V2 — Release 2.0.4
+=======================================
+
+Исправлены ошибки, на которых ранее падала компиляция/финальная линковка:
+1) BLE GAP/GATTS API теперь компонуется с принудительно включённым Bluedroid BLE stack.
+2) Веб-ресурсы больше не зависят от linker `EMBED_*`: они генерируются в `main/web_assets.c`.
+
+Дополнительно исправлены:
+- GATT service/characteristic table;
+- lifetime advertising buffers;
+- BLE notification size;
+- LVGL async LCD flush completion;
+- LVGL touch input registration;
+- CAN 250-kbit timing + BUS-OFF recovery;
+- безопасная OTA finalization/boot selection;
+- HTTP timeout retry;
+- strict Raw CAN validation;
+- настоящий OTA progress в Web UI;
+- стандартных и расширенных CAN ID в Raw CAN;
+- Python host-test mutable-default bug;
+- единый static/release audit.
+
+Web UI полностью локальный, без CDN, с анимациями и prefers-reduced-motion fallback.
+
+3) Отсутствующий `esp_lcd_ili9341.h` устранён добавлением локального компонента `components/esp_lcd_ili9341`, поэтому драйвер LCD не требует отдельной загрузки из Registry.
