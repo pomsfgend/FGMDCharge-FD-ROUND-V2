@@ -4,6 +4,10 @@
 #include <string.h>
 #include <limits.h>
 #include "config.h"
+#include "web.h"
+#include "esp_wifi.h"
+#include "esp_clk.h"
+#include "driver/temperature_sensor.h"
 #include "app_state.h"
 #include "touch_cst816s.h"
 #include "driver/spi_master.h"
@@ -36,6 +40,17 @@ static lv_obj_t *s_request;
 static lv_obj_t *s_time;
 static lv_obj_t *s_status;
 static lv_obj_t *s_can;
+static lv_obj_t *s_page_chg;
+static lv_obj_t *s_page_sys;
+static lv_obj_t *s_sys_temp;
+static lv_obj_t *s_sys_freq;
+static lv_obj_t *s_sys_wifi;
+static lv_obj_t *s_sys_mac;
+static lv_obj_t *s_sys_heap;
+static lv_obj_t *s_sys_touch;
+static lv_obj_t *s_sys_status;
+static int s_ui_page; /* 0=charge 1=sys */
+static temperature_sensor_handle_t s_temps;
 static lv_color_t *s_buf1;
 static lv_color_t *s_buf2;
 static lv_disp_draw_buf_t s_draw_buf;
@@ -105,44 +120,143 @@ static lv_obj_t *make_card(lv_obj_t *parent, lv_coord_t x, lv_coord_t y, lv_coor
     return card;
 }
 
-static void ui_create(void) {
-    /* Compact layout for 240x280 portrait (CST816 cube). */
-    lv_obj_t *scr = lv_scr_act();
-    lv_obj_set_style_bg_color(scr, lv_color_hex(0x07111C), 0);
-    lv_obj_set_style_bg_opa(scr, LV_OPA_COVER, 0);
-    lv_obj_clear_flag(scr, LV_OBJ_FLAG_SCROLLABLE);
+static void page_show(int page)
+{
+    s_ui_page = page;
+    if (s_page_chg) lv_obj_add_flag(s_page_chg, page == 0 ? 0 : LV_OBJ_FLAG_HIDDEN);
+    if (s_page_chg) {
+        if (page == 0) lv_obj_clear_flag(s_page_chg, LV_OBJ_FLAG_HIDDEN);
+        else lv_obj_add_flag(s_page_chg, LV_OBJ_FLAG_HIDDEN);
+    }
+    if (s_page_sys) {
+        if (page == 1) lv_obj_clear_flag(s_page_sys, LV_OBJ_FLAG_HIDDEN);
+        else lv_obj_add_flag(s_page_sys, LV_OBJ_FLAG_HIDDEN);
+    }
+}
 
-    lv_obj_t *title = make_label(scr, "ГБ/Т Зарядка", 14);
+static void on_btn_sys(lv_event_t *e)
+{
+    (void)e;
+    page_show(1);
+}
+
+static void on_btn_chg(lv_event_t *e)
+{
+    (void)e;
+    page_show(0);
+}
+
+static void on_btn_wifi_rst(lv_event_t *e)
+{
+    (void)e;
+    if (s_sys_status) lv_label_set_text(s_sys_status, "WiFi: restart...");
+    esp_err_t err = web_wifi_restart();
+    if (s_sys_status) {
+        lv_label_set_text(s_sys_status, err == ESP_OK ? "WiFi: OK restarted" : "WiFi: restart FAIL");
+    }
+}
+
+static void ui_create(void)
+{
+    lv_obj_t *scr = lv_scr_act();
+    lv_obj_set_style_bg_color(scr, lv_color_hex(0x101820), 0);
+    lv_obj_set_style_bg_opa(scr, LV_OPA_COVER, 0);
+
+    /* --- page 0: charge --- */
+    s_page_chg = lv_obj_create(scr);
+    lv_obj_set_size(s_page_chg, CUBE_LCD_H_RES, CUBE_LCD_V_RES - 36);
+    lv_obj_set_pos(s_page_chg, 0, 0);
+    lv_obj_set_style_bg_opa(s_page_chg, LV_OPA_TRANSP, 0);
+    lv_obj_set_style_border_width(s_page_chg, 0, 0);
+    lv_obj_set_style_pad_all(s_page_chg, 0, 0);
+    lv_obj_clear_flag(s_page_chg, LV_OBJ_FLAG_SCROLLABLE);
+
+    lv_obj_t *title = make_label(s_page_chg, "ГБ/Т Зарядка", 14);
     lv_obj_align(title, LV_ALIGN_TOP_MID, 0, 4);
 
-    /* Two metric cards: 112x64 with 8px margins fits 240 width cleanly. */
-    (void)make_card(scr, 8, 24, 112, 64, "НАПРЯЖЕНИЕ", &s_voltage);
-    (void)make_card(scr, 120, 24, 112, 64, "ТОК", &s_current);
+    (void)make_card(s_page_chg, 8, 24, 112, 64, "НАПРЯЖЕНИЕ", &s_voltage);
+    (void)make_card(s_page_chg, 120, 24, 112, 64, "ТОК", &s_current);
 
-    s_power = make_label(scr, "МОЩН. ---- Вт", 14);
+    s_power = make_label(s_page_chg, "МОЩН. ---- Вт", 14);
     lv_obj_align(s_power, LV_ALIGN_TOP_LEFT, 10, 96);
-    s_stage = make_label(scr, "ЭТАП --", 14);
+    s_stage = make_label(s_page_chg, "ЭТАП --", 14);
     lv_obj_align(s_stage, LV_ALIGN_TOP_LEFT, 10, 118);
-    s_request = make_label(scr, "ЗАПРОС --.-В --.-А", 14);
+    s_request = make_label(s_page_chg, "ЗАПРОС --.-В --.-А", 14);
     lv_obj_align(s_request, LV_ALIGN_TOP_LEFT, 10, 140);
-    s_time = make_label(scr, "ВРЕМЯ ---- мин", 14);
+    s_time = make_label(s_page_chg, "ВРЕМЯ ---- мин", 14);
     lv_obj_align(s_time, LV_ALIGN_TOP_LEFT, 10, 162);
-    s_status = make_label(scr, "СТАТУС --", 14);
+    s_status = make_label(s_page_chg, "СТАТУС --", 14);
     lv_obj_align(s_status, LV_ALIGN_TOP_LEFT, 10, 184);
-    s_can = make_label(scr, "CAN 250к RX 0", 14);
+    s_can = make_label(s_page_chg, "CAN 250к RX 0", 14);
     lv_obj_align(s_can, LV_ALIGN_TOP_LEFT, 10, 206);
 
-    static char wifi_line[48];
+    char wifi_line[48];
     if (strlen(CUBE_WIFI_PASSWORD) >= 8U) {
         (void)snprintf(wifi_line, sizeof(wifi_line), "WiFi %s / %s", CUBE_WIFI_SSID, CUBE_WIFI_PASSWORD);
     } else {
         (void)snprintf(wifi_line, sizeof(wifi_line), "WiFi %s OPEN", CUBE_WIFI_SSID);
     }
-    lv_obj_t *hint = make_label(scr, wifi_line, 14);
-    lv_obj_align(hint, LV_ALIGN_BOTTOM_LEFT, 10, -28);
+    lv_obj_t *hint = make_label(s_page_chg, wifi_line, 14);
+    lv_obj_align(hint, LV_ALIGN_TOP_LEFT, 10, 228);
 
-    lv_obj_t *hint2 = make_label(scr, CUBE_WIFI_PASSWORD[0] ? "WPA2 ключ" : "Точка 192.168.4.1", 14);
-    lv_obj_align(hint2, LV_ALIGN_BOTTOM_LEFT, 10, -10);
+    /* --- page 1: system / RF diag --- */
+    s_page_sys = lv_obj_create(scr);
+    lv_obj_set_size(s_page_sys, CUBE_LCD_H_RES, CUBE_LCD_V_RES - 36);
+    lv_obj_set_pos(s_page_sys, 0, 0);
+    lv_obj_set_style_bg_opa(s_page_sys, LV_OPA_TRANSP, 0);
+    lv_obj_set_style_border_width(s_page_sys, 0, 0);
+    lv_obj_set_style_pad_all(s_page_sys, 0, 0);
+    lv_obj_clear_flag(s_page_sys, LV_OBJ_FLAG_SCROLLABLE);
+    lv_obj_add_flag(s_page_sys, LV_OBJ_FLAG_HIDDEN);
+
+    lv_obj_t *st = make_label(s_page_sys, "СИСТЕМА / WiFi", 14);
+    lv_obj_align(st, LV_ALIGN_TOP_MID, 0, 4);
+
+    s_sys_temp = make_label(s_page_sys, "Темп. CPU: -- C", 14);
+    lv_obj_align(s_sys_temp, LV_ALIGN_TOP_LEFT, 10, 32);
+    s_sys_freq = make_label(s_page_sys, "CPU: -- MHz", 14);
+    lv_obj_align(s_sys_freq, LV_ALIGN_TOP_LEFT, 10, 54);
+    s_sys_wifi = make_label(s_page_sys, "WiFi ch=--", 14);
+    lv_obj_align(s_sys_wifi, LV_ALIGN_TOP_LEFT, 10, 76);
+    s_sys_mac = make_label(s_page_sys, "MAC --", 14);
+    lv_obj_align(s_sys_mac, LV_ALIGN_TOP_LEFT, 10, 98);
+    s_sys_heap = make_label(s_page_sys, "Heap --", 14);
+    lv_obj_align(s_sys_heap, LV_ALIGN_TOP_LEFT, 10, 120);
+    s_sys_touch = make_label(s_page_sys, "Touch: --", 14);
+    lv_obj_align(s_sys_touch, LV_ALIGN_TOP_LEFT, 10, 142);
+    s_sys_status = make_label(s_page_sys, "WiFi: idle", 14);
+    lv_obj_align(s_sys_status, LV_ALIGN_TOP_LEFT, 10, 164);
+
+    lv_obj_t *btn_rst = lv_btn_create(s_page_sys);
+    lv_obj_set_size(btn_rst, 200, 40);
+    lv_obj_align(btn_rst, LV_ALIGN_TOP_MID, 0, 196);
+    lv_obj_add_event_cb(btn_rst, on_btn_wifi_rst, LV_EVENT_CLICKED, NULL);
+    lv_obj_t *bl = lv_label_create(btn_rst);
+    lv_label_set_text(bl, "RESTART WiFi");
+    lv_obj_set_style_text_font(bl, &lv_font_ru_14, 0);
+    lv_obj_center(bl);
+
+    /* --- bottom nav --- */
+    lv_obj_t *btn_sys = lv_btn_create(scr);
+    lv_obj_set_size(btn_sys, 100, 30);
+    lv_obj_align(btn_sys, LV_ALIGN_BOTTOM_RIGHT, -8, -4);
+    lv_obj_add_event_cb(btn_sys, on_btn_sys, LV_EVENT_CLICKED, NULL);
+    lv_obj_t *ls = lv_label_create(btn_sys);
+    lv_label_set_text(ls, "SYS");
+    lv_obj_set_style_text_font(ls, &lv_font_ru_14, 0);
+    lv_obj_center(ls);
+
+    lv_obj_t *btn_ch = lv_btn_create(scr);
+    lv_obj_set_size(btn_ch, 100, 30);
+    lv_obj_align(btn_ch, LV_ALIGN_BOTTOM_LEFT, 8, -4);
+    lv_obj_add_event_cb(btn_ch, on_btn_chg, LV_EVENT_CLICKED, NULL);
+    lv_obj_t *lc = lv_label_create(btn_ch);
+    lv_label_set_text(lc, "CHARGE");
+    lv_obj_set_style_text_font(lc, &lv_font_ru_14, 0);
+    lv_obj_center(lc);
+
+    s_ui_page = 0;
+    page_show(0);
 }
 
 esp_err_t display_init(void) {
@@ -290,6 +404,15 @@ esp_err_t display_init(void) {
     s_touch_drv.read_cb = touch_lvgl_read;
     if (!lv_indev_drv_register(&s_touch_drv)) return ESP_FAIL;
 
+    s_temps = NULL;
+    {
+        temperature_sensor_config_t tcfg = TEMPERATURE_SENSOR_CONFIG_DEFAULT(-10, 80);
+        if (temperature_sensor_install(&tcfg, &s_temps) == ESP_OK) {
+            (void)temperature_sensor_enable(s_temps);
+        } else {
+            s_temps = NULL;
+        }
+    }
     ui_create();
 
     const esp_timer_create_args_t tick_args = {
@@ -370,8 +493,43 @@ void display_set_values(void) {
                           (unsigned)s.ccs_status_raw, (unsigned)s.ccs_charge_permit);
     lv_label_set_text_fmt(s_can, "CAN 250k  RX %lu", (unsigned long)s.rx_count);
 
+
+    /* System page live stats */
+    if (s_ui_page == 1) {
+        float tc = 0.0f;
+        if (s_temps && temperature_sensor_get_celsius(s_temps, &tc) == ESP_OK) {
+            lv_label_set_text_fmt(s_sys_temp, "Temp CPU: %.1f C", (double)tc);
+        } else {
+            lv_label_set_text(s_sys_temp, "Temp CPU: n/a");
+        }
+        lv_label_set_text_fmt(s_sys_freq, "CPU: %u MHz",
+                              (unsigned)(esp_clk_cpu_freq() / 1000000));
+        {
+            uint8_t ch = CUBE_WIFI_CHANNEL;
+            wifi_config_t wcfg = {0};
+            if (esp_wifi_get_config(WIFI_IF_AP, &wcfg) == ESP_OK) {
+                ch = wcfg.ap.channel;
+            }
+            lv_label_set_text_fmt(s_sys_wifi, "WiFi %s ch=%u %s",
+                                  CUBE_WIFI_SSID, (unsigned)ch,
+                                  (strlen(CUBE_WIFI_PASSWORD) >= 8U) ? "WPA2" : "OPEN");
+        }
+        {
+            uint8_t mac[6] = {0};
+            (void)esp_wifi_get_mac(WIFI_IF_AP, mac);
+            lv_label_set_text_fmt(s_sys_mac, "MAC %02X:%02X:%02X:%02X:%02X:%02X",
+                                  mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
+        }
+        lv_label_set_text_fmt(s_sys_heap, "Heap free %u / min %u",
+                              (unsigned)esp_get_free_heap_size(),
+                              (unsigned)esp_get_minimum_free_heap_size());
+        lv_label_set_text_fmt(s_sys_touch, "Touch: %s",
+                              touch_is_available() ? "OK CST816" : "none");
+    }
+
     lv_timer_handler();
     display_unlock();
+
 }
 
 void display_task(void *arg) {

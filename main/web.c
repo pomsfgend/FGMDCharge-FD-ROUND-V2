@@ -582,3 +582,21 @@ esp_err_t web_init(void)
     return ESP_OK;
 }
 
+
+esp_err_t web_wifi_restart(void)
+{
+    ESP_LOGW(TAG, "WiFi restart requested");
+    esp_err_t err = esp_wifi_stop();
+    if (err != ESP_OK && err != ESP_ERR_WIFI_NOT_STARTED) {
+        ESP_LOGE(TAG, "wifi_stop: %s", esp_err_to_name(err));
+    }
+    vTaskDelay(pdMS_TO_TICKS(200));
+    err = esp_wifi_start();
+    if (err != ESP_OK) {
+        ESP_LOGE(TAG, "wifi_start: %s", esp_err_to_name(err));
+        return err;
+    }
+    (void)esp_wifi_set_ps(WIFI_PS_NONE);
+    ESP_LOGW(TAG, "WiFi restarted SSID=%s", CUBE_WIFI_SSID);
+    return ESP_OK;
+}
