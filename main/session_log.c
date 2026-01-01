@@ -148,7 +148,7 @@ static int compose(int reason)
     app_state_snapshot(&st);
     if (gbt_can_get_history(frames, 16, &nframes) != ESP_OK) nframes = 0;
     o = add_fmt(0,
-                "FD_ROUND_V2 %s\nпричина: %s\nпротокол: %s\nрежим: %s\nпередача CAN: %s\n"
+                "FD_ROUND_V2 %s\nфайл сессии CAN\nпричина: %s\nпротокол: %s\nрежим: %s\nпередача CAN: %s\n"
                 "VIN: %s\nсостояние: %s\nприём: %lu\nотправка: %lu\n--- события ---\n",
                 CUBE_FW_VERSION, reason_ru(reason), cube_protocol_name(st.protocol),
                 app_state_protocol_locked() ? "выбран вручную" : "авто",
@@ -270,11 +270,14 @@ void session_log_service(void)
 void session_log_on_second(void)
 {
     static unsigned tick;
+    static uint32_t seen;
     cube_state_snapshot_t st;
     tick++;
     app_state_snapshot(&st);
-    if ((tick % 30u) == 0u && st.rx_count > 0 && (st.session_active || st.protocol != 0)) {
-        session_log_request(0, SESSION_LOG_UPDATE);
+    if (st.rx_count > 0 && (st.session_active || st.protocol != 0)) {
+        if (seen == 0u) session_log_request(0, SESSION_LOG_PROTO);
+        else if ((tick % 10u) == 0u) session_log_request(0, SESSION_LOG_UPDATE);
+        seen = st.rx_count;
     }
     session_log_service();
 }
@@ -322,30 +325,42 @@ static int read_payload(int newest_index)
     return (int)slots[newest_index].len;
 }
 
-esp_err_t session_log_send_last(httpd_req_t *req)
+esp_err_t session_log_send_one(httpd_req_t *req, int newest_index)
 {
     int len;
     char *body = NULL;
+    char disp[64];
+    int seq = newest_index + 1;
     if (!s_mu) return ESP_FAIL;
     (void)xSemaphoreTake(s_mu, portMAX_DELAY);
-    len = read_payload(0);
-    if (len <= 0) len = compose(SESSION_LOG_UPDATE);
+    {
+        slot_rec_t slots[CUBE_LOG_SLOTS];
+        int n = collect(slots);
+        if (newest_index >= 0 && newest_index < n) seq = (int)slots[newest_index].seq;
+    }
+    len = read_payload(newest_index);
     if (len > 0) {
         body = malloc((size_t)len);
         if (body) memcpy(body, s_text, (size_t)len);
     }
     (void)xSemaphoreGive(s_mu);
+    (void)snprintf(disp, sizeof(disp), "attachment; filename=\"cube-%d.txt\"", seq);
     (void)httpd_resp_set_type(req, "text/plain; charset=utf-8");
-    (void)httpd_resp_set_hdr(req, "Content-Disposition", "attachment; filename=\"cube-last.txt\"");
+    (void)httpd_resp_set_hdr(req, "Content-Disposition", disp);
     if (!body || len <= 0) {
         free(body);
-        return httpd_resp_sendstr(req, "логов нет\n");
+        return httpd_resp_sendstr(req, "этого файла нет\n");
     }
     {
         esp_err_t err = httpd_resp_send(req, body, len);
         free(body);
         return err;
     }
+}
+
+esp_err_t session_log_send_last(httpd_req_t *req)
+{
+    return session_log_send_one(req, 0);
 }
 
 static uint32_t crc32_zip(const uint8_t *data, size_t len)

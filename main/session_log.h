@@ -16,4 +16,5 @@ void session_log_on_second(void);
 int session_log_count(void);
 int session_log_info(int newest_index, int *seq, int *nbytes, int *protocol, int *reason);
 esp_err_t session_log_send_last(httpd_req_t *req);
+esp_err_t session_log_send_one(httpd_req_t *req, int newest_index);
 esp_err_t session_log_send_zip(httpd_req_t *req);

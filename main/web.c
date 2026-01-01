@@ -13,6 +13,8 @@
 #include "esp_wifi.h"
 #include "esp_event.h"
 #include "esp_netif.h"
+#include "dhcpserver/dhcpserver.h"
+#include "unistd.h"
 #include "esp_system.h"
 #include "esp_timer.h"
 #include "freertos/FreeRTOS.h"
@@ -84,26 +86,10 @@ static esp_err_t send_asset(httpd_req_t *req, const char *type, const uint8_t *d
 {
     set_security_headers(req);
     (void)httpd_resp_set_type(req, type);
-    (void)httpd_resp_set_hdr(req, "Cache-Control", cache ? "public, max-age=3600" : "no-cache");
-    /* One TCP send of the whole page needs several free Wi-Fi buffers at once.
-       On this chip that times out (errno 11) and the phone shows a blank site.
-       1 KiB at a time reuses a single buffer. */
-    size_t off = 0;
-    while (off < len) {
-        size_t n = len - off;
-        if (n > 1024U) n = 1024U;
-        esp_err_t err = httpd_resp_send_chunk(req, (const char *)data + off, (ssize_t)n);
-        if (err != ESP_OK) {
-            ESP_LOGW(TAG, "page send failed %s off=%u/%u heap=%u", req->uri,
-                     (unsigned)off, (unsigned)len,
-                     (unsigned)heap_caps_get_free_size(MALLOC_CAP_8BIT));
-            (void)httpd_resp_send_chunk(req, NULL, 0);
-            return err;
-        }
-        off += n;
-        if (off < len) vTaskDelay(1);
-    }
-    return httpd_resp_send_chunk(req, NULL, 0);
+    (void)httpd_resp_set_hdr(req, "Cache-Control", cache ? "public, max-age=86400" : "no-cache");
+    /* Whole page in one send. The old 1 KiB loop paused between pieces and
+       the phone dropped the socket (errno 11) before the page finished. */
+    return httpd_resp_send(req, (const char *)data, len);
 }
 
 static esp_err_t root_get(httpd_req_t *req)
@@ -901,10 +887,111 @@ static esp_err_t logs_zip_get(httpd_req_t *req)
     return session_log_send_zip(req);
 }
 
+static esp_err_t logs_file_get(httpd_req_t *req)
+{
+    char q[40] = {0};
+    char nbuf[8] = {0};
+    int n = 0;
+    set_security_headers(req);
+    set_no_cache(req);
+    if (httpd_req_get_url_query_str(req, q, sizeof(q)) == ESP_OK &&
+        httpd_query_key_value(q, "n", nbuf, sizeof(nbuf)) == ESP_OK) {
+        n = atoi(nbuf);
+        if (n < 0) n = 0;
+    }
+    return session_log_send_one(req, n);
+}
+
+static void dns_task(void *arg)
+{
+    int sock;
+    struct sockaddr_in local;
+    (void)arg;
+    sock = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
+    if (sock < 0) {
+        ESP_LOGW(TAG, "dns socket fail");
+        vTaskDelete(NULL);
+        return;
+    }
+    memset(&local, 0, sizeof(local));
+    local.sin_family = AF_INET;
+    local.sin_port = htons(53);
+    local.sin_addr.s_addr = htonl(INADDR_ANY);
+    if (bind(sock, (struct sockaddr *)&local, sizeof(local)) != 0) {
+        ESP_LOGW(TAG, "dns bind fail");
+        close(sock);
+        vTaskDelete(NULL);
+        return;
+    }
+    ESP_LOGW(TAG, "dns up");
+    for (;;) {
+        uint8_t pkt[512];
+        struct sockaddr_in from;
+        socklen_t flen = sizeof(from);
+        int n = recvfrom(sock, pkt, sizeof(pkt), 0, (struct sockaddr *)&from, &flen);
+        int i;
+        int qtype;
+        if (n < 12 || n > (int)sizeof(pkt) - 16) continue;
+        if ((pkt[2] & 0x80) != 0) continue;
+        if (((pkt[2] >> 3) & 0x0F) != 0) continue;
+        if (pkt[4] == 0 && pkt[5] == 0) continue;
+        i = 12;
+        while (i < n && pkt[i] != 0) {
+            int lab = pkt[i];
+            if ((lab & 0xC0) == 0xC0) {
+                i += 2;
+                goto named;
+            }
+            if (lab > 63 || i + 1 + lab >= n) goto skip;
+            i += 1 + lab;
+        }
+        if (i >= n || pkt[i] != 0) continue;
+        i++;
+named:
+        if (i + 4 > n) continue;
+        qtype = ((int)pkt[i] << 8) | pkt[i + 1];
+        i += 4;
+        pkt[2] = (uint8_t)((pkt[2] & 0x01) | 0x84);
+        pkt[3] = 0;
+        pkt[8] = 0;
+        pkt[9] = 0;
+        pkt[10] = 0;
+        pkt[11] = 0;
+        if (qtype != 1) {
+            pkt[6] = 0;
+            pkt[7] = 0;
+            (void)sendto(sock, pkt, n, 0, (struct sockaddr *)&from, flen);
+            continue;
+        }
+        if (i + 16 > (int)sizeof(pkt)) continue;
+        pkt[6] = 0;
+        pkt[7] = 1;
+        pkt[i++] = 0xC0;
+        pkt[i++] = 0x0C;
+        pkt[i++] = 0x00;
+        pkt[i++] = 0x01;
+        pkt[i++] = 0x00;
+        pkt[i++] = 0x01;
+        pkt[i++] = 0x00;
+        pkt[i++] = 0x00;
+        pkt[i++] = 0x00;
+        pkt[i++] = 0x3C;
+        pkt[i++] = 0x00;
+        pkt[i++] = 0x04;
+        pkt[i++] = 192;
+        pkt[i++] = 168;
+        pkt[i++] = 4;
+        pkt[i++] = 1;
+        (void)sendto(sock, pkt, i, 0, (struct sockaddr *)&from, flen);
+skip:
+        ;
+    }
+}
+
 static esp_err_t http_open(httpd_handle_t hd, int sockfd)
 {
     int nodelay = 1;
-    int snd = 2048;
+    int snd = 16384;
     (void)hd;
     (void)setsockopt(sockfd, IPPROTO_TCP, TCP_NODELAY, &nodelay, sizeof(nodelay));
     (void)setsockopt(sockfd, SOL_SOCKET, SO_SNDBUF, &snd, sizeof(snd));
@@ -941,6 +1028,20 @@ esp_err_t web_init(void)
     (void)esp_event_handler_register(IP_EVENT, IP_EVENT_STA_GOT_IP, &wifi_ip_handler, NULL);
     if (!esp_netif_create_default_wifi_ap()) return ESP_ERR_NO_MEM;
     if (!esp_netif_create_default_wifi_sta()) return ESP_ERR_NO_MEM;
+    {
+        esp_netif_t *apn = esp_netif_get_handle_from_ifkey("WIFI_AP_DEF");
+        if (apn) {
+            esp_netif_dns_info_t dns = {0};
+            dhcps_offer_t offer = OFFER_DNS;
+            dns.ip.type = ESP_IPADDR_TYPE_V4;
+            dns.ip.u_addr.ip4.addr = esp_ip4addr_aton("192.168.4.1");
+            (void)esp_netif_dhcps_stop(apn);
+            (void)esp_netif_set_dns_info(apn, ESP_NETIF_DNS_MAIN, &dns);
+            (void)esp_netif_dhcps_option(apn, ESP_NETIF_OP_SET, ESP_NETIF_DOMAIN_NAME_SERVER,
+                                         &offer, sizeof(offer));
+            (void)esp_netif_dhcps_start(apn);
+        }
+    }
 
     wifi_init_config_t cfg = WIFI_INIT_CONFIG_DEFAULT();
     /* A saved sdkconfig from an older build still has the IDF defaults
@@ -1049,6 +1150,7 @@ esp_err_t web_init(void)
         {.uri = "/api/start", .method = HTTP_POST, .handler = session_start_post},
         {.uri = "/api/log", .method = HTTP_GET, .handler = log_get},
         {.uri = "/api/logs/last", .method = HTTP_GET, .handler = logs_last_get},
+        {.uri = "/api/logs/file", .method = HTTP_GET, .handler = logs_file_get},
         {.uri = "/api/logs.zip", .method = HTTP_GET, .handler = logs_zip_get},
         {.uri = "/api/logs", .method = HTTP_GET, .handler = logs_list_get},
         {.uri = "/api/setpoints", .method = HTTP_POST, .handler = setpoints_post},
@@ -1075,5 +1177,8 @@ esp_err_t web_init(void)
     }
     ESP_LOGW(TAG, "softAP started SSID:%s password:%s channel:%d", CUBE_WIFI_SSID, CUBE_WIFI_PASSWORD, s_ap_channel);
     ESP_LOGI(TAG, "Wi-Fi AP=%s UI=http://192.168.4.1/", CUBE_WIFI_SSID);
+    if (xTaskCreate(dns_task, "dns", 3072, NULL, 5, NULL) != pdPASS) {
+        ESP_LOGW(TAG, "dns task fail");
+    }
     return ESP_OK;
 }

@@ -40,7 +40,7 @@ A helper around `0x4200B5F8` maintains reassembly state around `0x3FC981E8`.
 Observed control values include `0x11` and `0x13`, and maximum total length is `0x6F0` bytes.
 V2 includes a generic reassembler. BMS answers on the new firmware are transmitted as soon as the station is recognized.
 
-## GB/T 27930 on this 250 kbit/s port (2.8.13)
+## GB/T 27930 on this 250 kbit/s port (2.8.14)
 
 The cube is the vehicle (EVCC/BMS). On the new firmware TX is on at boot, protocol starts in AUTO and latches from the first identifying frame. A manual 2015 / 2011 / 2023 choice stays locked until AUTO is selected again. After the session ends an unlocked choice returns to AUTO. ISO 15118, CHAdeMO and cloud OCPP/云快充 do not share this port. The last session text is stored in the erased flash tail at 0x330000 (8 slots) and downloaded from the local site.
 
