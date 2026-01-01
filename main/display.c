@@ -573,7 +573,7 @@ static void build_ui(void)
 {
     s_scr_chg = lv_scr_act();
     style_screen(s_scr_chg);
-    line(s_scr_chg, "ДОМ 2.7.2", 8);
+    line(s_scr_chg, "ДОМ 2.7.3", 8);
     lv_obj_add_flag(s_scr_chg, LV_OBJ_FLAG_SCROLLABLE);
     s_card_u = card(s_scr_chg, 10, 40, &s_voltage, "V");
     s_card_i = card(s_scr_chg, 122, 40, &s_current, "A");
@@ -671,14 +671,14 @@ static void build_ui(void)
     s_log_lbl = line(s_scr_log, "нет событий", 28);
     lv_label_set_long_mode(s_log_lbl, LV_LABEL_LONG_WRAP);
     lv_obj_set_width(s_log_lbl, 210);
-    lv_obj_set_style_text_font(s_log_lbl, &lv_font_montserrat_12, 0);
+    lv_obj_set_style_text_font(s_log_lbl, &lv_font_montserrat_14, 0);
     line(s_scr_log, "ЛОГИ CAN", 136);
     s_can_lbl = line(s_scr_log, "нет кадров", 156);
     lv_label_set_long_mode(s_can_lbl, LV_LABEL_LONG_WRAP);
     lv_obj_set_height(s_can_lbl, 110);
     s_scr_sys = lv_obj_create(NULL);
     style_screen(s_scr_sys);
-    line(s_scr_sys, "СИСТЕМА 2.7.2", 4);
+    line(s_scr_sys, "СИСТЕМА 2.7.3", 4);
     s_sys_temp = line(s_scr_sys, "CPU -- C", 28);
     s_sys_cpu = line(s_scr_sys, "F 160 MHz", 48);
     s_sys_load = line(s_scr_sys, "Load -- %", 68);
