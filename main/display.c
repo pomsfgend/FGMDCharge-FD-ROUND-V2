@@ -856,7 +856,7 @@ static void build_ui(void)
     lv_obj_set_height(s_can_lbl, 110);
     s_scr_sys = lv_obj_create(NULL);
     style_screen(s_scr_sys);
-    line(s_scr_sys, "СИСТЕМА 2.8.7", 4);
+    line(s_scr_sys, "СИСТЕМА 2.8.8", 4);
     s_sys_temp = line(s_scr_sys, "CPU -- C", 28);
     s_sys_cpu = line(s_scr_sys, "F 160 MHz", 48);
     s_sys_load = line(s_scr_sys, "Load -- %", 68);
@@ -1103,8 +1103,8 @@ esp_err_t display_init(void)
     lv_indev_drv_init(&s_touch_drv);
     s_touch_drv.type = LV_INDEV_TYPE_POINTER;
     s_touch_drv.read_cb = touch_lvgl_read;
-    lv_indev_t *touch_in = lv_indev_drv_register(&s_touch_drv);
-    if (touch_in) lv_indev_set_long_press_time(touch_in, 700);
+    s_touch_drv.long_press_time = 700;
+    lv_indev_drv_register(&s_touch_drv);
 
     const esp_timer_create_args_t tick_args = {
         .callback = tick_cb, .name = "lv_tick"
