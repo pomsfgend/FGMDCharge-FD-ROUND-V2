@@ -10,7 +10,7 @@ import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-VERSION = "2.0.6"
+VERSION = "2.1.2"
 DUMP_SHA = "1428dbddc0749eee8ac133b1e16b6c0805a2da4bb4b0c73bc759c1500b03f233"
 ERRORS: list[str] = []
 
@@ -94,6 +94,7 @@ def check_cmake() -> None:
     expected_src = (
         "main.c", "app_state.c", "can_gbt.c", "gbt_tp.c", "display.c", "touch_cst816s.c",
         "ble.c", "web.c", "web_assets.c", "safe_ota.c", "settings.c", "adc_pwm.c",
+        "sm_relay.c",
     )
     for src in expected_src:
         if f'"{src}"' not in cmake: fail(f"main/CMakeLists.txt missing source {src}")

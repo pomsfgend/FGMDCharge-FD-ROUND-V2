@@ -1,7 +1,7 @@
 #pragma once
 
 #define CUBE_FW_NAME                 "FD_ROUND_V2"
-#define CUBE_FW_VERSION              "2.1.0"
+#define CUBE_FW_VERSION              "2.1.2"
 
 /* Web API protection. Change before installing on a real vehicle/charging setup. */
 #define CUBE_WEB_KEY                 "FDcube2026"
@@ -14,7 +14,10 @@
 #define CUBE_TX_COMPILED_ENABLE      1
 #define CUBE_TX_DEFAULT_ENABLED      0
 
-/* LCD — confirmed from original dump (ILI9341, no BL GPIO in original). */
+/* LCD — dump strings said ILI9341, but panel is 240x280 (ST7789 family).
+ * Many cubes use ST7789 with ILI-compatible branding. Prefer ST7789. */
+#define CUBE_LCD_USE_ST7789          1
+/* LCD — pins confirmed from original dump (no BL GPIO in original). */
 #define CUBE_LCD_H_RES               240
 #define CUBE_LCD_V_RES               280
 #define CUBE_LCD_MOSI_GPIO           5
