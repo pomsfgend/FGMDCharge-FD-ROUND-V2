@@ -1,7 +1,7 @@
 #pragma once
 
 #define CUBE_FW_NAME                 "FD_ROUND_V2"
-#define CUBE_FW_VERSION              "2.4.2"
+#define CUBE_FW_VERSION              "2.4.3"
 
 /* SoftAP */
 #define CUBE_WEB_KEY                 ""
@@ -77,8 +77,8 @@
 #define CUBE_RELAY_HANDOFF_MS            300
 
 /* BCL defaults: 400.0 V / 10.0 A, max 450.0 V */
-#define CUBE_DEFAULT_REQ_VOLTAGE_0P1V    4000
-#define CUBE_DEFAULT_REQ_CURRENT_0P1A    100
+#define CUBE_DEFAULT_REQ_VOLTAGE_0P1V    2400
+#define CUBE_DEFAULT_REQ_CURRENT_0P1A    500
 #define CUBE_DEFAULT_MAX_VOLTAGE_0P1V    4500
 
 /* NVS */

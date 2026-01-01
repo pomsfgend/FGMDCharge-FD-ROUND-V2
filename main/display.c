@@ -167,7 +167,8 @@ static void style_screen(lv_obj_t *scr)
     lv_obj_set_style_bg_opa(scr, LV_OPA_COVER, 0);
     lv_obj_set_style_text_color(scr, lv_color_hex(0xE8EEF4), 0);
     lv_obj_clear_flag(scr, LV_OBJ_FLAG_SCROLLABLE);
-    lv_obj_add_event_cb(scr, gesture_cb, LV_EVENT_GESTURE, NULL);
+    lv_obj_add_event_cb(scr, gesture_cb, LV_EVENT_PRESSED, NULL);
+    lv_obj_add_event_cb(scr, gesture_cb, LV_EVENT_RELEASED, NULL);
     }
 
 static void apply_page(int p)
@@ -183,19 +184,26 @@ static void apply_page(int p)
     }
 }
 
+static lv_point_t s_down;
+static bool s_arm;
 static void gesture_cb(lv_event_t *e)
 {
-    if (lv_event_get_code(e) != LV_EVENT_GESTURE) return;
+    lv_event_code_t code = lv_event_get_code(e);
     lv_indev_t *in = lv_indev_get_act();
+    if (!in) return;
     lv_point_t pt;
     lv_indev_get_point(in, &pt);
-    /* brightness slider lives here; do not steal the drag */
-    if (s_page == 1 && pt.y >= 150 && pt.y <= 230) return;
-    if (s_page == 0 && pt.y >= 188) return;
-    lv_dir_t dir = lv_indev_get_gesture_dir(in);
-    lv_indev_wait_release(in);
-    if (dir == LV_DIR_LEFT) apply_page(s_page + 1);
-    else if (dir == LV_DIR_RIGHT) apply_page(s_page - 1);
+    if (code == LV_EVENT_PRESSED) { s_down = pt; s_arm = true; return; }
+    if (code != LV_EVENT_RELEASED || !s_arm) return;
+    s_arm = false;
+    if (s_page == 1 && s_down.y >= 140 && s_down.y <= 230) return;
+    if (s_page == 0 && s_down.y >= 168) return;
+    int dx = pt.x - s_down.x;
+    int dy = pt.y - s_down.y;
+    if (dx < 0) dx = -dx;
+    if (dy < 0) dy = -dy;
+    if (dx < 48 || dx < dy * 2) return;
+    apply_page(s_page + ((pt.x < s_down.x) ? 1 : -1));
 }
 
 static void stop_hold_cb(lv_event_t *e)
@@ -327,7 +335,7 @@ static void make_pad(lv_obj_t *parent)
 static lv_obj_t *card(lv_obj_t *parent, int x, int y, lv_obj_t **value, const char *cap)
 {
     lv_obj_t *c = lv_obj_create(parent);
-    lv_obj_set_size(c, 104, 70);
+    lv_obj_set_size(c, 104, 56);
     lv_obj_set_pos(c, x, y);
     lv_obj_set_style_bg_color(c, lv_color_hex(0x122033), 0);
     lv_obj_set_style_bg_opa(c, LV_OPA_COVER, 0);
@@ -365,26 +373,24 @@ static void build_ui(void)
 {
     s_scr_chg = lv_scr_act();
     style_screen(s_scr_chg);
-    line(s_scr_chg, "CUBE 2.4.2", 4);
-    s_card_u = card(s_scr_chg, 10, 28, &s_voltage, "V");
-    s_card_i = card(s_scr_chg, 122, 28, &s_current, "A");
+    line(s_scr_chg, "CUBE 2.4.3", 6);
+    s_card_u = card(s_scr_chg, 10, 26, &s_voltage, "V");
+    s_card_i = card(s_scr_chg, 122, 26, &s_current, "A");
     (void)s_card_u; (void)s_card_i;
-    s_power = line(s_scr_chg, "P -- W", 112);
-    s_soc = line(s_scr_chg, "SOC -- %", 132);
-    s_stage = line(s_scr_chg, "STAGE IDLE", 152);
-    s_relay = line(s_scr_chg, "RELAY A0 B0", 172);
-    s_cml = line(s_scr_chg, "CML --", 192);
-    s_can = line(s_scr_chg, "CAN rx0 tx0", 212);
-    s_status = line(s_scr_chg, "AP Cube", 232);
+    s_power = line(s_scr_chg, "P --", 88);
+    s_soc = line(s_scr_chg, "SOC --", 106);
+    s_stage = line(s_scr_chg, "IDLE", 124);
+    s_relay = line(s_scr_chg, "A0 B0", 142);
+    s_cml = line(s_scr_chg, "LIM --", 160);
     lv_obj_t *stop = lv_btn_create(s_scr_chg);
     lv_obj_set_size(stop, 216, 36);
-    lv_obj_align(stop, LV_ALIGN_TOP_MID, 0, 198);
+    lv_obj_align(stop, LV_ALIGN_TOP_MID, 0, 182);
     lv_obj_set_style_bg_color(stop, lv_color_hex(0xE74C3C), 0);
     lv_obj_add_event_cb(stop, stop_hold_cb, LV_EVENT_LONG_PRESSED, NULL);
     lv_obj_t *sl = lv_label_create(stop);
     lv_label_set_text(sl, "HOLD STOP");
     lv_obj_center(sl);
-    s_dots = line(s_scr_chg, "o  -  -", 242);
+    s_dots = line(s_scr_chg, "o - -", 224);
 
     s_scr_sys = lv_obj_create(NULL);
     style_screen(s_scr_sys);

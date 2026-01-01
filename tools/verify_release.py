@@ -10,7 +10,7 @@ import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-VERSION = "2.4.2"
+VERSION = "2.4.3"
 DUMP_SHA256 = "1428dbddc0749eee8ac133b1e16b6c0805a2da4bb4b0c73bc759c1500b03f233"
 MAX_OTA = 0x190000
 

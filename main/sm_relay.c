@@ -145,7 +145,7 @@ static void tx_bcp(void)
     uint16_t imax = (uint16_t)(4000 - 2500); /* 250 A allowed, offset -400 A */
     uint16_t energy = 400; /* 40.0 kWh */
     uint16_t vmax = CUBE_DEFAULT_MAX_VOLTAGE_0P1V;
-    uint16_t vnow = st.bcl_requested_voltage_raw ? st.bcl_requested_voltage_raw : 4000;
+    uint16_t vnow = st.bcl_requested_voltage_raw ? st.bcl_requested_voltage_raw : 2400;
     b[0] = (uint8_t)(cell & 0xFF); b[1] = (uint8_t)(cell >> 8);
     b[2] = (uint8_t)(imax & 0xFF); b[3] = (uint8_t)(imax >> 8);
     b[4] = (uint8_t)(energy & 0xFF); b[5] = (uint8_t)(energy >> 8);
@@ -434,7 +434,11 @@ void sm_relay_tick(void)
         /* GPIO6 onboard already on. GPIO7 external load 3 s after station voltage. */
         if (st.ccs_output_voltage_raw > 500) {
             if (s_power_seen_ms == 0) s_power_seen_ms = t;
-            if (!s_load_on && (t - s_power_seen_ms) >= 3000) {
+            bool station_can = st.cml_min_voltage_raw == 0 ||
+                               st.bcl_requested_voltage_raw + 100 >= st.cml_min_voltage_raw;
+            if (!station_can) {
+                app_state_log("load held: request below station min");
+            } else if (!s_load_on && (t - s_power_seen_ms) >= 3000) {
                 relays_set(1, 1);
                 s_load_on = true;
                 s_handoff = true;
