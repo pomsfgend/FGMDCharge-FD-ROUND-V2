@@ -153,7 +153,7 @@ esp_err_t display_init(void) {
     err = esp_lcd_new_panel_io_spi((esp_lcd_spi_bus_handle_t)SPI2_HOST, &io_cfg, &s_panel_io);
     if (err != ESP_OK) return err;
 
-    /* Enable backlight early so any draw is visible. */
+    /* Backlight on non-strapping pin only. GPIO2 caused POWERON reboot loops. */
     if (CUBE_LCD_BL_GPIO >= 0) {
         gpio_config_t bl = {
             .pin_bit_mask = 1ULL << CUBE_LCD_BL_GPIO,
@@ -162,36 +162,33 @@ esp_err_t display_init(void) {
             .pull_down_en = GPIO_PULLDOWN_DISABLE,
             .intr_type = GPIO_INTR_DISABLE,
         };
-        (void)gpio_config(&bl);
-        (void)gpio_set_level(CUBE_LCD_BL_GPIO, 1);
-        ESP_LOGW(TAG, "backlight GPIO%d = ON", CUBE_LCD_BL_GPIO);
-    }
-    if (CUBE_STATUS_LED_GPIO >= 0) {
-        gpio_config_t led = {
-            .pin_bit_mask = 1ULL << CUBE_STATUS_LED_GPIO,
-            .mode = GPIO_MODE_OUTPUT,
-            .pull_up_en = GPIO_PULLUP_DISABLE,
-            .pull_down_en = GPIO_PULLDOWN_DISABLE,
-            .intr_type = GPIO_INTR_DISABLE,
-        };
-        (void)gpio_config(&led);
-        (void)gpio_set_level(CUBE_STATUS_LED_GPIO, 1);
-        ESP_LOGW(TAG, "status LED GPIO%d = ON", CUBE_STATUS_LED_GPIO);
+        if (gpio_config(&bl) == ESP_OK) {
+            (void)gpio_set_level(CUBE_LCD_BL_GPIO, 1);
+            ESP_LOGW(TAG, "backlight GPIO%d = ON", CUBE_LCD_BL_GPIO);
+        } else {
+            ESP_LOGW(TAG, "backlight GPIO%d config failed", CUBE_LCD_BL_GPIO);
+        }
     }
 
+    /* Same panel path that previously completed init successfully (no BGR/invert). */
     esp_lcd_panel_dev_config_t panel_cfg = {
         .reset_gpio_num = CUBE_LCD_RST_GPIO,
         .bits_per_pixel = 16,
-        /* Many ILI9341 modules on these boards need BGR + invert. */
-        .rgb_endian = LCD_RGB_ENDIAN_BGR,
+        .rgb_endian = LCD_RGB_ENDIAN_RGB,
     };
+    ESP_LOGW(TAG, "panel create...");
     err = esp_lcd_new_panel_ili9341(s_panel_io, &panel_cfg, &s_panel);
-    if (err != ESP_OK) return err;
+    if (err != ESP_OK) {
+        ESP_LOGE(TAG, "panel create failed: %s", esp_err_to_name(err));
+        return err;
+    }
+    ESP_LOGW(TAG, "panel reset...");
     if ((err = esp_lcd_panel_reset(s_panel)) != ESP_OK) return err;
+    ESP_LOGW(TAG, "panel init...");
     if ((err = esp_lcd_panel_init(s_panel)) != ESP_OK) return err;
-    (void)esp_lcd_panel_invert_color(s_panel, true);
     if ((err = esp_lcd_panel_mirror(s_panel, false, false)) != ESP_OK) return err;
     if ((err = esp_lcd_panel_disp_on_off(s_panel, true)) != ESP_OK) return err;
+    ESP_LOGW(TAG, "panel on");
 
     lv_init();
     lv_disp_draw_buf_init(&s_draw_buf, s_buf1, s_buf2, CUBE_LCD_H_RES * 20);
