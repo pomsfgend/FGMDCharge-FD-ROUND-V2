@@ -7,7 +7,7 @@ set "IDF_DIR=%USERPROFILE%\esp\esp-idf-5.0.9"
 
 echo.
 echo ================================================================
-echo  FGMDCharge / FD_ROUND V2  RELEASE 2.7.6
+echo  FGMDCharge / FD_ROUND V2  RELEASE 2.7.4
 echo  ESP-IDF 5.0.9  /  ESP32-C3
 echo ================================================================
 echo.
@@ -171,7 +171,7 @@ for /f "skip=1 tokens=*" %%H in ('certutil -hashfile release\FGMDCharge_FD_ROUND
 
 (
   echo FGMDCharge / FD_ROUND V2
-  echo Release: 2.7.6
+  echo Release: 2.7.4
   echo Target: ESP32-C3
   echo ESP-IDF: 5.0.9
   echo Application: release\FGMDCharge_FD_ROUND_V2.bin

@@ -231,7 +231,6 @@ static lv_obj_t *s_out_v;
 static lv_obj_t *s_out_a;
 static lv_obj_t *s_watt;
 static lv_obj_t *s_stat;
-static void pad_show(void);
 
 static void ask_pass(int act)
 {
