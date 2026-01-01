@@ -1,4 +1,4 @@
-FGMDCharge / FD_ROUND V2 — Release 2.5.2
+FGMDCharge / FD_ROUND V2 — Release 2.5.3
 =======================================
 
 [ ] Архив распакован в короткий ASCII-путь.
