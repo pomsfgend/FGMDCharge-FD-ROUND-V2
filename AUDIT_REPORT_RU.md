@@ -1,14 +1,14 @@
-# FGMDCharge / FD_ROUND V2 — RELEASE 2.8.5
+# FGMDCharge / FD_ROUND V2 — RELEASE 2.8.6
 
 Numeric fields, 16-SSID list, edge-only swipe, AP before display.
 
 
-## 2.8.5
+## 2.8.6
 
 LVGL heap 64 KiB. Boot hang in lv_label_set_text was OOM assert, not a display-driver deadlock.
 
 
-## 2.8.5 build fix
+## 2.8.6 build fix
 
 `main/web.c` `ota_url_post` больше не использует `snprintf` для UNC→HTTP.
 Это был единственный `-Werror` в логе сборки 2.5.8 (`format-truncation`, dest 180, need 185).

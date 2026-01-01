@@ -1,4 +1,4 @@
-# FGMDCharge / FD_ROUND V2 — Release 2.8.5
+# FGMDCharge / FD_ROUND V2 — Release 2.8.6
 
 Канонический Windows-релиз для ESP32-C3 на ESP-IDF 5.0.9.
 
