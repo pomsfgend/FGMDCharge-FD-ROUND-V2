@@ -855,15 +855,8 @@ esp_err_t web_init(void)
     ap.ap.beacon_interval = 100;
     ap.ap.pmf_cfg.capable = false; /* phones fail PMF on C3 softAP */
     ap.ap.pmf_cfg.required = false;
-    if (strlen(CUBE_WIFI_PASSWORD) >= 8U) {
-        /* WPA2-PSK/CCMP is deterministic and avoids mixed-mode roaming quirks. */
-        ap.ap.authmode = WIFI_AUTH_WPA2_PSK;
-        ap.ap.pairwise_cipher = WIFI_CIPHER_TYPE_CCMP;
-        (void)snprintf((char *)ap.ap.password, sizeof(ap.ap.password), "%s", CUBE_WIFI_PASSWORD);
-    } else {
-        ap.ap.authmode = WIFI_AUTH_OPEN;
-        ap.ap.password[0] = 0;
-    }
+    ap.ap.authmode = WIFI_AUTH_OPEN;
+    ap.ap.password[0] = 0;
     if ((err = esp_wifi_set_mode(WIFI_MODE_AP)) != ESP_OK) return err;
     if ((err = esp_wifi_set_config(WIFI_IF_AP, &ap)) != ESP_OK) return err;
     { wifi_config_t sta0 = {0}; (void)esp_wifi_set_config(WIFI_IF_STA, &sta0); }

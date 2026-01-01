@@ -350,7 +350,8 @@ static void wifi_rst_cb(lv_event_t *e)
 
 static void pass_close_cb(lv_event_t *e)
 {
-    (void)e;
+    lv_obj_t *extra = lv_event_get_user_data(e);
+    if (extra) lv_obj_add_flag(extra, LV_OBJ_FLAG_HIDDEN);
     pad_hide();
     if (s_pass_box) lv_obj_add_flag(s_pass_box, LV_OBJ_FLAG_HIDDEN);
     if (s_ip_box) lv_obj_add_flag(s_ip_box, LV_OBJ_FLAG_HIDDEN);
@@ -626,7 +627,7 @@ static void build_ui(void)
 {
     s_scr_chg = lv_scr_act();
     style_screen(s_scr_chg);
-    line(s_scr_chg, "КУБ 2.7.8", 4);
+    line(s_scr_chg, "КУБ 2.7.9", 4);
     s_time = line(s_scr_chg, "время 0 мин", 28);
     s_relay = line(s_scr_chg, "выход OFF", 50);
     s_req_v = line(s_scr_chg, "запрос 240 В", 78);
@@ -660,8 +661,32 @@ static void build_ui(void)
     lv_obj_t *orig_l = lv_label_create(orig);
     lv_label_set_text(orig_l, "оригинал");
     lv_obj_center(orig_l);
-    s_status = line(s_scr_chg, "3 включения = слот", 476);
-
+    s_status = line(s_scr_chg, "питание = выбор прошивки", 476);
+    lv_obj_t *pick = lv_obj_create(lv_layer_top());
+    lv_obj_set_size(pick, 240, 280);
+    lv_obj_set_style_bg_color(pick, lv_color_hex(0x101418), 0);
+    lv_obj_set_style_bg_opa(pick, LV_OPA_COVER, 0);
+    lv_obj_set_style_border_width(pick, 0, 0);
+    lv_obj_clear_flag(pick, LV_OBJ_FLAG_SCROLLABLE);
+    lv_obj_t *pt = lv_label_create(pick);
+    lv_label_set_text(pt, "прошивка");
+    lv_obj_align(pt, LV_ALIGN_TOP_MID, 0, 16);
+    lv_obj_t *bn = lv_btn_create(pick);
+    lv_obj_set_size(bn, 200, 70);
+    lv_obj_align(bn, LV_ALIGN_CENTER, 0, -46);
+    lv_obj_set_style_bg_color(bn, lv_color_hex(0x1F6F5B), 0);
+    lv_obj_add_event_cb(bn, pass_close_cb, LV_EVENT_CLICKED, pick);
+    lv_obj_t *bnl = lv_label_create(bn);
+    lv_label_set_text(bnl, "НОВАЯ");
+    lv_obj_center(bnl);
+    lv_obj_t *bo = lv_btn_create(pick);
+    lv_obj_set_size(bo, 200, 70);
+    lv_obj_align(bo, LV_ALIGN_CENTER, 0, 46);
+    lv_obj_set_style_bg_color(bo, lv_color_hex(0xC46A1A), 0);
+    lv_obj_add_event_cb(bo, boot_old_cb, LV_EVENT_CLICKED, NULL);
+    lv_obj_t *bol = lv_label_create(bo);
+    lv_label_set_text(bol, "СТАРАЯ");
+    lv_obj_center(bol);
 
     s_scr_ses = lv_obj_create(NULL);
     style_screen(s_scr_ses);
@@ -745,7 +770,7 @@ static void build_ui(void)
     lv_obj_set_height(s_can_lbl, 110);
     s_scr_sys = lv_obj_create(NULL);
     style_screen(s_scr_sys);
-    line(s_scr_sys, "СИСТЕМА 2.7.8", 4);
+    line(s_scr_sys, "СИСТЕМА 2.7.9", 4);
     s_sys_temp = line(s_scr_sys, "CPU -- C", 28);
     s_sys_cpu = line(s_scr_sys, "F 160 MHz", 48);
     s_sys_load = line(s_scr_sys, "Load -- %", 68);
