@@ -11,6 +11,11 @@ echo  Port %PORT%  baud 921600. No reset between steps.
 echo.
 call "%IDF_DIR%\export.bat"
 if errorlevel 1 goto fail
+if exist build rmdir /s /q build
+if exist build (
+  echo Close the serial monitor, delete C:\FGMDCharge_V2\build, run GO.bat again.
+  goto fail
+)
 echo.| call BUILD_RELEASE.bat
 if not exist "build\bootloader\bootloader.bin" goto fail
 if not exist "release\FGMDCharge_FD_ROUND_V2.bin" goto fail

@@ -344,6 +344,7 @@ static esp_err_t settings_post(httpd_req_t *req)
     if (json_bool(body, "tx_enabled", &value)) {
         gbt_can_set_tx_enabled(value);
     }
+    if (strstr(body, "relay_test")) sm_request_relay_test();
     set_no_cache(req);
     (void)httpd_resp_set_type(req, "application/json; charset=utf-8");
     return httpd_resp_sendstr(req, gbt_can_get_tx_enabled()
@@ -596,7 +597,8 @@ static esp_err_t log_get(httpd_req_t *req)
 {
     set_security_headers(req);
     char buf[1200];
-    app_state_log_text(buf, sizeof(buf));
+    int o = snprintf(buf, sizeof(buf), "VIN %s\nSTA %s\n", app_state_vin(), web_sta_ip());
+    app_state_log_text(buf + o, (int)sizeof(buf) - o);
     set_no_cache(req);
     httpd_resp_set_type(req, "text/plain; charset=utf-8");
     return httpd_resp_sendstr(req, buf);

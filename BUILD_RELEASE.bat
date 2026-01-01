@@ -7,7 +7,7 @@ set "IDF_DIR=%USERPROFILE%\esp\esp-idf-5.0.9"
 
 echo.
 echo ================================================================
-echo  FGMDCharge / FD_ROUND V2  RELEASE 2.5.4
+echo  FGMDCharge / FD_ROUND V2  RELEASE 2.5.5
 echo  ESP-IDF 5.0.9  /  ESP32-C3
 echo ================================================================
 echo.
@@ -79,7 +79,11 @@ echo Cleaning previous build state...
 if exist sdkconfig del /q sdkconfig 2>nul
 if exist sdkconfig.old del /q sdkconfig.old 2>nul
 if exist dependencies.lock del /q dependencies.lock 2>nul
-if exist build rmdir /s /q build 2>nul
+if exist build rmdir /s /q build
+if exist build (
+  echo ERROR: C:\FGMDCharge_V2\build is locked. Close the serial monitor and delete that folder.
+  goto FAIL
+)
 if not exist release mkdir release
 if exist release\FGMDCharge_FD_ROUND_V2.bin del /q release\FGMDCharge_FD_ROUND_V2.bin 2>nul
 if exist release\bootloader.bin del /q release\bootloader.bin 2>nul
@@ -124,9 +128,11 @@ if errorlevel 1 goto FAIL
 idf.py reconfigure
 if errorlevel 1 goto FAIL
 
-echo Full clean...
-idf.py fullclean
-if errorlevel 1 goto FAIL
+if exist build\CMakeCache.txt (
+  echo Full clean...
+  idf.py fullclean
+  if errorlevel 1 goto FAIL
+)
 
 echo.
 echo Forcing sdkconfig policy before build...
@@ -165,7 +171,7 @@ for /f "skip=1 tokens=*" %%H in ('certutil -hashfile release\FGMDCharge_FD_ROUND
 
 (
   echo FGMDCharge / FD_ROUND V2
-  echo Release: 2.5.4
+  echo Release: 2.5.5
   echo Target: ESP32-C3
   echo ESP-IDF: 5.0.9
   echo Application: release\FGMDCharge_FD_ROUND_V2.bin

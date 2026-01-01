@@ -53,6 +53,7 @@ static lv_obj_t *s_br_label;
 static lv_obj_t *s_pad;
 static lv_obj_t *s_wifi_ta;
 static lv_obj_t *s_scan_lbl;
+static lv_obj_t *s_list;
 static lv_obj_t *s_ip_lbl;
 static int s_page; /* 0 CHG 1 SYS 2 WIFI */
 static int s_pick;
@@ -261,22 +262,28 @@ static void wifi_rst_cb(lv_event_t *e)
     web_wifi_restart();
 }
 
+static void net_pick_cb(lv_event_t *e)
+{
+    s_pick = (int)(intptr_t)lv_event_get_user_data(e);
+    if (s_wifi_ta) lv_obj_clear_flag(s_wifi_ta, LV_OBJ_FLAG_HIDDEN);
+    pad_show();
+}
 static void refresh_scan_label(void)
 {
-    if (!s_scan_lbl) return;
     int n = web_scan_count();
-    if (n <= 0) {
-        lv_label_set_text(s_scan_lbl, "nets: 0");
-        return;
+    if (s_scan_lbl) lv_label_set_text(s_scan_lbl, n ? "tap a network" : "nets: 0");
+    if (!s_list) return;
+    lv_obj_clean(s_list);
+    for (int i = 0; i < n && i < 12; ++i) {
+        lv_obj_t *b = lv_btn_create(s_list);
+        lv_obj_set_width(b, 200);
+        lv_obj_set_height(b, 28);
+        lv_obj_add_event_cb(b, net_pick_cb, LV_EVENT_CLICKED, (void *)(intptr_t)i);
+        lv_obj_t *l = lv_label_create(b);
+        lv_label_set_text(l, web_scan_ssid(i));
+        lv_obj_set_style_text_color(l, lv_color_hex(0xF4F7FB), 0);
+        lv_obj_center(l);
     }
-    char buf[180];
-    int o = 0;
-    buf[0] = 0;
-    for (int i = 0; i < n && o < (int)sizeof(buf) - 20; ++i) {
-        o += snprintf(buf + o, sizeof(buf) - (size_t)o, "%s%d %s\n",
-                      i == s_pick ? ">" : " ", i, web_scan_ssid(i));
-    }
-    lv_label_set_text(s_scan_lbl, buf);
 }
 
 static void scan_cb(lv_event_t *e)
@@ -378,30 +385,11 @@ static lv_obj_t *line(lv_obj_t *parent, const char *txt, int y)
 }
 
 
-static void nav_cb(lv_event_t *e)
-{
-    apply_page((int)(intptr_t)lv_event_get_user_data(e));
-}
-static void add_nav(lv_obj_t *scr)
-{
-    const char *nm[] = {"CHG", "SYS", "WIFI"};
-    for (int i = 0; i < 3; ++i) {
-        lv_obj_t *b = lv_btn_create(scr);
-        lv_obj_set_size(b, 70, 28);
-        lv_obj_set_pos(b, 8 + i * 76, 248);
-        lv_obj_set_style_bg_color(b, lv_color_hex(i == 0 ? 0x1F6F5B : 0x1A2430), 0);
-        lv_obj_add_event_cb(b, nav_cb, LV_EVENT_CLICKED, (void *)(intptr_t)i);
-        lv_obj_t *l = lv_label_create(b);
-        lv_label_set_text(l, nm[i]);
-        lv_obj_set_style_text_color(l, lv_color_hex(0xF4F7FB), 0);
-        lv_obj_center(l);
-    }
-}
 static void build_ui(void)
 {
     s_scr_chg = lv_scr_act();
     style_screen(s_scr_chg);
-    line(s_scr_chg, "CUBE 2.5.4", 22);
+    line(s_scr_chg, "CUBE 2.5.5", 22);
     s_card_u = card(s_scr_chg, 10, 40, &s_voltage, "V");
     s_card_i = card(s_scr_chg, 122, 40, &s_current, "A");
     (void)s_card_u; (void)s_card_i;
@@ -419,7 +407,6 @@ static void build_ui(void)
     lv_label_set_text(stop_lbl, "HOLD STOP");
     lv_obj_center(stop_lbl);
     s_dots = line(s_scr_chg, "CHG  SYS  WIFI", 228);
-    add_nav(s_scr_chg);
 
     s_scr_sys = lv_obj_create(NULL);
     style_screen(s_scr_sys);
@@ -460,6 +447,10 @@ static void build_ui(void)
     s_scr_wifi = lv_obj_create(NULL);
     style_screen(s_scr_wifi);
     line(s_scr_wifi, "WiFi  digits", 2);
+    s_list = lv_obj_create(s_scr_wifi);
+    lv_obj_set_size(s_list, 220, 120);
+    lv_obj_align(s_list, LV_ALIGN_TOP_MID, 0, 28);
+    lv_obj_add_flag(s_list, LV_OBJ_FLAG_SCROLLABLE);
     lv_obj_t *box = lv_obj_create(s_scr_wifi);
     lv_obj_set_size(box, 224, 120);
     lv_obj_align(box, LV_ALIGN_TOP_LEFT, 6, 24);
@@ -509,9 +500,6 @@ static void build_ui(void)
 
     line(s_scr_wifi, "-  -  o   swipe", 204);
     make_pad(s_scr_wifi);
-    add_nav(s_scr_chg);
-    add_nav(s_scr_sys);
-    add_nav(s_scr_wifi);
 }
 
 esp_err_t display_init(void)
