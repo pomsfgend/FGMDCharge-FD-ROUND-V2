@@ -10,7 +10,7 @@
 #include "driver/gpio.h"
 #include "esp_lcd_panel_io.h"
 #include "esp_lcd_panel_ops.h"
-#include "esp_lcd_ili9341.h"
+#include "esp_lcd_panel_vendor.h"
 #include "esp_timer.h"
 #include "esp_log.h"
 #include "freertos/FreeRTOS.h"
@@ -154,63 +154,40 @@ esp_err_t display_init(void) {
     err = esp_lcd_new_panel_io_spi((esp_lcd_spi_bus_handle_t)SPI2_HOST, &io_cfg, &s_panel_io);
     if (err != ESP_OK) return err;
 
-    /* GPIO6 = relay (do not touch). GPIO2 = strapping. BL try GPIO20, status LED GPIO7. */
-    if (CUBE_LCD_BL_GPIO >= 0) {
-        gpio_config_t bl = {
-            .pin_bit_mask = 1ULL << CUBE_LCD_BL_GPIO,
-            .mode = GPIO_MODE_OUTPUT,
-            .pull_up_en = GPIO_PULLUP_DISABLE,
-            .pull_down_en = GPIO_PULLDOWN_DISABLE,
-            .intr_type = GPIO_INTR_DISABLE,
-        };
-        if (gpio_config(&bl) == ESP_OK) {
-            (void)gpio_set_level(CUBE_LCD_BL_GPIO, 1);
-            ESP_LOGW(TAG, "backlight GPIO%d = ON", CUBE_LCD_BL_GPIO);
-        }
-    }
-    if (CUBE_STATUS_LED_GPIO >= 0) {
-        gpio_config_t led = {
-            .pin_bit_mask = 1ULL << CUBE_STATUS_LED_GPIO,
-            .mode = GPIO_MODE_OUTPUT,
-            .pull_up_en = GPIO_PULLUP_DISABLE,
-            .pull_down_en = GPIO_PULLDOWN_DISABLE,
-            .intr_type = GPIO_INTR_DISABLE,
-        };
-        if (gpio_config(&led) == ESP_OK) {
-            (void)gpio_set_level(CUBE_STATUS_LED_GPIO, 1);
-            ESP_LOGW(TAG, "status LED GPIO%d = ON", CUBE_STATUS_LED_GPIO);
-        }
-    }
+    /* Original dump: no backlight GPIO in lcd_main. Relays on GPIO6/20 — do not drive. */
 
     esp_lcd_panel_dev_config_t panel_cfg = {
         .reset_gpio_num = CUBE_LCD_RST_GPIO,
         .bits_per_pixel = 16,
-        .rgb_endian = LCD_RGB_ENDIAN_BGR,
+        .rgb_endian = LCD_RGB_ENDIAN_RGB,
     };
-    ESP_LOGW(TAG, "panel create...");
-    err = esp_lcd_new_panel_ili9341(s_panel_io, &panel_cfg, &s_panel);
+    /* 240x280 + CST816S is the standard ST7789 module family. */
+    ESP_LOGW(TAG, "panel create ST7789 240x280...");
+    err = esp_lcd_new_panel_st7789(s_panel_io, &panel_cfg, &s_panel);
     if (err != ESP_OK) {
-        ESP_LOGE(TAG, "panel create failed: %s", esp_err_to_name(err));
+        ESP_LOGE(TAG, "ST7789 create failed: %s — fallback ili9341 vendor", esp_err_to_name(err));
+        /* fallback kept only if st7789 symbol missing at link; should not happen on IDF 5.0 */
         return err;
     }
     ESP_LOGW(TAG, "panel reset...");
     if ((err = esp_lcd_panel_reset(s_panel)) != ESP_OK) return err;
     ESP_LOGW(TAG, "panel init...");
     if ((err = esp_lcd_panel_init(s_panel)) != ESP_OK) return err;
-    /* 240x280 modules (often ST7789-class with ili9341-style driver) need gap + invert. */
+    /* Common for 240x280 ST7789: slight Y gap, invert on, no mirror. */
     (void)esp_lcd_panel_set_gap(s_panel, 0, 20);
     (void)esp_lcd_panel_invert_color(s_panel, true);
-    if ((err = esp_lcd_panel_mirror(s_panel, false, false)) != ESP_OK) return err;
+    (void)esp_lcd_panel_mirror(s_panel, false, false);
+    (void)esp_lcd_panel_swap_xy(s_panel, false);
     if ((err = esp_lcd_panel_disp_on_off(s_panel, true)) != ESP_OK) return err;
-    ESP_LOGW(TAG, "panel on (BGR+invert+gap y=20)");
+    ESP_LOGW(TAG, "panel on (ST7789 invert+gap)");
 
-    /* Hardware probe: fill screen with solid colors before LVGL. */
+    /* Pixel probe — visible only if BL is hardware-tied ON. */
     {
         enum { LINE = 240 };
         uint16_t *line = calloc(LINE, sizeof(uint16_t));
         if (line) {
             for (int y = 0; y < 280; ++y) {
-                uint16_t c = (y < 90) ? 0xF800 : (y < 180) ? 0x07E0 : 0x001F; /* R/G/B bands */
+                uint16_t c = (y < 90) ? 0xF800u : (y < 180) ? 0x07E0u : 0x001Fu;
                 for (int x = 0; x < LINE; ++x) line[x] = c;
                 (void)esp_lcd_panel_draw_bitmap(s_panel, 0, y, LINE, y + 1, line);
             }
@@ -218,6 +195,7 @@ esp_err_t display_init(void) {
             ESP_LOGW(TAG, "RGB band probe drawn");
         }
     }
+
 
     lv_init();
     lv_disp_draw_buf_init(&s_draw_buf, s_buf1, s_buf2, CUBE_LCD_H_RES * 20);
@@ -251,7 +229,7 @@ esp_err_t display_init(void) {
     if ((err = esp_timer_start_periodic(s_tick_timer, 1000)) != ESP_OK) return err;
 
     app_state_set_display(true);
-    ESP_LOGI(TAG, "ILI9341 initialized %dx%d", CUBE_LCD_H_RES, CUBE_LCD_V_RES);
+    ESP_LOGI(TAG, "ST7789 initialized %dx%d", CUBE_LCD_H_RES, CUBE_LCD_V_RES);
     return ESP_OK;
 }
 

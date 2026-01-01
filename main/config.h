@@ -23,10 +23,13 @@
 #define CUBE_LCD_CS_GPIO             4
 #define CUBE_LCD_DC_GPIO             18
 #define CUBE_LCD_SPI_HZ              20000000
-/* Backlight: GPIO2=strap, GPIO6=relay. Try GPIO20 (common on C3 LCD modules). */
-#define CUBE_LCD_BL_GPIO             20
+/* NO extra GPIO for BL/LED/relay.
+   Original lcd_main only uses SPI: MOSI5 SCLK19 CS4 DC18, RST=-1.
+   GPIO6/20 are power relays — never drive them.
+   Panel is 240x280 + CST816 → ST7789 class, not classic ILI9341. */
+#define CUBE_LCD_BL_GPIO             (-1)
 #define CUBE_LCD_RST_GPIO            (-1)
-#define CUBE_STATUS_LED_GPIO         7
+#define CUBE_STATUS_LED_GPIO         (-1)
 #define CUBE_LCD_QUEUE_DEPTH         10
 #define CUBE_LCD_MAX_TRANSFER        38400
 
