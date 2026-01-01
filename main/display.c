@@ -21,6 +21,7 @@
 #include "freertos/semphr.h"
 #include "freertos/task.h"
 #include "lvgl.h"
+#include "lv_font_ru_14.h"
 
 static const char *TAG = "DISPLAY";
 static esp_lcd_panel_handle_t s_panel;
@@ -79,7 +80,7 @@ static void tick_cb(void *arg) {
 static lv_obj_t *make_label(lv_obj_t *parent, const char *text, int size) {
     lv_obj_t *o = lv_label_create(parent);
     lv_label_set_text(o, text);
-    lv_obj_set_style_text_font(o, size >= 26 ? &lv_font_montserrat_28 : &lv_font_montserrat_14, 0);
+    lv_obj_set_style_text_font(o, &lv_font_ru_14, 0); (void)size;
     lv_obj_set_style_text_color(o, lv_color_hex(0xE7EEF7), 0);
     return o;
 }
@@ -111,24 +112,24 @@ static void ui_create(void) {
     lv_obj_set_style_bg_opa(scr, LV_OPA_COVER, 0);
     lv_obj_clear_flag(scr, LV_OBJ_FLAG_SCROLLABLE);
 
-    lv_obj_t *title = make_label(scr, "GB/T CHARGE", 14);
+    lv_obj_t *title = make_label(scr, "ГБ/Т Зарядка", 14);
     lv_obj_align(title, LV_ALIGN_TOP_MID, 0, 4);
 
     /* Two metric cards: 112x64 with 8px margins fits 240 width cleanly. */
-    (void)make_card(scr, 8, 24, 112, 64, "VOLTAGE", &s_voltage);
-    (void)make_card(scr, 120, 24, 112, 64, "CURRENT", &s_current);
+    (void)make_card(scr, 8, 24, 112, 64, "НАПРЯЖЕНИЕ", &s_voltage);
+    (void)make_card(scr, 120, 24, 112, 64, "ТОК", &s_current);
 
-    s_power = make_label(scr, "POWER ---- W", 14);
+    s_power = make_label(scr, "МОЩН. ---- Вт", 14);
     lv_obj_align(s_power, LV_ALIGN_TOP_LEFT, 10, 96);
-    s_stage = make_label(scr, "STAGE --", 14);
+    s_stage = make_label(scr, "ЭТАП --", 14);
     lv_obj_align(s_stage, LV_ALIGN_TOP_LEFT, 10, 118);
-    s_request = make_label(scr, "REQ --.-V --.-A", 14);
+    s_request = make_label(scr, "ЗАПРОС --.-В --.-А", 14);
     lv_obj_align(s_request, LV_ALIGN_TOP_LEFT, 10, 140);
-    s_time = make_label(scr, "TIME ---- min", 14);
+    s_time = make_label(scr, "ВРЕМЯ ---- мин", 14);
     lv_obj_align(s_time, LV_ALIGN_TOP_LEFT, 10, 162);
-    s_status = make_label(scr, "STATUS --", 14);
+    s_status = make_label(scr, "СТАТУС --", 14);
     lv_obj_align(s_status, LV_ALIGN_TOP_LEFT, 10, 184);
-    s_can = make_label(scr, "CAN 250k RX 0", 14);
+    s_can = make_label(scr, "CAN 250к RX 0", 14);
     lv_obj_align(s_can, LV_ALIGN_TOP_LEFT, 10, 206);
 
     static char wifi_line[48];
@@ -136,7 +137,7 @@ static void ui_create(void) {
     lv_obj_t *hint = make_label(scr, wifi_line, 14);
     lv_obj_align(hint, LV_ALIGN_BOTTOM_LEFT, 10, -28);
 
-    lv_obj_t *hint2 = make_label(scr, CUBE_WIFI_PASSWORD[0] ? "WPA2 key set" : "OPEN AP 192.168.4.1", 14);
+    lv_obj_t *hint2 = make_label(scr, CUBE_WIFI_PASSWORD[0] ? "WPA2 ключ" : "Точка 192.168.4.1", 14);
     lv_obj_align(hint2, LV_ALIGN_BOTTOM_LEFT, 10, -10);
 }
 
@@ -337,7 +338,7 @@ void display_set_values(void) {
     if (power_w > 0) lv_label_set_text_fmt(s_power, "POWER  %ld W", power_w);
     else lv_label_set_text(s_power, "POWER  ---- W");
 
-    lv_label_set_text_fmt(s_stage, "STAGE: %s", cube_charge_stage_name(s.charger_stage));
+    lv_label_set_text_fmt(s_stage, "ЭТАП: %s", cube_charge_stage_name(s.charger_stage));
     if (s.bcl_requested_voltage_raw || s.bcl_requested_current_0p1a != INT16_MIN) {
         int req_i = s.bcl_requested_current_0p1a;
         if (req_i == INT16_MIN) {

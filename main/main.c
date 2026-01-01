@@ -78,6 +78,12 @@ void app_main(void) {
     if (err != ESP_OK) ESP_LOGW(TAG, "touch init failed: %s", esp_err_to_name(err));
     else ESP_LOGW(TAG, "stage: touch ok");
 
+    /* SoftAP first for scan visibility, then BLE. */
+    err = web_init();
+    if (err != ESP_OK) ESP_LOGE(TAG, "Web init failed: %s", esp_err_to_name(err));
+    else ESP_LOGW(TAG, "stage: Web AP ok");
+
+
     err = display_init();
     if (err != ESP_OK) {
         ESP_LOGE(TAG, "display init failed: %s", esp_err_to_name(err));
@@ -86,12 +92,6 @@ void app_main(void) {
     } else {
         ESP_LOGW(TAG, "stage: LCD/LVGL ok");
     }
-
-    /* SoftAP first for scan visibility, then BLE. */
-    err = web_init();
-    if (err != ESP_OK) ESP_LOGE(TAG, "Web init failed: %s", esp_err_to_name(err));
-    else ESP_LOGW(TAG, "stage: Web AP ok");
-
 #if CUBE_BLE_ENABLE
 #if (CUBE_BLE_START_DELAY_MS > 0)
     ESP_LOGW(TAG, "BLE delay %d ms (SoftAP first)", CUBE_BLE_START_DELAY_MS);
