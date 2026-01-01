@@ -36,12 +36,12 @@ static uint32_t s_last_bcp_ms = 0;
 static uint32_t s_last_rx_count = 0;
 static uint32_t s_last_chg_ms = 0;
 static uint32_t s_auto_hold_until = 0;
-static uint8_t  s_relay_test = 0;
-static uint32_t s_relay_test_ms = 0;
 static bool     s_boot_started = false;
 static uint32_t s_power_seen_ms = 0;
 static bool s_load_on = false;
 static uint16_t s_v_anchor = 0;
+/* -1: load follows station voltage. 0/1: long-hold latched the load relay until the opposite hold. */
+static int s_load_manual = -1;
 
 static uint32_t now_ms(void)
 {
@@ -70,18 +70,24 @@ static void set_state(uint8_t s)
 
     if (s == ST_IDLE || s == ST_STOP || s == ST_FINALIZE ||
         s == ST_HANDSHAKE_INIT || s == ST_CHARGING) {
-        s_load_on = false;
-        s_power_seen_ms = 0;
-        s_v_anchor = 0;
+        if (s_load_manual < 0) {
+            s_load_on = false;
+            s_power_seen_ms = 0;
+            s_v_anchor = 0;
+        }
     }
     if (s == ST_IDLE || s == ST_STOP || s == ST_FINALIZE) {
         relays_fail_safe();
         app_state_set_session(false);
+        if (s_load_manual == 1) {
+            relays_set(0, 1);
+            s_load_on = true;
+        }
     }
     if (s == ST_READY_WAIT_CRO) {
         s_sub = 3;
         app_state_set_substate(3);
-        relays_set(1, 0); /* prepare path */
+        relays_set(1, s_load_manual == 1 ? 1 : 0); /* prepare path, keep a latched load */
     }
     ESP_LOGI(TAG, "state -> %s (%u) sub=%u", cube_main_state_name(s), (unsigned)s, (unsigned)s_sub);
 }
@@ -289,11 +295,15 @@ void sm_start_session(void)
 
 void sm_request_relay_test(void)
 {
-    if (s_main == ST_CHARGING || s_relay_test) return;
-    s_relay_test = 1;
-    s_relay_test_ms = now_ms();
-    relays_set(1, 0);
-    app_state_log("relay test GPIO6 ON");
+    cube_state_snapshot_t st;
+    int nb;
+    app_state_snapshot(&st);
+    nb = st.relay_b ? 0 : 1;
+    s_load_manual = nb;
+    s_load_on = nb ? true : false;
+    /* GPIO6 (prepare) stays as it is. GPIO7 is the load and latches. */
+    relays_set(st.relay_a ? 1 : 0, nb);
+    app_state_log(nb ? "нагрузка ВКЛ, держится" : "нагрузка ВЫКЛ, держится");
 }
 
 void sm_stop_session(void)
@@ -360,18 +370,6 @@ void sm_relay_tick(void)
         s_boot_started = true;
         app_state_log("12V up, handshake now");
         sm_start_session();
-    }
-    if (s_relay_test) {
-        uint32_t dt = t - s_relay_test_ms;
-        if (s_relay_test == 1 && dt >= 600) {
-            relays_set(0, 1);
-            s_relay_test = 2;
-            app_state_log("relay test GPIO7 ON");
-        } else if (s_relay_test == 2 && dt >= 1200) {
-            relays_set(0, 0);
-            s_relay_test = 0;
-            app_state_log("relay test off");
-        }
     }
     if (st.rx_count != s_last_rx_count) {
         s_last_rx_count = st.rx_count;
@@ -443,9 +441,12 @@ void sm_relay_tick(void)
         break;
 
     case ST_CHARGING:
-        /* GPIO6 prepare is already on. Load is GPIO7, the second relay in the test.
-           Close it only after station voltage is present and steady. */
-        if (!s_relay_test && !s_load_on) {
+        /* GPIO6 is prepare. GPIO7 is the load relay and stays under the manual latch if the user held it. */
+        if (s_load_manual >= 0) {
+            if ((int)st.relay_b != s_load_manual) {
+                relays_set(st.relay_a ? 1 : 0, s_load_manual);
+            }
+        } else if (!s_load_on) {
             uint16_t v = st.ccs_output_voltage_raw;
             if (v >= 500) {
                 if (s_power_seen_ms == 0 || s_v_anchor == 0) {
@@ -470,7 +471,7 @@ void sm_relay_tick(void)
                 s_power_seen_ms = 0;
                 s_v_anchor = 0;
             }
-        } else if (s_load_on && st.ccs_output_voltage_raw < 300) {
+        } else if (s_load_manual < 0 && s_load_on && st.ccs_output_voltage_raw < 300) {
             relays_set(0, 0);
             s_load_on = false;
             s_power_seen_ms = 0;
