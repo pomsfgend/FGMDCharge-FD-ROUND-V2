@@ -171,10 +171,13 @@ esp_err_t display_init(void) {
     }
     if ((err = esp_lcd_panel_reset(s_panel)) != ESP_OK) return err;
     if ((err = esp_lcd_panel_init(s_panel)) != ESP_OK) return err;
+    /* dump lcd_main has immediate 20 near panel setup — 240x280 gap */
+    (void)esp_lcd_panel_set_gap(s_panel, 0, 20);
     (void)esp_lcd_panel_invert_color(s_panel, true);
-    if ((err = esp_lcd_panel_mirror(s_panel, false, false)) != ESP_OK) return err;
+    /* User sees horizontal mirror — flip X */
+    if ((err = esp_lcd_panel_mirror(s_panel, true, false)) != ESP_OK) return err;
     if ((err = esp_lcd_panel_disp_on_off(s_panel, true)) != ESP_OK) return err;
-    ESP_LOGW(TAG, "panel on (portrait BGR invert)");
+    ESP_LOGW(TAG, "panel on (gap y=20, mirror X, BGR invert)");
 
     /* Backlight GPIO2 AFTER panel init (boot strapping already sampled).
        Do not touch GPIO6/GPIO20 (output commutation relays). */
@@ -193,6 +196,13 @@ esp_err_t display_init(void) {
     }
 
 
+    const esp_lcd_panel_io_callbacks_t io_cbs = {
+        .on_color_trans_done = lcd_flush_done,
+    };
+    if ((err = esp_lcd_panel_io_register_event_callbacks(s_panel_io, &io_cbs, NULL)) != ESP_OK) {
+        return err;
+    }
+
     lv_init();
     lv_disp_draw_buf_init(&s_draw_buf, s_buf1, s_buf2, CUBE_LCD_H_RES * 40);
     lv_disp_drv_init(&s_disp_drv);
@@ -202,13 +212,6 @@ esp_err_t display_init(void) {
     s_disp_drv.draw_buf = &s_draw_buf;
     s_display = lv_disp_drv_register(&s_disp_drv);
     if (!s_display) return ESP_FAIL;
-
-    const esp_lcd_panel_io_callbacks_t io_cbs = {
-        .on_color_trans_done = lcd_flush_done,
-    };
-    if ((err = esp_lcd_panel_io_register_event_callbacks(s_panel_io, &io_cbs, NULL)) != ESP_OK) {
-        return err;
-    }
 
     lv_indev_drv_init(&s_touch_drv);
     s_touch_drv.type = LV_INDEV_TYPE_POINTER;

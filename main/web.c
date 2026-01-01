@@ -407,6 +407,8 @@ esp_err_t web_init(void)
 
     wifi_init_config_t cfg = WIFI_INIT_CONFIG_DEFAULT();
     err = esp_wifi_init(&cfg);
+    if (err != ESP_OK) return err;
+    (void)esp_wifi_set_storage(WIFI_STORAGE_RAM);
     if (err != ESP_OK && err != ESP_ERR_INVALID_STATE) return err;
 
     wifi_config_t ap = {0};
