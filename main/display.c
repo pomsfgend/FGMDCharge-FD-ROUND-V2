@@ -133,7 +133,11 @@ static void ui_create(void) {
     lv_obj_align(s_can, LV_ALIGN_TOP_LEFT, 10, 206);
 
     static char wifi_line[48];
-    (void)snprintf(wifi_line, sizeof(wifi_line), "WiFi %s", CUBE_WIFI_SSID);
+    if (strlen(CUBE_WIFI_PASSWORD) >= 8U) {
+        (void)snprintf(wifi_line, sizeof(wifi_line), "WiFi %s / %s", CUBE_WIFI_SSID, CUBE_WIFI_PASSWORD);
+    } else {
+        (void)snprintf(wifi_line, sizeof(wifi_line), "WiFi %s OPEN", CUBE_WIFI_SSID);
+    }
     lv_obj_t *hint = make_label(scr, wifi_line, 14);
     lv_obj_align(hint, LV_ALIGN_BOTTOM_LEFT, 10, -28);
 

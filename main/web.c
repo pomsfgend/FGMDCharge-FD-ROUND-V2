@@ -474,91 +474,64 @@ static esp_err_t session_stop_post(httpd_req_t *req)
 
 esp_err_t web_init(void)
 {
-    esp_err_t err = esp_netif_init();
+    esp_err_t err;
+
+    err = esp_netif_init();
     if (err != ESP_OK && err != ESP_ERR_INVALID_STATE) return err;
     err = esp_event_loop_create_default();
     if (err != ESP_OK && err != ESP_ERR_INVALID_STATE) return err;
-    (void)esp_event_handler_register(WIFI_EVENT, WIFI_EVENT_AP_STACONNECTED, &wifi_ap_event_handler, NULL);
-    (void)esp_event_handler_register(WIFI_EVENT, WIFI_EVENT_AP_STADISCONNECTED, &wifi_ap_event_handler, NULL);
+
+    /* Official ESP-IDF SoftAP path (examples/wifi/getting_started/softAP). */
     esp_netif_t *ap_netif = esp_netif_create_default_wifi_ap();
     if (!ap_netif) return ESP_ERR_NO_MEM;
-    {
-        esp_netif_ip_info_t ip_info;
-        memset(&ip_info, 0, sizeof(ip_info));
-        (void)esp_netif_str_to_ip4("192.168.4.1", &ip_info.ip);
-        (void)esp_netif_str_to_ip4("192.168.4.1", &ip_info.gw);
-        (void)esp_netif_str_to_ip4("255.255.255.0", &ip_info.netmask);
-        (void)esp_netif_dhcps_stop(ap_netif);
-        if ((err = esp_netif_set_ip_info(ap_netif, &ip_info)) != ESP_OK) {
-            ESP_LOGE(TAG, "set_ip_info: %s", esp_err_to_name(err));
-            return err;
-        }
-        {
-            uint8_t dns_offer = 1;
-            (void)esp_netif_dhcps_option(ap_netif, ESP_NETIF_OP_SET,
-                                         ESP_NETIF_DOMAIN_NAME_SERVER,
-                                         &dns_offer, sizeof(dns_offer));
-        }
-        if ((err = esp_netif_dhcps_start(ap_netif)) != ESP_OK && err != ESP_ERR_ESP_NETIF_DHCP_ALREADY_STARTED) {
-            ESP_LOGE(TAG, "dhcps_start: %s", esp_err_to_name(err));
-            return err;
-        }
-        ESP_LOGW(TAG, "AP IP 192.168.4.1 DHCP ON");
-    }
-
 
     wifi_init_config_t cfg = WIFI_INIT_CONFIG_DEFAULT();
     err = esp_wifi_init(&cfg);
     if (err != ESP_OK) return err;
     (void)esp_wifi_set_storage(WIFI_STORAGE_RAM);
-    if (err != ESP_OK && err != ESP_ERR_INVALID_STATE) return err;
 
-    wifi_config_t ap = {0};
-    (void)snprintf((char *)ap.ap.ssid, sizeof(ap.ap.ssid), "%s", CUBE_WIFI_SSID);
-    ap.ap.ssid_len = (uint8_t)strlen(CUBE_WIFI_SSID);
-    ap.ap.channel = CUBE_WIFI_CHANNEL;
-    ap.ap.max_connection = CUBE_WIFI_MAX_CONNECTIONS;
-    ap.ap.ssid_hidden = 0;
-    ap.ap.beacon_interval = 100;
-    ap.ap.pmf_cfg.capable = false;
-    ap.ap.pmf_cfg.required = false;
+    (void)esp_event_handler_instance_register(WIFI_EVENT, WIFI_EVENT_AP_STACONNECTED,
+                                              &wifi_ap_event_handler, NULL, NULL);
+    (void)esp_event_handler_instance_register(WIFI_EVENT, WIFI_EVENT_AP_STADISCONNECTED,
+                                              &wifi_ap_event_handler, NULL, NULL);
+
+    wifi_config_t wifi_config = {0};
+    (void)snprintf((char *)wifi_config.ap.ssid, sizeof(wifi_config.ap.ssid), "%s", CUBE_WIFI_SSID);
+    wifi_config.ap.ssid_len = (uint8_t)strlen(CUBE_WIFI_SSID);
+    wifi_config.ap.channel = CUBE_WIFI_CHANNEL;
+    wifi_config.ap.max_connection = CUBE_WIFI_MAX_CONNECTIONS;
+    wifi_config.ap.ssid_hidden = 0;
+    wifi_config.ap.beacon_interval = 100;
+    wifi_config.ap.pmf_cfg.capable = true;
+    wifi_config.ap.pmf_cfg.required = false;
     if (strlen(CUBE_WIFI_PASSWORD) >= 8U) {
-        ap.ap.authmode = WIFI_AUTH_WPA_WPA2_PSK;
-        (void)snprintf((char *)ap.ap.password, sizeof(ap.ap.password), "%s", CUBE_WIFI_PASSWORD);
+        wifi_config.ap.authmode = WIFI_AUTH_WPA2_PSK;
+        (void)snprintf((char *)wifi_config.ap.password, sizeof(wifi_config.ap.password),
+                       "%s", CUBE_WIFI_PASSWORD);
     } else {
-        ap.ap.authmode = WIFI_AUTH_OPEN;
-        ap.ap.password[0] = 0;
+        wifi_config.ap.authmode = WIFI_AUTH_OPEN;
+        wifi_config.ap.password[0] = 0;
     }
 
-    /* ESP-IDF SoftAP (ESP32-C3): AP-only, country set before start for legal channels. */
-    wifi_country_t country = {
-        .cc = "01",
-        .schan = 1,
-        .nchan = 13,
-        .max_tx_power = 20,
-        .policy = WIFI_COUNTRY_POLICY_MANUAL,
-    };
-    (void)esp_wifi_set_country(&country);
+    err = esp_wifi_set_mode(WIFI_MODE_AP);
+    if (err != ESP_OK) return err;
+    err = esp_wifi_set_config(WIFI_IF_AP, &wifi_config);
+    if (err != ESP_OK) return err;
+    err = esp_wifi_start();
+    if (err != ESP_OK && err != ESP_ERR_INVALID_STATE) return err;
 
-    if ((err = esp_wifi_set_mode(WIFI_MODE_AP)) != ESP_OK) return err;
-    if ((err = esp_wifi_set_config(WIFI_IF_AP, &ap)) != ESP_OK) return err;
     (void)esp_wifi_set_ps(WIFI_PS_NONE);
-    (void)esp_wifi_set_bandwidth(WIFI_IF_AP, WIFI_BW_HT20);
-    (void)esp_wifi_set_protocol(WIFI_IF_AP, WIFI_PROTOCOL_11B | WIFI_PROTOCOL_11G | WIFI_PROTOCOL_11N);
-    if ((err = esp_wifi_start()) != ESP_OK && err != ESP_ERR_INVALID_STATE) return err;
-    (void)esp_wifi_set_max_tx_power(80);
 
     {
         uint8_t mac[6] = {0};
         (void)esp_wifi_get_mac(WIFI_IF_AP, mac);
-        ESP_LOGW(TAG, "SoftAP %s auth=%s ch=%u MAC=%02X:%02X:%02X:%02X:%02X:%02X pass=%s",
+        ESP_LOGW(TAG, "softAP started SSID:%s password:%s channel:%u",
                  CUBE_WIFI_SSID,
-                 (strlen(CUBE_WIFI_PASSWORD) >= 8U) ? "WPA2" : "OPEN",
-                 (unsigned)CUBE_WIFI_CHANNEL,
-                 mac[0], mac[1], mac[2], mac[3], mac[4], mac[5],
-                 (strlen(CUBE_WIFI_PASSWORD) >= 8U) ? CUBE_WIFI_PASSWORD : "(none)");
+                 (strlen(CUBE_WIFI_PASSWORD) >= 8U) ? CUBE_WIFI_PASSWORD : "(open)",
+                 (unsigned)CUBE_WIFI_CHANNEL);
+        ESP_LOGW(TAG, "AP MAC %02X:%02X:%02X:%02X:%02X:%02X UI http://192.168.4.1/",
+                 mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
     }
-
 
     httpd_config_t hc = HTTPD_DEFAULT_CONFIG();
     hc.max_uri_handlers = 28;
@@ -573,8 +546,7 @@ esp_err_t web_init(void)
         return err;
     }
 
-    /* Specific routes first. Wildcard catch-all MUST be last or IDF reports
-       ESP_ERR_HTTPD_HANDLER_EXISTS / wrong match order. */
+    /* Specific routes first; wildcard last. */
     const httpd_uri_t uri[] = {
         {.uri = "/", .method = HTTP_GET, .handler = root_get},
         {.uri = "/style.css", .method = HTTP_GET, .handler = css_get},
@@ -597,14 +569,16 @@ esp_err_t web_init(void)
         {.uri = "/api/session/stop", .method = HTTP_POST, .handler = session_stop_post},
         {.uri = "/*", .method = HTTP_GET, .handler = portal_catchall_get},
     };
-    for (size_t i = 0; i < sizeof(uri) / sizeof(uri[0]); ++i) {
-        err = httpd_register_uri_handler(s_server, &uri[i]);
-        if (err != ESP_OK) {
+    for (size_t u = 0; u < sizeof(uri) / sizeof(uri[0]); ++u) {
+        if ((err = httpd_register_uri_handler(s_server, &uri[u])) != ESP_OK) {
+            ESP_LOGE(TAG, "uri %s failed: %s", uri[u].uri, esp_err_to_name(err));
             (void)httpd_stop(s_server);
             s_server = NULL;
             return err;
         }
     }
+
     ESP_LOGI(TAG, "Wi-Fi AP=%s UI=http://192.168.4.1/", CUBE_WIFI_SSID);
     return ESP_OK;
 }
+
