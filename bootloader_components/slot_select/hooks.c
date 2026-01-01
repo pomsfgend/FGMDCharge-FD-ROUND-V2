@@ -2,10 +2,11 @@
 #include "esp_rom_crc.h"
 #include "bootloader_flash.h"
 
-/* Three power-ons toggle the slot. No GPIO. Marks are 4 bytes so the
-   bootloader flash writer accepts them. */
+/* Three power-ons toggle ota_0 / ota_1. No GPIO. Counter lives in the
+   unused tail of the otadata partition, so neither app has to know. */
 #define OTADATA 0xD000
 #define COUNT_AT 0xE800
+#define COUNT_MAX 3
 
 static int current_slot(void)
 {
@@ -32,14 +33,15 @@ static void write_slot(int slot)
 
 void bootloader_after_init(void)
 {
-    uint32_t marks[2];
-    bootloader_flash_read(COUNT_AT, marks, 8, false);
-    int n = (marks[0] == 0) + (marks[0] == 0 && marks[1] == 0);
-    if (n >= 2) {
+    uint8_t marks[COUNT_MAX];
+    bootloader_flash_read(COUNT_AT, marks, COUNT_MAX, false);
+    int n = 0;
+    while (n < COUNT_MAX && marks[n] == 0x00) n++;
+    if (n >= COUNT_MAX - 1) {
         write_slot(current_slot() ^ 1);
         bootloader_flash_erase_range(0xE000, 0x1000);
         return;
     }
-    uint32_t zero = 0;
-    bootloader_flash_write(COUNT_AT + (n * 4), &zero, 4, false);
+    uint8_t zero = 0x00;
+    bootloader_flash_write(COUNT_AT + n, &zero, 1, false);
 }
