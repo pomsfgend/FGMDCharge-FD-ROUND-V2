@@ -1,13 +1,13 @@
 #pragma once
 
 #define CUBE_FW_NAME                 "FD_ROUND_V2"
-#define CUBE_FW_VERSION              "2.2.7"
+#define CUBE_FW_VERSION              "2.2.9"
 
 /* Web API protection. Change before installing on a real vehicle/charging setup. */
 #define CUBE_WEB_KEY                 ""  /* local SoftAP: no API key */
 #define CUBE_WIFI_SSID               "Cube"
 #define CUBE_WIFI_PASSWORD           "123456789"
-#define CUBE_WIFI_CHANNEL            1
+#define CUBE_WIFI_CHANNEL            0  /* 0 = auto pick 1/6/11 */
 #define CUBE_WIFI_MAX_CONNECTIONS    4
 
 /* Safety: boots with CAN TX disabled until explicitly enabled via web/BLE. */

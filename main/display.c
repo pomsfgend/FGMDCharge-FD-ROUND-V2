@@ -49,7 +49,16 @@ static lv_obj_t *s_sys_mac;
 static lv_obj_t *s_sys_heap;
 static lv_obj_t *s_sys_touch;
 static lv_obj_t *s_sys_status;
-static int s_ui_page; /* 0=charge 1=sys */
+static lv_obj_t *s_page_wifi;
+static lv_obj_t *s_wifi_list_lab[8];
+static lv_obj_t *s_wifi_status;
+static lv_obj_t *s_wifi_ip;
+static lv_obj_t *s_wifi_ta;
+static lv_obj_t *s_wifi_kb;
+static int s_wifi_sel;
+static int s_wifi_count;
+static web_scan_ap_t s_wifi_aps[WEB_SCAN_MAX];
+static int s_ui_page; /* 0=charge 1=sys 2=wifi */
 static temperature_sensor_handle_t s_temps;
 static lv_color_t *s_buf1;
 static lv_color_t *s_buf2;
@@ -123,7 +132,6 @@ static lv_obj_t *make_card(lv_obj_t *parent, lv_coord_t x, lv_coord_t y, lv_coor
 static void page_show(int page)
 {
     s_ui_page = page;
-    if (s_page_chg) lv_obj_add_flag(s_page_chg, page == 0 ? 0 : LV_OBJ_FLAG_HIDDEN);
     if (s_page_chg) {
         if (page == 0) lv_obj_clear_flag(s_page_chg, LV_OBJ_FLAG_HIDDEN);
         else lv_obj_add_flag(s_page_chg, LV_OBJ_FLAG_HIDDEN);
@@ -132,7 +140,16 @@ static void page_show(int page)
         if (page == 1) lv_obj_clear_flag(s_page_sys, LV_OBJ_FLAG_HIDDEN);
         else lv_obj_add_flag(s_page_sys, LV_OBJ_FLAG_HIDDEN);
     }
+    if (s_page_wifi) {
+        if (page == 2) lv_obj_clear_flag(s_page_wifi, LV_OBJ_FLAG_HIDDEN);
+        else lv_obj_add_flag(s_page_wifi, LV_OBJ_FLAG_HIDDEN);
+    }
+    if (s_wifi_kb) {
+        if (page == 2) { /* keep hidden until password */ }
+        else lv_obj_add_flag(s_wifi_kb, LV_OBJ_FLAG_HIDDEN);
+    }
 }
+
 
 static void on_btn_sys(lv_event_t *e)
 {
@@ -152,8 +169,87 @@ static void on_btn_wifi_rst(lv_event_t *e)
     if (s_sys_status) lv_label_set_text(s_sys_status, "WiFi: restart...");
     esp_err_t err = web_wifi_restart();
     if (s_sys_status) {
-        lv_label_set_text(s_sys_status, err == ESP_OK ? "WiFi: OK restarted" : "WiFi: restart FAIL");
+        if (err == ESP_OK) lv_label_set_text(s_sys_status, "WiFi: restarting...");
+        else if (err == ESP_ERR_INVALID_STATE) lv_label_set_text(s_sys_status, "WiFi: busy");
+        else lv_label_set_text(s_sys_status, "WiFi: restart FAIL");
     }
+}
+
+
+static void on_btn_wifi_page(lv_event_t *e)
+{
+    (void)e;
+    page_show(2);
+}
+
+static void wifi_list_refresh_labels(void)
+{
+    for (int i = 0; i < 8; ++i) {
+        if (!s_wifi_list_lab[i]) continue;
+        if (i < s_wifi_count) {
+            const char *mark = (i == s_wifi_sel) ? ">" : " ";
+            lv_label_set_text_fmt(s_wifi_list_lab[i], "%s%s %ddBm ch%u",
+                                  mark, s_wifi_aps[i].ssid,
+                                  (int)s_wifi_aps[i].rssi,
+                                  (unsigned)s_wifi_aps[i].channel);
+        } else {
+            lv_label_set_text(s_wifi_list_lab[i], "");
+        }
+    }
+}
+
+static void on_btn_scan(lv_event_t *e)
+{
+    (void)e;
+    if (s_wifi_status) lv_label_set_text(s_wifi_status, "Scan...");
+    s_wifi_count = web_wifi_scan(s_wifi_aps, WEB_SCAN_MAX);
+    if (s_wifi_count > 8) s_wifi_count = 8;
+    s_wifi_sel = 0;
+    wifi_list_refresh_labels();
+    if (s_wifi_status) {
+        lv_label_set_text_fmt(s_wifi_status, "Found %d AP  SoftAP ch=%u",
+                              s_wifi_count, (unsigned)web_wifi_ap_channel());
+    }
+}
+
+static void on_btn_sel_up(lv_event_t *e)
+{
+    (void)e;
+    if (s_wifi_count <= 0) return;
+    if (s_wifi_sel > 0) s_wifi_sel--;
+    wifi_list_refresh_labels();
+}
+
+static void on_btn_sel_dn(lv_event_t *e)
+{
+    (void)e;
+    if (s_wifi_count <= 0) return;
+    if (s_wifi_sel + 1 < s_wifi_count) s_wifi_sel++;
+    wifi_list_refresh_labels();
+}
+
+static void on_btn_connect(lv_event_t *e)
+{
+    (void)e;
+    if (s_wifi_count <= 0 || s_wifi_sel < 0 || s_wifi_sel >= s_wifi_count) {
+        if (s_wifi_status) lv_label_set_text(s_wifi_status, "Select AP first");
+        return;
+    }
+    const char *pass = "";
+    if (s_wifi_ta) pass = lv_textarea_get_text(s_wifi_ta);
+    if (s_wifi_status) {
+        lv_label_set_text_fmt(s_wifi_status, "Connect %s...", s_wifi_aps[s_wifi_sel].ssid);
+    }
+    esp_err_t err = web_wifi_sta_connect(s_wifi_aps[s_wifi_sel].ssid, pass ? pass : "");
+    if (err != ESP_OK && s_wifi_status) {
+        lv_label_set_text_fmt(s_wifi_status, "Connect err %s", esp_err_to_name(err));
+    }
+}
+
+static void on_ta_focused(lv_event_t *e)
+{
+    (void)e;
+    if (s_wifi_kb) lv_obj_clear_flag(s_wifi_kb, LV_OBJ_FLAG_HIDDEN);
 }
 
 static void ui_create(void)
@@ -236,26 +332,99 @@ static void ui_create(void)
     lv_obj_set_style_text_font(bl, &lv_font_ru_14, 0);
     lv_obj_center(bl);
 
+
+    /* --- page 2: WiFi debug / STA --- */
+    s_page_wifi = lv_obj_create(scr);
+    lv_obj_set_size(s_page_wifi, CUBE_LCD_H_RES, CUBE_LCD_V_RES - 36);
+    lv_obj_set_pos(s_page_wifi, 0, 0);
+    lv_obj_set_style_bg_opa(s_page_wifi, LV_OPA_TRANSP, 0);
+    lv_obj_set_style_border_width(s_page_wifi, 0, 0);
+    lv_obj_set_style_pad_all(s_page_wifi, 0, 0);
+    lv_obj_clear_flag(s_page_wifi, LV_OBJ_FLAG_SCROLLABLE);
+    lv_obj_add_flag(s_page_wifi, LV_OBJ_FLAG_HIDDEN);
+
+    lv_obj_t *wt = make_label(s_page_wifi, "WiFi SCAN / STA", 14);
+    lv_obj_align(wt, LV_ALIGN_TOP_MID, 0, 2);
+
+    for (int i = 0; i < 8; ++i) {
+        s_wifi_list_lab[i] = make_label(s_page_wifi, "", 14);
+        lv_obj_align(s_wifi_list_lab[i], LV_ALIGN_TOP_LEFT, 4, 20 + i * 16);
+    }
+
+    s_wifi_status = make_label(s_page_wifi, "Scan for APs", 14);
+    lv_obj_align(s_wifi_status, LV_ALIGN_TOP_LEFT, 4, 150);
+    s_wifi_ip = make_label(s_page_wifi, "STA IP: -", 14);
+    lv_obj_align(s_wifi_ip, LV_ALIGN_TOP_LEFT, 4, 168);
+
+    s_wifi_ta = lv_textarea_create(s_page_wifi);
+    lv_obj_set_size(s_wifi_ta, 230, 28);
+    lv_obj_align(s_wifi_ta, LV_ALIGN_TOP_LEFT, 4, 186);
+    lv_textarea_set_one_line(s_wifi_ta, true);
+    lv_textarea_set_password_mode(s_wifi_ta, false);
+    lv_textarea_set_placeholder_text(s_wifi_ta, "password");
+    lv_obj_add_event_cb(s_wifi_ta, on_ta_focused, LV_EVENT_FOCUSED, NULL);
+
+    lv_obj_t *bscan = lv_btn_create(s_page_wifi);
+    lv_obj_set_size(bscan, 70, 26);
+    lv_obj_align(bscan, LV_ALIGN_TOP_LEFT, 4, 218);
+    lv_obj_add_event_cb(bscan, on_btn_scan, LV_EVENT_CLICKED, NULL);
+    lv_obj_t *l1 = lv_label_create(bscan); lv_label_set_text(l1, "SCAN"); lv_obj_center(l1);
+
+    lv_obj_t *bup = lv_btn_create(s_page_wifi);
+    lv_obj_set_size(bup, 40, 26);
+    lv_obj_align(bup, LV_ALIGN_TOP_LEFT, 80, 218);
+    lv_obj_add_event_cb(bup, on_btn_sel_up, LV_EVENT_CLICKED, NULL);
+    lv_obj_t *l2 = lv_label_create(bup); lv_label_set_text(l2, "UP"); lv_obj_center(l2);
+
+    lv_obj_t *bdn = lv_btn_create(s_page_wifi);
+    lv_obj_set_size(bdn, 40, 26);
+    lv_obj_align(bdn, LV_ALIGN_TOP_LEFT, 126, 218);
+    lv_obj_add_event_cb(bdn, on_btn_sel_dn, LV_EVENT_CLICKED, NULL);
+    lv_obj_t *l3 = lv_label_create(bdn); lv_label_set_text(l3, "DN"); lv_obj_center(l3);
+
+    lv_obj_t *bcon = lv_btn_create(s_page_wifi);
+    lv_obj_set_size(bcon, 60, 26);
+    lv_obj_align(bcon, LV_ALIGN_TOP_LEFT, 172, 218);
+    lv_obj_add_event_cb(bcon, on_btn_connect, LV_EVENT_CLICKED, NULL);
+    lv_obj_t *l4 = lv_label_create(bcon); lv_label_set_text(l4, "JOIN"); lv_obj_center(l4);
+
+    s_wifi_kb = lv_keyboard_create(scr);
+    lv_obj_set_size(s_wifi_kb, CUBE_LCD_H_RES, 100);
+    lv_obj_align(s_wifi_kb, LV_ALIGN_BOTTOM_MID, 0, 0);
+    lv_keyboard_set_textarea(s_wifi_kb, s_wifi_ta);
+    lv_obj_add_flag(s_wifi_kb, LV_OBJ_FLAG_HIDDEN);
+
     /* --- bottom nav --- */
+    lv_obj_t *btn_ch = lv_btn_create(scr);
+    lv_obj_set_size(btn_ch, 72, 28);
+    lv_obj_align(btn_ch, LV_ALIGN_BOTTOM_LEFT, 4, -3);
+    lv_obj_add_event_cb(btn_ch, on_btn_chg, LV_EVENT_CLICKED, NULL);
+    lv_obj_t *lc = lv_label_create(btn_ch);
+    lv_label_set_text(lc, "CHG");
+    lv_obj_set_style_text_font(lc, &lv_font_ru_14, 0);
+    lv_obj_center(lc);
+
     lv_obj_t *btn_sys = lv_btn_create(scr);
-    lv_obj_set_size(btn_sys, 100, 30);
-    lv_obj_align(btn_sys, LV_ALIGN_BOTTOM_RIGHT, -8, -4);
+    lv_obj_set_size(btn_sys, 72, 28);
+    lv_obj_align(btn_sys, LV_ALIGN_BOTTOM_MID, 0, -3);
     lv_obj_add_event_cb(btn_sys, on_btn_sys, LV_EVENT_CLICKED, NULL);
     lv_obj_t *ls = lv_label_create(btn_sys);
     lv_label_set_text(ls, "SYS");
     lv_obj_set_style_text_font(ls, &lv_font_ru_14, 0);
     lv_obj_center(ls);
 
-    lv_obj_t *btn_ch = lv_btn_create(scr);
-    lv_obj_set_size(btn_ch, 100, 30);
-    lv_obj_align(btn_ch, LV_ALIGN_BOTTOM_LEFT, 8, -4);
-    lv_obj_add_event_cb(btn_ch, on_btn_chg, LV_EVENT_CLICKED, NULL);
-    lv_obj_t *lc = lv_label_create(btn_ch);
-    lv_label_set_text(lc, "CHARGE");
-    lv_obj_set_style_text_font(lc, &lv_font_ru_14, 0);
-    lv_obj_center(lc);
+    lv_obj_t *btn_wf = lv_btn_create(scr);
+    lv_obj_set_size(btn_wf, 72, 28);
+    lv_obj_align(btn_wf, LV_ALIGN_BOTTOM_RIGHT, -4, -3);
+    lv_obj_add_event_cb(btn_wf, on_btn_wifi_page, LV_EVENT_CLICKED, NULL);
+    lv_obj_t *lw = lv_label_create(btn_wf);
+    lv_label_set_text(lw, "WiFi");
+    lv_obj_set_style_text_font(lw, &lv_font_ru_14, 0);
+    lv_obj_center(lw);
 
     s_ui_page = 0;
+    s_wifi_sel = 0;
+    s_wifi_count = 0;
     page_show(0);
 }
 
@@ -498,7 +667,10 @@ void display_set_values(void) {
     if (s_ui_page == 1) {
         float tc = 0.0f;
         if (s_temps && temperature_sensor_get_celsius(s_temps, &tc) == ESP_OK) {
-            lv_label_set_text_fmt(s_sys_temp, "Temp CPU: %.1f C", (double)tc);
+            int t10 = (int)(tc * 10.0f);
+            if (t10 < 0) t10 = -t10;
+            lv_label_set_text_fmt(s_sys_temp, "Temp CPU: %d.%d C",
+                                  (int)tc, t10 % 10);
         } else {
             lv_label_set_text(s_sys_temp, "Temp CPU: n/a");
         }
@@ -510,8 +682,8 @@ void display_set_values(void) {
             if (esp_wifi_get_config(WIFI_IF_AP, &wcfg) == ESP_OK) {
                 ch = wcfg.ap.channel;
             }
-            lv_label_set_text_fmt(s_sys_wifi, "WiFi %s ch=%u %s",
-                                  CUBE_WIFI_SSID, (unsigned)ch,
+            lv_label_set_text_fmt(s_sys_wifi, "AP %s ch=%u %s",
+                                  CUBE_WIFI_SSID, (unsigned)web_wifi_ap_channel(),
                                   (strlen(CUBE_WIFI_PASSWORD) >= 8U) ? "WPA2" : "OPEN");
         }
         {
@@ -526,6 +698,20 @@ void display_set_values(void) {
         lv_label_set_text_fmt(s_sys_touch, "Touch: %s",
                               touch_is_available() ? "OK CST816" : "none");
     }
+
+    if (s_ui_page == 2 && s_wifi_ip) {
+        char ip[16];
+        web_wifi_sta_ip(ip, sizeof(ip));
+        if (ip[0]) {
+            lv_label_set_text_fmt(s_wifi_ip, "STA IP: %s", ip);
+            if (s_wifi_status && web_wifi_sta_connected()) {
+                lv_label_set_text_fmt(s_wifi_status, "OK open http://%s/", ip);
+            }
+        } else {
+            lv_label_set_text(s_wifi_ip, "STA IP: -");
+        }
+    }
+
 
     lv_timer_handler();
     display_unlock();
