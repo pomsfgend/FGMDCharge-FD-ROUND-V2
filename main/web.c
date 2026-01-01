@@ -871,8 +871,13 @@ esp_err_t web_init(void)
     (void)esp_wifi_set_protocol(WIFI_IF_AP, WIFI_PROTOCOL_11B | WIFI_PROTOCOL_11G | WIFI_PROTOCOL_11N);
     (void)esp_wifi_set_bandwidth(WIFI_IF_AP, WIFI_BW_HT20);
         if ((err = esp_wifi_start()) != ESP_OK && err != ESP_ERR_INVALID_STATE) return err;
-    (void)esp_wifi_set_max_tx_power(84);
-    (void)esp_wifi_set_max_tx_power(84);
+    (void)esp_wifi_set_max_tx_power(78);
+    {
+        wifi_country_t country = {
+            .cc = "01", .schan = 1, .nchan = 13, .policy = WIFI_COUNTRY_POLICY_MANUAL
+        };
+        (void)esp_wifi_set_country(&country);
+    }
     ESP_LOGW(TAG, "AP only SSID=%s ch=%u",
              CUBE_WIFI_SSID, (unsigned)CUBE_WIFI_CHANNEL);
     /* AP only, no scan */

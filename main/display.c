@@ -626,7 +626,7 @@ static void build_ui(void)
 {
     s_scr_chg = lv_scr_act();
     style_screen(s_scr_chg);
-    line(s_scr_chg, "КУБ 2.7.7", 4);
+    line(s_scr_chg, "КУБ 2.7.8", 4);
     s_time = line(s_scr_chg, "время 0 мин", 28);
     s_relay = line(s_scr_chg, "выход OFF", 50);
     s_req_v = line(s_scr_chg, "запрос 240 В", 78);
@@ -653,13 +653,13 @@ static void build_ui(void)
     s_log_lbl = line(s_scr_chg, "лог", 298);
     lv_obj_set_width(s_log_lbl, 216);
     lv_label_set_long_mode(s_log_lbl, LV_LABEL_LONG_WRAP);
-    lv_obj_t *ob = lv_btn_create(s_scr_chg);
-    lv_obj_set_size(ob, 200, 36);
-    lv_obj_set_pos(ob, 12, 430);
-    lv_obj_add_event_cb(ob, boot_old_cb, LV_EVENT_CLICKED, NULL);
-    lv_obj_t *obl = lv_label_create(ob);
-    lv_label_set_text(obl, "оригинал");
-    lv_obj_center(obl);
+    lv_obj_t *orig = lv_btn_create(s_scr_chg);
+    lv_obj_set_size(orig, 200, 36);
+    lv_obj_set_pos(orig, 12, 430);
+    lv_obj_add_event_cb(orig, boot_old_cb, LV_EVENT_CLICKED, NULL);
+    lv_obj_t *orig_l = lv_label_create(orig);
+    lv_label_set_text(orig_l, "оригинал");
+    lv_obj_center(orig_l);
     s_status = line(s_scr_chg, "3 включения = слот", 476);
 
 
@@ -745,7 +745,7 @@ static void build_ui(void)
     lv_obj_set_height(s_can_lbl, 110);
     s_scr_sys = lv_obj_create(NULL);
     style_screen(s_scr_sys);
-    line(s_scr_sys, "СИСТЕМА 2.7.7", 4);
+    line(s_scr_sys, "СИСТЕМА 2.7.8", 4);
     s_sys_temp = line(s_scr_sys, "CPU -- C", 28);
     s_sys_cpu = line(s_scr_sys, "F 160 MHz", 48);
     s_sys_load = line(s_scr_sys, "Load -- %", 68);
@@ -964,7 +964,6 @@ esp_err_t display_init(void)
     ESP_ERROR_CHECK(esp_lcd_panel_init(s_panel));
     ESP_ERROR_CHECK(esp_lcd_panel_invert_color(s_panel, CUBE_LCD_INVERT));
     ESP_ERROR_CHECK(esp_lcd_panel_mirror(s_panel, CUBE_LCD_MIRROR_X, CUBE_LCD_MIRROR_Y));
-    ESP_ERROR_CHECK(esp_lcd_panel_swap_xy(s_panel, true));
     ESP_ERROR_CHECK(esp_lcd_panel_set_gap(s_panel, CUBE_LCD_GAP_X, CUBE_LCD_GAP_Y));
     ESP_ERROR_CHECK(esp_lcd_panel_disp_on_off(s_panel, true));
     ESP_LOGW(TAG, "panel on invert=%d bgr=%d mirror=%d,%d", CUBE_LCD_INVERT, CUBE_LCD_BGR,
