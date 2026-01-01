@@ -1,4 +1,4 @@
-FGMDCharge / FD_ROUND V2 — RELEASE 2.5.7
+FGMDCharge / FD_ROUND V2 — RELEASE 2.5.8
 
 ЧТО ИСПРАВЛЕНО В 2.5.7
 - Убран ранний PWM на GPIO3 (был POWERON reboot loop)

@@ -85,7 +85,7 @@ void app_main(void) {
     err = display_init();
     if (err != ESP_OK) {
         ESP_LOGE(TAG, "display init failed: %s", esp_err_to_name(err));
-    } else if (xTaskCreate(display_task, "myTask_lcd", 6144, NULL, 2, NULL) != pdPASS) {
+    } else if (xTaskCreate(display_task, "myTask_lcd", 8192, NULL, 2, NULL) != pdPASS) {
         ESP_LOGE(TAG, "display task creation failed");
     } else {
         ESP_LOGW(TAG, "stage: LCD/LVGL ok");

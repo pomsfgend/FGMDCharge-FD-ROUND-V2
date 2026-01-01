@@ -21,6 +21,8 @@
 #include "sm_relay.h"
 #include "can_gbt.h"
 #include "safe_ota.h"
+#include "display.h"
+#include "esp_http_client.h"
 #include "esp_ota_ops.h"
 #include "esp_partition.h"
 
@@ -154,7 +156,7 @@ static esp_err_t status_get(httpd_req_t *req)
         "\"bcl_voltage_0p1v\":%u,\"bcl_current_0p1a\":%d,\"bcl_mode\":%u,"
         "\"ble\":%s,\"notify\":%s,\"indicate\":%s,\"display\":%s,\"touch\":%s,\"touch_pressed\":%s,"
         "\"protocol\":\"%s\",\"voltage_v\":%.1f,\"current_a\":%.1f,\"power_w\":%ld,\"time_min\":%u,"
-        "\"permit\":\"%s\",\"ccs\":\"%s\",\"can\":\"%s\",\"limit_v\":\"%.1f\",\"limit_i\":\"%.1f\",\"request\":\"%.1f/%.1f\",\"mode\":\"%s\",\"wifi\":\"%s\",\"sub_state\":%u,\"ap_channel\":%d,\"ap_clients\":%u,\"sta_ip\":\"%s\"}",
+        "\"permit\":\"%s\",\"ccs\":\"%s\",\"can\":\"%s\",\"limit_v\":\"%.1f\",\"limit_i\":\"%.1f\",\"request\":\"%.1f/%.1f\",\"mode\":\"%s\",\"wifi\":\"%s\",\"sub_state\":%u,\"ap_channel\":%d,\"ap_clients\":%u,\"sta_ip\":\"%s\",\"energy_kwh\":%.3f,\"vin\":\"%s\",\"cap_kwh\":%.2f,\"ota_pct\":%d}",
         CUBE_FW_NAME, CUBE_FW_VERSION,
         s.can_up ? "true" : "false", s.tx_enabled ? "true" : "false",
         (unsigned long)s.rx_count, (unsigned long)s.tx_count,
@@ -184,7 +186,8 @@ static esp_err_t status_get(httpd_req_t *req)
         s.cml_max_voltage_raw / 10.0, s.cml_max_current_0p1a / 10.0,
         s.bcl_requested_voltage_raw / 10.0, s.bcl_requested_current_0p1a / 10.0,
         s.bcl_mode ? "CC" : "CV", CUBE_WIFI_SSID, (unsigned)s.substate,
-        web_get_ap_channel(), (unsigned)web_ap_clients(), web_sta_ip(), (double)app_state_energy_kwh(), app_state_vin());
+        web_get_ap_channel(), (unsigned)web_ap_clients(), web_sta_ip(), (double)app_state_energy_kwh(), app_state_vin(),
+        (double)app_state_cap_kwh(), safe_ota_percent());
     if (written < 0 || (size_t)written >= sizeof(json)) return ESP_ERR_NO_MEM;
     set_no_cache(req);
     (void)httpd_resp_set_type(req, "application/json; charset=utf-8");
@@ -402,6 +405,7 @@ static esp_err_t update_post(httpd_req_t *req)
         httpd_resp_set_status(req, "413 Payload Too Large");
         return httpd_resp_sendstr(req, "{\"ok\":false,\"error\":\"invalid_size\"}");
     }
+    display_ota_progress(1, "FILE");
     uint8_t first[4096];
     size_t first_want = req->content_len < sizeof(first) ? req->content_len : sizeof(first);
     int got = req_reader(first, first_want, req);
@@ -594,14 +598,106 @@ static void wifi_boot_scan_task(void *arg)
 
 
 
+static char s_dl_url[180];
+static char s_dl_user[40];
+static char s_dl_pass[40];
+
+static int http_read_cb(uint8_t *buf, size_t max_len, void *ctx)
+{
+    int n = esp_http_client_read((esp_http_client_handle_t)ctx, (char *)buf, (int)max_len);
+    return n;
+}
+
+static void ota_url_task(void *arg)
+{
+    (void)arg;
+    display_ota_progress(2, "NET");
+    esp_http_client_config_t cfg = {
+        .url = s_dl_url,
+        .username = s_dl_user[0] ? s_dl_user : NULL,
+        .password = s_dl_pass[0] ? s_dl_pass : NULL,
+        .auth_type = HTTP_AUTH_TYPE_BASIC,
+        .timeout_ms = 20000,
+    };
+    esp_http_client_handle_t client = esp_http_client_init(&cfg);
+    if (!client || esp_http_client_open(client, 0) != ESP_OK) {
+        display_ota_progress(0, "NET FAIL");
+        if (client) esp_http_client_cleanup(client);
+        vTaskDelete(NULL);
+        return;
+    }
+    (void)esp_http_client_fetch_headers(client);
+    int total = esp_http_client_get_content_length(client);
+    uint8_t first[1024];
+    int got = esp_http_client_read(client, (char *)first, sizeof(first));
+    if (got <= 0 || first[0] != 0xE9 || total < got) {
+        display_ota_progress(0, "NOT BIN");
+        esp_http_client_close(client);
+        esp_http_client_cleanup(client);
+        vTaskDelete(NULL);
+        return;
+    }
+    esp_err_t err = safe_ota_write_stream(first, (size_t)got, http_read_cb, client, (size_t)total);
+    esp_http_client_close(client);
+    esp_http_client_cleanup(client);
+    if (err == ESP_OK) {
+        display_ota_progress(100, "REBOOT");
+        vTaskDelay(pdMS_TO_TICKS(600));
+        esp_restart();
+    }
+    vTaskDelete(NULL);
+}
+
+static void field_copy(const char *body, const char *key, char *out, size_t out_len)
+{
+    out[0] = 0;
+    const char *p = body;
+    size_t klen = strlen(key);
+    while (p && *p) {
+        if ((p == body || p[-1] == '&' || p[-1] == '?') && strncmp(p, key, klen) == 0) break;
+        p = strchr(p + 1, '&');
+        if (p) ++p;
+    }
+    if (!p || strncmp(p, key, klen) != 0) return;
+    p += klen;
+    size_t i = 0;
+    while (*p && *p != '&' && i + 1 < out_len) {
+        char c = *p++;
+        if (c == '+') c = ' ';
+        if (c == '%' && p[0] && p[1]) {
+            char hex[3] = {p[0], p[1], 0};
+            c = (char)strtol(hex, NULL, 16);
+            p += 2;
+        }
+        out[i++] = c;
+    }
+    out[i] = 0;
+}
+
 static esp_err_t ota_url_post(httpd_req_t *req)
 {
     set_security_headers(req);
-    char body[320] = {0};
+    char body[360] = {0};
     int n = httpd_req_recv(req, body, sizeof(body) - 1);
-    (void)n;
+    if (n < 0) return ESP_FAIL;
+    body[n] = 0;
+    field_copy(body, "url=", s_dl_url, sizeof(s_dl_url));
+    field_copy(body, "user=", s_dl_user, sizeof(s_dl_user));
+    field_copy(body, "pass=", s_dl_pass, sizeof(s_dl_pass));
+    if (s_dl_url[0] == '\\' && s_dl_url[1] == '\\') {
+        char conv[180];
+        snprintf(conv, sizeof(conv), "http://%s", s_dl_url + 2);
+        for (char *p = conv; *p; ++p) if (*p == '\\') *p = '/';
+        snprintf(s_dl_url, sizeof(s_dl_url), "%s", conv);
+    }
+    if (strncmp(s_dl_url, "http://", 7) != 0 && strncmp(s_dl_url, "https://", 8) != 0) {
+        return httpd_resp_sendstr(req, "need http://host/share/file.bin or \\\\host\\share\\file.bin");
+    }
+    if (xTaskCreate(ota_url_task, "otaurl", 8192, NULL, 5, NULL) != pdPASS) {
+        return httpd_resp_sendstr(req, "task fail");
+    }
     httpd_resp_set_type(req, "text/plain; charset=utf-8");
-    return httpd_resp_sendstr(req, "URL saved on page. Flash the file from the phone button in this build; Windows SMB is not in the cube yet.");
+    return httpd_resp_sendstr(req, "download started");
 }
 static esp_err_t log_get(httpd_req_t *req)
 {
@@ -614,26 +710,37 @@ static esp_err_t log_get(httpd_req_t *req)
     return httpd_resp_sendstr(req, buf);
 }
 
+static void field_copy(const char *body, const char *key, char *out, size_t out_len);
+
 static esp_err_t setpoints_post(httpd_req_t *req)
 {
     set_security_headers(req);
-    char body[160] = {0};
+    char body[280] = {0};
     int n = httpd_req_recv(req, body, sizeof(body) - 1);
     if (n < 0) return ESP_FAIL;
     body[n] = 0;
-    int v = 0, i = 0, soc = -1;
-    char vin[18] = {0};
-    sscanf(body, "v=%d&i=%d&soc=%d&vin=%17s", &v, &i, &soc, vin);
-    if (v > 0 && v < 1000) v *= 10; /* volts from the page */
-    if (i > 0 && i < 400) i *= 10;  /* amps from the page */
+    char vb[12] = {0}, ib[12] = {0}, sb[12] = {0}, cb[16] = {0}, pb[8] = {0}, vin[24] = {0};
+    field_copy(body, "v=", vb, sizeof(vb));
+    field_copy(body, "i=", ib, sizeof(ib));
+    field_copy(body, "soc=", sb, sizeof(sb));
+    field_copy(body, "cap=", cb, sizeof(cb));
+    field_copy(body, "vin=", vin, sizeof(vin));
+    field_copy(body, "proto=", pb, sizeof(pb));
+    int v = atoi(vb);
+    int i = atoi(ib);
+    int soc = sb[0] ? atoi(sb) : -1;
+    if (v > 0 && v < 1000) v *= 10;
+    if (i > 0 && i < 400) i *= 10;
     if (v < 500) v = 500;
     if (v > 5000) v = 5000;
     if (i < 10) i = 10;
     if (i > 2500) i = 2500;
     app_state_set_bcl((uint16_t)v, (int16_t)i, 1);
     app_state_set_battery_vi((uint16_t)v, (int16_t)i);
+    if (cb[0]) app_state_set_cap_kwh((float)atof(cb));
     if (soc >= 0 && soc <= 100) app_state_set_soc((uint8_t)soc);
     if (vin[0]) app_state_set_vin(vin);
+    if (pb[0]) app_state_set_protocol((uint8_t)atoi(pb));
     app_state_log("setpoints updated, session not stopped");
     httpd_resp_set_type(req, "application/json");
     return httpd_resp_sendstr(req, "{\"ok\":true}");
@@ -658,6 +765,28 @@ static esp_err_t wifi_scan_get(httpd_req_t *req)
 }
 
 
+static esp_err_t can_text_get(httpd_req_t *req)
+{
+    cube_can_frame_t frames[24];
+    size_t n = 0;
+    if (gbt_can_get_history(frames, 24U, &n) != ESP_OK) n = 0;
+    char buf[2200];
+    size_t used = 0;
+    appendf(buf, sizeof(buf), &used, "CAN %u\n", (unsigned)n);
+    for (size_t i = 0; i < n; ++i) {
+        char hex[20];
+        hex8(frames[i].data, frames[i].dlc, hex, sizeof(hex));
+        if (!appendf(buf, sizeof(buf), &used, "%lu %08lX %u %s\n",
+                     (unsigned long)frames[i].timestamp_ms, (unsigned long)frames[i].id,
+                     (unsigned)frames[i].dlc, hex)) break;
+    }
+    if (n == 0) appendf(buf, sizeof(buf), &used, "no frames\n");
+    set_security_headers(req);
+    set_no_cache(req);
+    httpd_resp_set_type(req, "text/plain; charset=utf-8");
+    return httpd_resp_sendstr(req, buf);
+}
+
 static esp_err_t wifi_join_post(httpd_req_t *req)
 {
     set_security_headers(req);
@@ -674,16 +803,21 @@ static esp_err_t wifi_join_post(httpd_req_t *req)
     return httpd_resp_sendstr(req, err == ESP_OK ? "{\"ok\":true}" : "{\"ok\":false}");
 }
 
+void web_boot_original(void)
+{
+    const esp_partition_t *orig = esp_partition_find_first(
+        ESP_PARTITION_TYPE_APP, ESP_PARTITION_SUBTYPE_APP_OTA_0, NULL);
+    if (!orig) return;
+    esp_ota_set_boot_partition(orig);
+    esp_restart();
+}
+
 static esp_err_t boot_original_post(httpd_req_t *req)
 {
     set_security_headers(req);
-    const esp_partition_t *orig = esp_partition_find_first(
-        ESP_PARTITION_TYPE_APP, ESP_PARTITION_SUBTYPE_APP_OTA_0, NULL);
-    if (!orig) return httpd_resp_sendstr(req, "{\"ok\":false}");
-    esp_ota_set_boot_partition(orig);
     httpd_resp_sendstr(req, "{\"ok\":true,\"rebooting\":true}");
     vTaskDelay(pdMS_TO_TICKS(400));
-    esp_restart();
+    web_boot_original();
     return ESP_OK;
 }
 
@@ -769,7 +903,7 @@ esp_err_t web_init(void)
         {.uri = "/api/wifi/join", .method = HTTP_POST, .handler = wifi_join_post},
         {.uri = "/api/boot/original", .method = HTTP_POST, .handler = boot_original_post},
         {.uri = "/api/can/recent", .method = HTTP_GET, .handler = can_recent_get},
-        {.uri = "/api/can", .method = HTTP_GET, .handler = can_recent_get},
+        {.uri = "/api/can", .method = HTTP_GET, .handler = can_text_get},
         {.uri = "/api/start", .method = HTTP_POST, .handler = session_start_post},
         {.uri = "/api/log", .method = HTTP_GET, .handler = log_get},
         {.uri = "/api/setpoints", .method = HTTP_POST, .handler = setpoints_post},

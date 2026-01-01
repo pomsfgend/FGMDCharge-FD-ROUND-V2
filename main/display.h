@@ -9,3 +9,5 @@ bool display_lock(void);
 void display_unlock(void);
 void display_set_brightness(int percent); /* 5..100 */
 int display_get_brightness(void);
+void display_ota_progress(int percent, const char *msg);
+void display_ota_hide(void);

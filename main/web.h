@@ -9,3 +9,4 @@ int web_scan_count(void);
 const char *web_scan_ssid(int index);
 esp_err_t web_sta_join(const char *ssid, const char *password);
 const char *web_sta_ip(void);
+void web_boot_original(void);

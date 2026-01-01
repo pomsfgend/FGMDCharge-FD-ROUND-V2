@@ -6,6 +6,8 @@
 #include "app_state.h"
 #include "touch_cst816s.h"
 #include "web.h"
+#include "safe_ota.h"
+#include "can_gbt.h"
 #include "sm_relay.h"
 #include "driver/spi_master.h"
 #include "driver/gpio.h"
@@ -31,6 +33,7 @@
 #endif
 
 static const char *TAG = "DISPLAY";
+extern const lv_font_t lv_font_ru_14;
 static esp_lcd_panel_handle_t s_panel;
 static esp_lcd_panel_io_handle_t s_panel_io;
 static SemaphoreHandle_t s_lvgl_lock;
@@ -46,7 +49,8 @@ static int s_brightness = CUBE_LCD_BL_PWM_DUTY_DEFAULT;
 
 /* UI */
 static lv_obj_t *s_scr_chg, *s_scr_ses, *s_scr_set, *s_scr_sys, *s_scr_wifi, *s_scr_log;
-static lv_obj_t *s_ses_kwh, *s_ses_soc, *s_ses_min, *s_log_lbl;
+static lv_obj_t *s_ses_kwh, *s_ses_soc, *s_ses_min, *s_log_lbl, *s_can_lbl;
+static int s_pending_boot;
 static int s_edge = 28;
 static lv_obj_t *s_voltage, *s_current, *s_power, *s_stage, *s_status;
 static lv_obj_t *s_soc, *s_relay, *s_cml, *s_can;
@@ -86,11 +90,11 @@ static void tick_cb(void *arg)
 
 bool display_lock(void)
 {
-    return s_lvgl_lock && xSemaphoreTake(s_lvgl_lock, pdMS_TO_TICKS(50)) == pdTRUE;
+    return s_lvgl_lock && xSemaphoreTakeRecursive(s_lvgl_lock, pdMS_TO_TICKS(200)) == pdTRUE;
 }
 void display_unlock(void)
 {
-    if (s_lvgl_lock) xSemaphoreGive(s_lvgl_lock);
+    if (s_lvgl_lock) xSemaphoreGiveRecursive(s_lvgl_lock);
 }
 
 void display_set_brightness(int percent)
@@ -170,6 +174,7 @@ static void style_screen(lv_obj_t *scr)
     lv_obj_set_style_bg_opa(scr, LV_OPA_COVER, 0);
     lv_obj_set_style_text_color(scr, lv_color_hex(0xE8EEF4), 0);
     lv_obj_clear_flag(scr, LV_OBJ_FLAG_SCROLLABLE);
+    lv_obj_set_style_text_font(scr, &lv_font_ru_14, 0);
     lv_obj_add_event_cb(scr, gesture_cb, LV_EVENT_PRESSED, NULL);
     lv_obj_add_event_cb(scr, gesture_cb, LV_EVENT_RELEASED, NULL);
     }
@@ -177,14 +182,18 @@ static void style_screen(lv_obj_t *scr)
 static void apply_page(int p)
 {
     lv_obj_t *pages[6];
+    int prev = s_page;
     if (p < 0) p = 5;
     if (p > 5) p = 0;
     pages[0] = s_scr_chg; pages[1] = s_scr_ses; pages[2] = s_scr_set;
     pages[3] = s_scr_wifi; pages[4] = s_scr_log; pages[5] = s_scr_sys;
     s_page = p;
     if (s_pad) lv_obj_add_flag(s_pad, LV_OBJ_FLAG_HIDDEN);
-    if (pages[p]) lv_scr_load_anim(pages[p], LV_SCR_LOAD_ANIM_MOVE_LEFT, 180, 0, false);
-    if (s_dots) lv_label_set_text(s_dots, "home ses set net log sys");
+    if (pages[p]) {
+        lv_scr_load_anim_t anim = (p == prev + 1 || (prev == 5 && p == 0))
+            ? LV_SCR_LOAD_ANIM_MOVE_LEFT : LV_SCR_LOAD_ANIM_MOVE_RIGHT;
+        lv_scr_load_anim(pages[p], anim, 180, 0, false);
+    }
 }
 
 static lv_point_t s_down;
@@ -199,15 +208,13 @@ static void gesture_cb(lv_event_t *e)
     if (code == LV_EVENT_PRESSED) { s_down = pt; s_arm = true; return; }
     if (code != LV_EVENT_RELEASED || !s_arm) return;
     s_arm = false;
-    if (s_page == 1 && s_down.y >= 140 && s_down.y <= 230) return;
-    if (s_page == 0 && s_down.y >= 190) return;
     int dx = pt.x - s_down.x;
     int dy = pt.y - s_down.y;
     if (dx < 0) dx = -dx;
     if (dy < 0) dy = -dy;
     if (s_down.x > s_edge && s_down.x < 240 - s_edge) return;
     if (dx < 36 || dx < dy) return;
-    apply_page((s_page + (pt.x < s_down.x ? 1 : 2)) % 3);
+    apply_page(s_page + (pt.x < s_down.x ? 1 : -1));
 }
 
 static void stop_hold_cb(lv_event_t *e)
@@ -236,18 +243,31 @@ static void pad_show(void)
     if (s_pad) lv_obj_clear_flag(s_pad, LV_OBJ_FLAG_HIDDEN);
 }
 
+static lv_obj_t *s_active_ta;
+static int s_set_v = 240;
+static int s_set_i = 50;
+static int s_set_soc = 20;
+static float s_cap_kwh = 7.5f;
+static lv_obj_t *s_set_lbl;
+static lv_obj_t *s_vin_ta;
+static lv_obj_t *s_ota_box;
+static lv_obj_t *s_ota_bar;
+static lv_obj_t *s_ota_txt;
+static lv_obj_t *s_edge_lbl;
+
 static void pad_key_cb(lv_event_t *e)
 {
     const char *k = (const char *)lv_event_get_user_data(e);
-    if (!s_wifi_ta || !k) return;
-    if (k[0] == 'X') { lv_textarea_del_char(s_wifi_ta); return; }
-    if (k[0] == 'H') { pad_hide(); return; }
-    lv_textarea_add_text(s_wifi_ta, k);
+    lv_obj_t *ta = s_active_ta ? s_active_ta : s_wifi_ta;
+    if (!ta || !k) return;
+    if (strcmp(k, "DEL") == 0) { lv_textarea_del_char(ta); return; }
+    if (strcmp(k, "HIDE") == 0) { pad_hide(); return; }
+    lv_textarea_add_text(ta, k);
 }
 
 static void ta_focus_cb(lv_event_t *e)
 {
-    (void)e;
+    s_active_ta = lv_event_get_target(e);
     if (!s_pad) return;
     lv_obj_clear_flag(s_pad, LV_OBJ_FLAG_HIDDEN);
     lv_obj_move_foreground(s_pad);
@@ -268,6 +288,7 @@ static void wifi_rst_cb(lv_event_t *e)
 static void net_pick_cb(lv_event_t *e)
 {
     s_pick = (int)(intptr_t)lv_event_get_user_data(e);
+    s_active_ta = s_wifi_ta;
     if (s_wifi_ta) lv_obj_clear_flag(s_wifi_ta, LV_OBJ_FLAG_HIDDEN);
     pad_show();
 }
@@ -281,6 +302,7 @@ static void refresh_scan_label(void)
         lv_obj_t *b = lv_btn_create(s_list);
         lv_obj_set_width(b, 200);
         lv_obj_set_height(b, 28);
+        lv_obj_set_style_bg_color(b, lv_color_hex(i == s_pick ? 0x1F6F5B : 0x1A2430), 0);
         lv_obj_add_event_cb(b, net_pick_cb, LV_EVENT_CLICKED, (void *)(intptr_t)i);
         lv_obj_t *l = lv_label_create(b);
         lv_label_set_text(l, web_scan_ssid(i));
@@ -334,16 +356,23 @@ static void make_pad(lv_obj_t *parent)
     lv_obj_set_style_border_width(s_pad, 0, 0);
     lv_obj_set_style_pad_all(s_pad, 4, 0);
     lv_obj_clear_flag(s_pad, LV_OBJ_FLAG_SCROLLABLE);
-    const char *keys[] = {"1","2","3","4","5","6","7","8","9","X","0","H"};
-    for (int i = 0; i < 12; ++i) {
+    const char *keys[] = {
+        "1","2","3","4","5","6","7","8","9","0",
+        "A","B","C","D","E","F","G","H","I","J",
+        "K","L","M","N","O","P","Q","R","S","T",
+        "U","V","W","X","Y","Z","DEL","HIDE"
+    };
+    lv_obj_set_size(s_pad, 232, 200);
+    lv_obj_add_flag(s_pad, LV_OBJ_FLAG_SCROLLABLE);
+    for (int i = 0; i < 38; ++i) {
         lv_obj_t *b = lv_btn_create(s_pad);
-        lv_obj_set_size(b, 72, 34);
-        lv_obj_set_pos(b, (i % 3) * 76, (i / 3) * 38);
+        lv_obj_set_size(b, 42, 32);
+        lv_obj_set_pos(b, (i % 5) * 46, (i / 5) * 36);
         lv_obj_set_style_bg_color(b, lv_color_hex(0x1A2430), 0);
         lv_obj_set_style_shadow_width(b, 0, 0);
         lv_obj_add_event_cb(b, pad_key_cb, LV_EVENT_CLICKED, (void *)keys[i]);
         lv_obj_t *l = lv_label_create(b);
-        lv_label_set_text(l, keys[i][0]=='X' ? "DEL" : (keys[i][0]=='H' ? "HIDE" : keys[i]));
+        lv_label_set_text(l, keys[i]);
         lv_obj_set_style_text_color(l, lv_color_hex(0xF4F7FB), 0);
         lv_obj_center(l);
     }
@@ -388,11 +417,65 @@ static lv_obj_t *line(lv_obj_t *parent, const char *txt, int y)
 }
 
 
+static void step_cb(lv_event_t *e)
+{
+    int id = (int)(intptr_t)lv_event_get_user_data(e);
+    if (id == 1) s_set_v += 10;
+    if (id == 2) s_set_v -= 10;
+    if (id == 3) s_set_i += 5;
+    if (id == 4) s_set_i -= 5;
+    if (id == 5) s_cap_kwh += 0.5f;
+    if (id == 6) s_cap_kwh -= 0.5f;
+    if (id == 7) s_set_soc += 5;
+    if (id == 8) s_set_soc -= 5;
+    if (s_set_v < 50) s_set_v = 50;
+    if (s_set_v > 500) s_set_v = 500;
+    if (s_set_i < 5) s_set_i = 5;
+    if (s_set_i > 250) s_set_i = 250;
+    if (s_cap_kwh < 1.0f) s_cap_kwh = 1.0f;
+    if (s_set_soc < 0) s_set_soc = 0;
+    if (s_set_soc > 100) s_set_soc = 100;
+    app_state_set_bcl((uint16_t)(s_set_v * 10), (int16_t)(s_set_i * 10), 1);
+    app_state_set_battery_vi((uint16_t)(s_set_v * 10), (int16_t)(s_set_i * 10));
+    app_state_set_cap_kwh(s_cap_kwh);
+    app_state_set_soc((uint8_t)s_set_soc);
+    if (s_vin_ta) app_state_set_vin(lv_textarea_get_text(s_vin_ta));
+    if (s_set_lbl) {
+        char b[72];
+        snprintf(b, sizeof(b), "%dV %dA %.1fkWh SOC%d", s_set_v, s_set_i, (double)s_cap_kwh, s_set_soc);
+        lv_label_set_text(s_set_lbl, b);
+    }
+}
+
+static void proto_cb(lv_event_t *e)
+{
+    app_state_set_protocol((uint8_t)(intptr_t)lv_event_get_user_data(e));
+}
+
+static void edge_cb(lv_event_t *e)
+{
+    s_edge += (int)(intptr_t)lv_event_get_user_data(e);
+    if (s_edge < 8) s_edge = 8;
+    if (s_edge > 80) s_edge = 80;
+    if (s_edge_lbl) {
+        char b[24];
+        snprintf(b, sizeof(b), "swipe %d px", s_edge);
+        lv_label_set_text(s_edge_lbl, b);
+    }
+}
+
+static void boot_old_cb(lv_event_t *e)
+{
+    (void)e;
+    display_ota_progress(100, "OLD FW");
+    s_pending_boot = 1;
+}
+
 static void build_ui(void)
 {
     s_scr_chg = lv_scr_act();
     style_screen(s_scr_chg);
-    line(s_scr_chg, "ДОМ 2.5.7", 8);
+    line(s_scr_chg, "ДОМ 2.5.8", 8);
     lv_obj_add_flag(s_scr_chg, LV_OBJ_FLAG_SCROLLABLE);
     s_card_u = card(s_scr_chg, 10, 40, &s_voltage, "V");
     s_card_i = card(s_scr_chg, 122, 40, &s_current, "A");
@@ -410,7 +493,9 @@ static void build_ui(void)
     lv_obj_t *stop_lbl = lv_label_create(stop);
     lv_label_set_text(stop_lbl, "HOLD STOP");
     lv_obj_center(stop_lbl);
-    s_dots = line(s_scr_chg, "CHG  SYS  WIFI", 228);
+    s_dots = line(s_scr_chg, "лист с края экрана", 248);
+    s_status = line(s_scr_chg, "VIN --", 268);
+    lv_obj_set_height(s_scr_chg, 320);
 
 
     s_scr_ses = lv_obj_create(NULL);
@@ -419,20 +504,61 @@ static void build_ui(void)
     line(s_scr_ses, "СЕССИЯ", 8);
     s_ses_min = line(s_scr_ses, "время --", 36);
     s_ses_kwh = line(s_scr_ses, "кВтч --", 58);
-    s_ses_soc = line(s_scr_ses, "SOC от 7.5", 80);
+    s_ses_soc = line(s_scr_ses, "оценка от 7.5", 80);
     s_scr_set = lv_obj_create(NULL);
     style_screen(s_scr_set);
     lv_obj_add_flag(s_scr_set, LV_OBJ_FLAG_SCROLLABLE);
     line(s_scr_set, "ЗАРЯДКА", 8);
-    line(s_scr_set, "V/I/VIN на сайте", 36);
+    s_set_lbl = line(s_scr_set, "240V 50A 7.5kWh", 32);
+    s_vin_ta = lv_textarea_create(s_scr_set);
+    lv_obj_set_size(s_vin_ta, 216, 28);
+    lv_obj_set_pos(s_vin_ta, 12, 54);
+    lv_textarea_set_one_line(s_vin_ta, true);
+    lv_textarea_set_max_length(s_vin_ta, 17);
+    lv_textarea_set_placeholder_text(s_vin_ta, "VIN");
+    lv_textarea_set_text(s_vin_ta, app_state_vin());
+    lv_obj_add_event_cb(s_vin_ta, ta_focus_cb, LV_EVENT_CLICKED, NULL);
+    s_active_ta = s_vin_ta;
+    {
+        const char *nm[] = {"V+","V-","A+","A-","kWh+","kWh-","S+","S-"};
+        const int id[] = {1,2,3,4,5,6,7,8};
+        for (int i = 0; i < 8; ++i) {
+            lv_obj_t *b = lv_btn_create(s_scr_set);
+            lv_obj_set_size(b, 52, 28);
+            lv_obj_set_pos(b, 8 + (i % 4) * 56, 92 + (i / 4) * 34);
+            lv_obj_set_style_shadow_width(b, 0, 0);
+            lv_obj_add_event_cb(b, step_cb, LV_EVENT_CLICKED, (void *)(intptr_t)id[i]);
+            lv_obj_t *l = lv_label_create(b);
+            lv_label_set_text(l, nm[i]);
+            lv_obj_center(l);
+        }
+        const char *pn[] = {"авто", "2015", "2011"};
+        const int pv[] = {0, 1, 2};
+        for (int i = 0; i < 3; ++i) {
+            lv_obj_t *b = lv_btn_create(s_scr_set);
+            lv_obj_set_size(b, 70, 28);
+            lv_obj_set_pos(b, 8 + i * 76, 168);
+            lv_obj_set_style_shadow_width(b, 0, 0);
+            lv_obj_add_event_cb(b, proto_cb, LV_EVENT_CLICKED, (void *)(intptr_t)pv[i]);
+            lv_obj_t *l = lv_label_create(b);
+            lv_label_set_text(l, pn[i]);
+            lv_obj_center(l);
+        }
+    }
     s_scr_log = lv_obj_create(NULL);
     style_screen(s_scr_log);
     lv_obj_add_flag(s_scr_log, LV_OBJ_FLAG_SCROLLABLE);
-    line(s_scr_log, "ЛОГИ", 8);
-    s_log_lbl = line(s_scr_log, "ESP/CAN", 36);
+    line(s_scr_log, "ЛОГИ ESP", 8);
+    s_log_lbl = line(s_scr_log, "нет событий", 28);
+    lv_label_set_long_mode(s_log_lbl, LV_LABEL_LONG_WRAP);
+    lv_obj_set_height(s_log_lbl, 100);
+    line(s_scr_log, "ЛОГИ CAN", 136);
+    s_can_lbl = line(s_scr_log, "нет кадров", 156);
+    lv_label_set_long_mode(s_can_lbl, LV_LABEL_LONG_WRAP);
+    lv_obj_set_height(s_can_lbl, 110);
     s_scr_sys = lv_obj_create(NULL);
     style_screen(s_scr_sys);
-    line(s_scr_sys, "СИСТЕМА 2.5.7", 4);
+    line(s_scr_sys, "СИСТЕМА 2.5.8", 4);
     s_sys_temp = line(s_scr_sys, "CPU -- C", 28);
     s_sys_cpu = line(s_scr_sys, "F 160 MHz", 48);
     s_sys_load = line(s_scr_sys, "Load -- %", 68);
@@ -461,72 +587,129 @@ static void build_ui(void)
     lv_obj_set_style_bg_color(tb, lv_color_hex(0xC45C26), 0);
     lv_obj_set_style_shadow_width(tb, 0, 0);
     lv_obj_add_event_cb(tb, relay_test_cb, LV_EVENT_CLICKED, NULL);
-    lv_obj_t *tl = lv_label_create(tb);
-    lv_label_set_text(tl, "TEST RELAY");
-    lv_obj_center(tl);
+    lv_obj_t *tbl = lv_label_create(tb);
+    lv_label_set_text(tbl, "РЕЛЕ");
+    lv_obj_center(tbl);
+    lv_obj_add_flag(s_scr_sys, LV_OBJ_FLAG_SCROLLABLE);
+    s_edge_lbl = line(s_scr_sys, "swipe 28 px", 286);
+    lv_obj_t *em = lv_btn_create(s_scr_sys);
+    lv_obj_set_size(em, 70, 28);
+    lv_obj_set_pos(em, 12, 310);
+    lv_obj_add_event_cb(em, edge_cb, LV_EVENT_CLICKED, (void *)(intptr_t)-8);
+    lv_obj_t *eml = lv_label_create(em); lv_label_set_text(eml, "край-"); lv_obj_center(eml);
+    lv_obj_t *ep = lv_btn_create(s_scr_sys);
+    lv_obj_set_size(ep, 70, 28);
+    lv_obj_set_pos(ep, 90, 310);
+    lv_obj_add_event_cb(ep, edge_cb, LV_EVENT_CLICKED, (void *)(intptr_t)8);
+    lv_obj_t *epl = lv_label_create(ep); lv_label_set_text(epl, "край+"); lv_obj_center(epl);
+    lv_obj_t *ob = lv_btn_create(s_scr_sys);
+    lv_obj_set_size(ob, 160, 28);
+    lv_obj_set_pos(ob, 12, 346);
+    lv_obj_add_event_cb(ob, boot_old_cb, LV_EVENT_CLICKED, NULL);
+    lv_obj_t *obl = lv_label_create(ob); lv_label_set_text(obl, "ОРИГИНАЛ"); lv_obj_center(obl);
+    line(s_scr_sys, "OTA с сайта = полоса", 382);
 
 
     s_scr_wifi = lv_obj_create(NULL);
     style_screen(s_scr_wifi);
     line(s_scr_wifi, "СЕТЬ", 2);
+    lv_obj_add_flag(s_scr_wifi, LV_OBJ_FLAG_SCROLLABLE);
     s_list = lv_obj_create(s_scr_wifi);
-    lv_obj_set_size(s_list, 220, 120);
-    lv_obj_align(s_list, LV_ALIGN_TOP_MID, 0, 28);
+    lv_obj_set_size(s_list, 220, 150);
+    lv_obj_align(s_list, LV_ALIGN_TOP_MID, 0, 24);
     lv_obj_add_flag(s_list, LV_OBJ_FLAG_SCROLLABLE);
-    lv_obj_t *box = lv_obj_create(s_scr_wifi);
-    lv_obj_set_size(box, 224, 120);
-    lv_obj_align(box, LV_ALIGN_TOP_LEFT, 6, 24);
-    lv_obj_set_style_bg_opa(box, LV_OPA_TRANSP, 0);
-    lv_obj_set_style_border_width(box, 0, 0);
-    s_scan_lbl = lv_label_create(box);
-    lv_label_set_text(s_scan_lbl, "nets: --");
-    lv_obj_set_width(s_scan_lbl, 200);
-    lv_label_set_long_mode(s_scan_lbl, LV_LABEL_LONG_WRAP);
-    lv_obj_set_style_text_color(s_scan_lbl, lv_color_hex(0xD5DEE8), 0);
+    s_scan_lbl = line(s_scr_wifi, "nets: --", 176);
     s_wifi_ta = lv_textarea_create(s_scr_wifi);
-    lv_obj_set_size(s_wifi_ta, 220, 32);
-    lv_obj_align(s_wifi_ta, LV_ALIGN_TOP_MID, 0, 100);
+    lv_obj_set_size(s_wifi_ta, 220, 28);
+    lv_obj_align(s_wifi_ta, LV_ALIGN_TOP_MID, 0, 196);
     lv_textarea_set_placeholder_text(s_wifi_ta, "password");
     lv_obj_add_flag(s_wifi_ta, LV_OBJ_FLAG_HIDDEN);
     lv_textarea_set_one_line(s_wifi_ta, true);
     lv_obj_add_event_cb(s_wifi_ta, ta_focus_cb, LV_EVENT_CLICKED, NULL);
-    s_ip_lbl = line(s_scr_wifi, "STA IP --", 136);
+    s_ip_lbl = line(s_scr_wifi, "STA IP --", 228);
 
     lv_obj_t *sc = lv_btn_create(s_scr_wifi);
     lv_obj_set_size(sc, 70, 32);
-    lv_obj_align(sc, LV_ALIGN_TOP_LEFT, 6, 162);
+    lv_obj_align(sc, LV_ALIGN_TOP_LEFT, 6, 258);
     lv_obj_set_style_shadow_width(sc, 0, 0);
     lv_obj_add_event_cb(sc, scan_cb, LV_EVENT_CLICKED, NULL);
     lv_obj_t *slb = lv_label_create(sc); lv_label_set_text(slb, "SCAN"); lv_obj_center(slb);
 
     lv_obj_t *up = lv_btn_create(s_scr_wifi);
     lv_obj_set_size(up, 36, 32);
-    lv_obj_align(up, LV_ALIGN_TOP_LEFT, 82, 162);
+    lv_obj_align(up, LV_ALIGN_TOP_LEFT, 82, 258);
     lv_obj_set_style_shadow_width(up, 0, 0);
     lv_obj_add_event_cb(up, pick_cb, LV_EVENT_CLICKED, (void *)(intptr_t)-1);
     lv_obj_t *ul = lv_label_create(up); lv_label_set_text(ul, "-"); lv_obj_center(ul);
 
     lv_obj_t *dn = lv_btn_create(s_scr_wifi);
     lv_obj_set_size(dn, 36, 32);
-    lv_obj_align(dn, LV_ALIGN_TOP_LEFT, 122, 162);
+    lv_obj_align(dn, LV_ALIGN_TOP_LEFT, 122, 258);
     lv_obj_set_style_shadow_width(dn, 0, 0);
     lv_obj_add_event_cb(dn, pick_cb, LV_EVENT_CLICKED, (void *)(intptr_t)1);
     lv_obj_t *dl = lv_label_create(dn); lv_label_set_text(dl, "+"); lv_obj_center(dl);
 
     lv_obj_t *jn = lv_btn_create(s_scr_wifi);
     lv_obj_set_size(jn, 70, 32);
-    lv_obj_align(jn, LV_ALIGN_TOP_LEFT, 164, 162);
+    lv_obj_align(jn, LV_ALIGN_TOP_LEFT, 164, 258);
     lv_obj_set_style_shadow_width(jn, 0, 0);
     lv_obj_add_event_cb(jn, join_cb, LV_EVENT_CLICKED, NULL);
     lv_obj_t *jl = lv_label_create(jn); lv_label_set_text(jl, "JOIN"); lv_obj_center(jl);
 
-    line(s_scr_wifi, "-  -  o   swipe", 204);
-    make_pad(s_scr_wifi);
+    lv_obj_set_style_text_font(lv_layer_top(), &lv_font_ru_14, 0);
+    make_pad(lv_layer_top());
+    s_ota_box = lv_obj_create(lv_layer_top());
+    lv_obj_set_size(s_ota_box, 220, 86);
+    lv_obj_align(s_ota_box, LV_ALIGN_CENTER, 0, 0);
+    lv_obj_set_style_bg_color(s_ota_box, lv_color_hex(0x101820), 0);
+    lv_obj_set_style_bg_opa(s_ota_box, LV_OPA_COVER, 0);
+    lv_obj_set_style_radius(s_ota_box, 12, 0);
+    lv_obj_set_style_border_width(s_ota_box, 2, 0);
+    lv_obj_set_style_border_color(s_ota_box, lv_color_hex(0x1F6F5B), 0);
+    lv_obj_clear_flag(s_ota_box, LV_OBJ_FLAG_SCROLLABLE);
+    s_ota_txt = lv_label_create(s_ota_box);
+    lv_label_set_text(s_ota_txt, "OTA 0%");
+    lv_obj_set_width(s_ota_txt, 200);
+    lv_obj_set_style_text_align(s_ota_txt, LV_TEXT_ALIGN_CENTER, 0);
+    lv_obj_align(s_ota_txt, LV_ALIGN_TOP_MID, 0, 10);
+    s_ota_bar = lv_bar_create(s_ota_box);
+    lv_obj_set_size(s_ota_bar, 190, 18);
+    lv_obj_align(s_ota_bar, LV_ALIGN_BOTTOM_MID, 0, -12);
+    lv_bar_set_range(s_ota_bar, 0, 100);
+    lv_obj_set_style_bg_color(s_ota_bar, lv_color_hex(0x1F6F5B), LV_PART_INDICATOR);
+    lv_obj_add_flag(s_ota_box, LV_OBJ_FLAG_HIDDEN);
+}
+
+void display_ota_progress(int percent, const char *msg)
+{
+    if (percent < 0) percent = 0;
+    if (percent > 100) percent = 100;
+    safe_ota_set_percent(percent);
+    if (!s_lvgl_lock || !display_lock()) return;
+    if (s_ota_box) {
+        lv_obj_clear_flag(s_ota_box, LV_OBJ_FLAG_HIDDEN);
+        lv_obj_move_foreground(s_ota_box);
+    }
+    if (s_ota_bar) lv_bar_set_value(s_ota_bar, percent, LV_ANIM_ON);
+    if (s_ota_txt) {
+        char b[40];
+        snprintf(b, sizeof(b), "%s %d%%", msg ? msg : "OTA", percent);
+        lv_label_set_text(s_ota_txt, b);
+    }
+    display_unlock();
+}
+
+void display_ota_hide(void)
+{
+    safe_ota_set_percent(-1);
+    if (!s_lvgl_lock || !display_lock()) return;
+    if (s_ota_box) lv_obj_add_flag(s_ota_box, LV_OBJ_FLAG_HIDDEN);
+    display_unlock();
 }
 
 esp_err_t display_init(void)
 {
-    s_lvgl_lock = xSemaphoreCreateMutex();
+    s_lvgl_lock = xSemaphoreCreateRecursiveMutex();
     if (!s_lvgl_lock) return ESP_ERR_NO_MEM;
 
     spi_bus_config_t bus = {
@@ -648,15 +831,31 @@ void display_set_values(void)
         lv_label_set_text(s_ses_min, b);
     }
     if (s_ses_soc) {
-        float k = app_state_energy_kwh();
-        int est = (int)(st.soc_percent + (k / 7.5f) * 100.0f);
-        if (est > 100) est = 100;
-        snprintf(b, sizeof(b), "оценка %d%%", est);
+        snprintf(b, sizeof(b), "оценка %u%% / %.1f", (unsigned)st.soc_percent, (double)app_state_cap_kwh());
         lv_label_set_text(s_ses_soc, b);
     }
     if (s_log_lbl) {
-        snprintf(b, sizeof(b), "CAN rx%lu tx%lu", (unsigned long)st.rx_count, (unsigned long)st.tx_count);
-        lv_label_set_text(s_log_lbl, b);
+        char logb[160];
+        app_state_log_text(logb, (int)sizeof(logb));
+        lv_label_set_text(s_log_lbl, logb);
+    }
+    if (s_can_lbl) {
+        cube_can_frame_t fr[4];
+        size_t n = 0;
+        char cb[180];
+        int o = 0;
+        if (gbt_can_get_history(fr, 4, &n) != ESP_OK) n = 0;
+        if (n == 0) {
+            snprintf(cb, sizeof(cb), "нет кадров");
+        } else {
+            cb[0] = 0;
+            for (size_t i = 0; i < n && o < (int)sizeof(cb) - 28; ++i) {
+                o += snprintf(cb + o, sizeof(cb) - (size_t)o, "%08lX %u %02X%02X\n",
+                              (unsigned long)fr[i].id, (unsigned)fr[i].dlc,
+                              fr[i].dlc ? fr[i].data[0] : 0, fr[i].dlc > 1 ? fr[i].data[1] : 0);
+            }
+        }
+        lv_label_set_text(s_can_lbl, cb);
     }
     if (s_stage) {
         snprintf(b, sizeof(b), "%s %s %s", cube_protocol_name(st.protocol), cube_main_state_name(st.main_state), (st.rx_count & 1) ? "<>" : "--");
@@ -705,7 +904,7 @@ void display_set_values(void)
         lv_label_set_text(s_sys_touch, touch_is_available() ? "Touch: OK" : "Touch: --");
     }
     if (s_status) {
-        snprintf(b, sizeof(b), "WiFi %s / %s", CUBE_WIFI_SSID, CUBE_WIFI_PASSWORD);
+        snprintf(b, sizeof(b), "VIN %s", app_state_vin());
         lv_label_set_text(s_status, b);
     }
     /* Brightness stays on the SYS slider; do not override it. */
@@ -721,6 +920,10 @@ void display_task(void *arg)
         if (display_lock()) {
             lv_timer_handler();
             display_unlock();
+        }
+        if (s_pending_boot) {
+            vTaskDelay(pdMS_TO_TICKS(500));
+            web_boot_original();
         }
         if ((n++ % 20) == 0) display_set_values();
         vTaskDelay(pdMS_TO_TICKS(CUBE_LVGL_TASK_MS));

@@ -125,7 +125,11 @@ static void tx_brm(void)
     b[3] = 6;                     /* lithium */
     b[4] = 0xE8; b[5] = 0x03;     /* 100.0 Ah */
     b[6] = 0xA0; b[7] = 0x0F;     /* 400.0 V */
-    memcpy(&b[24], "TESTVIN000000001", 17);
+    memcpy(&b[24], "00000000000000000", 17);
+    {
+        const char *vin = app_state_vin();
+        for (int i = 0; i < 17 && vin && vin[i]; ++i) b[24 + i] = (uint8_t)vin[i];
+    }
     if (st_proto_is_2011()) {
         tx_bam(0x000200u, b, 41);
         app_state_log("TX BRM 41B GBT-2011");
@@ -143,7 +147,7 @@ static void tx_bcp(void)
     memset(b, 0, sizeof(b));
     uint16_t cell = 420; /* 4.20 V */
     uint16_t imax = (uint16_t)(4000 - 2500); /* 250 A allowed, offset -400 A */
-    uint16_t energy = 400; /* 40.0 kWh */
+    uint16_t energy = (uint16_t)(app_state_cap_kwh() * 10.0f); /* 0.1 kWh */
     uint16_t vmax = CUBE_DEFAULT_MAX_VOLTAGE_0P1V;
     uint16_t vnow = st.bcl_requested_voltage_raw ? st.bcl_requested_voltage_raw : 2400;
     b[0] = (uint8_t)(cell & 0xFF); b[1] = (uint8_t)(cell >> 8);

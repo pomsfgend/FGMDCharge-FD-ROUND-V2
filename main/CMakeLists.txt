@@ -8,6 +8,7 @@ idf_component_register(
         "can_gbt.c"
         "gbt_tp.c"
         "display.c"
+        "lv_font_ru_14.c"
         "touch_cst816s.c"
         "ble.c"
         "web.c"
@@ -29,5 +30,6 @@ idf_component_register(
         bt
         app_update
         esp_timer
+        esp_http_client
         lvgl
 )

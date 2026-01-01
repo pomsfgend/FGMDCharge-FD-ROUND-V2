@@ -1,4 +1,5 @@
 #include "safe_ota.h"
+#include "display.h"
 #include "esp_log.h"
 #include "esp_ota_ops.h"
 #include "esp_partition.h"
@@ -7,6 +8,16 @@
 #include "freertos/task.h"
 
 static const char *TAG = "SAFE_OTA";
+static volatile int s_ota_pct = -1;
+
+int safe_ota_percent(void) { return s_ota_pct; }
+void safe_ota_set_percent(int percent) { s_ota_pct = percent; }
+
+static void ota_ui(int percent, const char *msg)
+{
+    s_ota_pct = percent;
+    display_ota_progress(percent, msg);
+}
 
 esp_err_t safe_ota_write_stream(const uint8_t *first, size_t first_len,
                                 int (*read_cb)(uint8_t *buf, size_t max_len, void *ctx),
@@ -32,8 +43,10 @@ esp_err_t safe_ota_write_stream(const uint8_t *first, size_t first_len,
     esp_ota_handle_t h = 0;
     esp_err_t err = esp_ota_begin(part, total_len, &h);
     if (err != ESP_OK) return err;
+    ota_ui(0, "OTA");
 
     size_t written = 0;
+    int shown = -1;
     if (first_len) {
         err = esp_ota_write(h, first, first_len);
         if (err != ESP_OK) goto fail;
@@ -52,20 +65,30 @@ esp_err_t safe_ota_write_stream(const uint8_t *first, size_t first_len,
         err = esp_ota_write(h, buf, (size_t)n);
         if (err != ESP_OK) goto fail;
         written += (size_t)n;
+        int pct = (int)(written * 100 / total_len);
+        if (pct != shown) {
+            shown = pct;
+            ota_ui(pct, "OTA");
+        }
     }
 
     err = esp_ota_end(h);
     if (err != ESP_OK) {
         ESP_LOGE(TAG, "OTA verification failed: %s", esp_err_to_name(err));
+        ota_ui(0, "OTA FAIL");
+        s_ota_pct = -1;
         return err;
     }
     err = esp_ota_set_boot_partition(part);
     if (err != ESP_OK) return err;
 
     ESP_LOGI(TAG, "OTA complete (%lu bytes); boot partition changed", (unsigned long)written);
+    ota_ui(100, "REBOOT");
     return ESP_OK;
 
 fail:
+    ota_ui(0, "OTA FAIL");
+    s_ota_pct = -1;
     esp_ota_abort(h);
     return err;
 }

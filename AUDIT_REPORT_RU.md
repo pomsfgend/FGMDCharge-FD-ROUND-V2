@@ -1,4 +1,4 @@
-# FGMDCharge / FD_ROUND V2 — RELEASE 2.5.7
+# FGMDCharge / FD_ROUND V2 — RELEASE 2.5.8
 
 ## Что исправлено после лога 2.0.3 / передаётся в сборку 2.5.7
 

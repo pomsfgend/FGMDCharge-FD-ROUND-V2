@@ -114,6 +114,7 @@ void app_state_set_ccs(uint16_t out_v, int16_t out_i_0p1a, uint16_t charge_time_
 static char s_log[12][80];
 static int s_log_n;
 static float s_energy_wh;
+static float s_cap_wh = 7500.0f;
 static uint8_t s_soc_base;
 static char s_vin[18] = "UNKNOWNVIN000000";
 
@@ -140,7 +141,15 @@ int app_state_log_text(char *out, int out_len)
 void app_state_set_vin(const char *vin)
 {
     if (!vin) return;
-    snprintf(s_vin, sizeof(s_vin), "%s", vin);
+    char tmp[18];
+    int j = 0;
+    for (int i = 0; vin[i] && j < 17; ++i) {
+        unsigned char c = (unsigned char)vin[i];
+        if (c >= 'a' && c <= 'z') c = (unsigned char)(c - 32);
+        if ((c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9')) tmp[j++] = (char)c;
+    }
+    tmp[j] = 0;
+    snprintf(s_vin, sizeof(s_vin), "%s", tmp[0] ? tmp : "UNKNOWNVIN000000");
 }
 
 const char *app_state_vin(void) { return s_vin; }
@@ -282,17 +291,38 @@ void app_state_set_battery_vi(uint16_t v_0p1v, int16_t i_0p1a)
 
 void app_state_set_soc(uint8_t soc)
 {
-    lock_state();
     s_soc_base = soc > 100 ? 100 : soc;
-    s_state.soc_percent = s_soc_base;
+    float est = (float)s_soc_base + (s_cap_wh > 1.0f ? (s_energy_wh / s_cap_wh) * 100.0f : 0);
+    if (est > 100.0f) est = 100.0f;
+    lock_state();
+    s_state.soc_percent = (uint8_t)est;
     unlock_state();
+}
+
+void app_state_set_cap_kwh(float kwh)
+{
+    if (kwh < 1.0f) kwh = 1.0f;
+    if (kwh > 200.0f) kwh = 200.0f;
+    s_cap_wh = kwh * 1000.0f;
+    app_state_set_soc(s_soc_base);
+}
+
+float app_state_cap_kwh(void) { return s_cap_wh / 1000.0f; }
+
+void app_state_set_protocol(uint8_t protocol)
+{
+    if (protocol > 2) protocol = 0;
+    lock_state();
+    s_state.protocol = protocol;
+    unlock_state();
+    app_state_log(protocol == 1 ? "protocol GBT-2015" : protocol == 2 ? "protocol GBT-2011" : "protocol AUTO");
 }
 
 void app_state_add_energy(float watts, float dt_s)
 {
     if (watts < 1 || dt_s <= 0) return;
     s_energy_wh += watts * dt_s / 3600.0f;
-    float soc = s_soc_base + (s_energy_wh / 7500.0f) * 100.0f;
+    float soc = (float)s_soc_base + (s_energy_wh / s_cap_wh) * 100.0f;
     if (soc > 100) soc = 100;
     lock_state();
     s_state.soc_percent = (uint8_t)soc;

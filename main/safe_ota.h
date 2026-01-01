@@ -7,3 +7,5 @@
 esp_err_t safe_ota_write_stream(const uint8_t *first, size_t first_len,
                                 int (*read_cb)(uint8_t *buf, size_t max_len, void *ctx),
                                 void *ctx, size_t total_len);
+int safe_ota_percent(void);
+void safe_ota_set_percent(int percent);

@@ -118,6 +118,9 @@ void app_state_set_bcl(uint16_t requested_v, int16_t requested_i_0p1a, uint8_t m
 void app_state_set_soc(uint8_t soc);
 void app_state_add_energy(float watts, float dt_s);
 float app_state_energy_kwh(void);
+void app_state_set_cap_kwh(float kwh);
+float app_state_cap_kwh(void);
+void app_state_set_protocol(uint8_t protocol);
 void app_state_set_vin(const char *vin);
 void app_state_log(const char *msg);
 int app_state_log_text(char *out, int out_len);
