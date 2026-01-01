@@ -864,7 +864,7 @@ esp_err_t web_init(void)
         ap.ap.authmode = WIFI_AUTH_OPEN;
         ap.ap.password[0] = 0;
     }
-    if ((err = esp_wifi_set_mode(WIFI_MODE_APSTA)) != ESP_OK) return err;
+    if ((err = esp_wifi_set_mode(WIFI_MODE_AP)) != ESP_OK) return err;
     if ((err = esp_wifi_set_config(WIFI_IF_AP, &ap)) != ESP_OK) return err;
     { wifi_config_t sta0 = {0}; (void)esp_wifi_set_config(WIFI_IF_STA, &sta0); }
     (void)esp_wifi_set_ps(WIFI_PS_NONE);
@@ -873,9 +873,9 @@ esp_err_t web_init(void)
         if ((err = esp_wifi_start()) != ESP_OK && err != ESP_ERR_INVALID_STATE) return err;
     (void)esp_wifi_set_max_tx_power(84);
     (void)esp_wifi_set_max_tx_power(84);
-    ESP_LOGW(TAG, "APSTA up now SSID=%s ch=%u HTTP first, scan in background",
+    ESP_LOGW(TAG, "AP only SSID=%s ch=%u",
              CUBE_WIFI_SSID, (unsigned)CUBE_WIFI_CHANNEL);
-    xTaskCreate(wifi_boot_scan_task, "wifi_scan", 4096, NULL, 3, NULL);
+    /* AP only, no scan */
 
     httpd_config_t hc = HTTPD_DEFAULT_CONFIG();
     hc.max_uri_handlers = 36;

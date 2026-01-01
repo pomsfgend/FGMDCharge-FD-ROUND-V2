@@ -231,6 +231,10 @@ static lv_obj_t *s_out_v;
 static lv_obj_t *s_out_a;
 static lv_obj_t *s_watt;
 static lv_obj_t *s_stat;
+static void pad_show(void);
+static lv_obj_t *s_active_ta;
+static lv_obj_t *s_pass_box;
+static lv_obj_t *s_pass_title;
 
 static void ask_pass(int act)
 {
@@ -238,10 +242,7 @@ static void ask_pass(int act)
     if (s_pass_title) lv_label_set_text(s_pass_title, "пароль");
     if (s_wifi_ta) lv_textarea_set_text(s_wifi_ta, "");
     s_active_ta = s_wifi_ta;
-    if (s_pass_box) {
-        lv_obj_clear_flag(s_pass_box, LV_OBJ_FLAG_HIDDEN);
-        lv_obj_move_foreground(s_pass_box);
-    }
+    if (s_pass_box) lv_obj_add_flag(s_pass_box, LV_OBJ_FLAG_HIDDEN);
     pad_show();
 }
 
@@ -289,7 +290,6 @@ static void pad_show(void)
     if (s_pad) lv_obj_clear_flag(s_pad, LV_OBJ_FLAG_HIDDEN);
 }
 
-static lv_obj_t *s_active_ta;
 static int s_set_v = 240;
 static int s_set_i = 50;
 static int s_set_soc = 20;
@@ -300,8 +300,6 @@ static lv_obj_t *s_v_ta;
 static lv_obj_t *s_i_ta;
 static lv_obj_t *s_soc_ta;
 static lv_obj_t *s_kwh_ta;
-static lv_obj_t *s_pass_box;
-static lv_obj_t *s_pass_title;
 static lv_obj_t *s_ip_box;
 static lv_obj_t *s_ip_msg;
 static int s_ip_shown;
@@ -628,7 +626,7 @@ static void build_ui(void)
 {
     s_scr_chg = lv_scr_act();
     style_screen(s_scr_chg);
-    line(s_scr_chg, "КУБ 2.7.6", 4);
+    line(s_scr_chg, "КУБ 2.7.7", 4);
     s_time = line(s_scr_chg, "время 0 мин", 28);
     s_relay = line(s_scr_chg, "выход OFF", 50);
     s_req_v = line(s_scr_chg, "запрос 240 В", 78);
@@ -650,25 +648,19 @@ static void build_ui(void)
     lv_obj_add_event_cb(s_relay, relay_hold_cb, LV_EVENT_LONG_PRESSED, NULL);
     lv_obj_add_flag(s_relay, LV_OBJ_FLAG_CLICKABLE);
     lv_obj_add_flag(s_scr_chg, LV_OBJ_FLAG_SCROLLABLE);
-    s_card_u = card(s_scr_chg, 10, 40, &s_voltage, "V");
-    s_card_i = card(s_scr_chg, 122, 40, &s_current, "A");
-    (void)s_card_u; (void)s_card_i;
-    s_power = line(s_scr_chg, "P --", 104);
-    s_soc = line(s_scr_chg, "SOC --", 122);
-    s_stage = line(s_scr_chg, "GB/T", 140);
-    s_relay = line(s_scr_chg, "A0 B0", 158);
-    s_cml = line(s_scr_chg, "LIM --", 176);
-    lv_obj_t *stop = lv_btn_create(s_scr_chg);
-    lv_obj_set_size(stop, 216, 36);
-    lv_obj_align(stop, LV_ALIGN_TOP_MID, 0, 198);
-    lv_obj_set_style_bg_color(stop, lv_color_hex(0xE74C3C), 0);
-    lv_obj_add_event_cb(stop, stop_hold_cb, LV_EVENT_LONG_PRESSED, NULL);
-    lv_obj_t *stop_lbl = lv_label_create(stop);
-    lv_label_set_text(stop_lbl, "HOLD STOP");
-    lv_obj_center(stop_lbl);
-    s_dots = line(s_scr_chg, "листай вниз", 248);
-    s_status = line(s_scr_chg, "VIN --", 268);
-    lv_obj_set_height(s_scr_chg, 280);
+    s_dots = line(s_scr_chg, "ниже: точка, лог, оригинал", 250);
+    s_ip_lbl = line(s_scr_chg, "Cube 192.168.4.1", 274);
+    s_log_lbl = line(s_scr_chg, "лог", 298);
+    lv_obj_set_width(s_log_lbl, 216);
+    lv_label_set_long_mode(s_log_lbl, LV_LABEL_LONG_WRAP);
+    lv_obj_t *orig = lv_btn_create(s_scr_chg);
+    lv_obj_set_size(orig, 200, 36);
+    lv_obj_set_pos(orig, 12, 430);
+    lv_obj_add_event_cb(orig, boot_old_cb, LV_EVENT_CLICKED, NULL);
+    lv_obj_t *orig_l = lv_label_create(orig);
+    lv_label_set_text(orig_l, "оригинал");
+    lv_obj_center(orig_l);
+    s_status = line(s_scr_chg, "3 включения = слот", 476);
 
 
     s_scr_ses = lv_obj_create(NULL);
@@ -753,7 +745,7 @@ static void build_ui(void)
     lv_obj_set_height(s_can_lbl, 110);
     s_scr_sys = lv_obj_create(NULL);
     style_screen(s_scr_sys);
-    line(s_scr_sys, "СИСТЕМА 2.7.6", 4);
+    line(s_scr_sys, "СИСТЕМА 2.7.7", 4);
     s_sys_temp = line(s_scr_sys, "CPU -- C", 28);
     s_sys_cpu = line(s_scr_sys, "F 160 MHz", 48);
     s_sys_load = line(s_scr_sys, "Load -- %", 68);
@@ -972,6 +964,7 @@ esp_err_t display_init(void)
     ESP_ERROR_CHECK(esp_lcd_panel_init(s_panel));
     ESP_ERROR_CHECK(esp_lcd_panel_invert_color(s_panel, CUBE_LCD_INVERT));
     ESP_ERROR_CHECK(esp_lcd_panel_mirror(s_panel, CUBE_LCD_MIRROR_X, CUBE_LCD_MIRROR_Y));
+    ESP_ERROR_CHECK(esp_lcd_panel_swap_xy(s_panel, true));
     ESP_ERROR_CHECK(esp_lcd_panel_set_gap(s_panel, CUBE_LCD_GAP_X, CUBE_LCD_GAP_Y));
     ESP_ERROR_CHECK(esp_lcd_panel_disp_on_off(s_panel, true));
     ESP_LOGW(TAG, "panel on invert=%d bgr=%d mirror=%d,%d", CUBE_LCD_INVERT, CUBE_LCD_BGR,
