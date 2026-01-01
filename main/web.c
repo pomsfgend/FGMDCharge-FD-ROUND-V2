@@ -959,8 +959,9 @@ esp_err_t web_init(void)
     cfg.mgmt_sbuf_num = 8;
     err = esp_wifi_init(&cfg);
     if (err != ESP_OK) {
+        wifi_init_config_t fallback = WIFI_INIT_CONFIG_DEFAULT();
         ESP_LOGW(TAG, "slim wifi init failed: %s", esp_err_to_name(err));
-        cfg = WIFI_INIT_CONFIG_DEFAULT();
+        cfg = fallback;
         err = esp_wifi_init(&cfg);
         if (err != ESP_OK && err != ESP_ERR_INVALID_STATE) return err;
     }
