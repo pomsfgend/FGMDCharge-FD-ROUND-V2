@@ -1,4 +1,4 @@
-FGMDCharge / FD_ROUND V2 — Release 2.1.0
+FGMDCharge / FD_ROUND V2 — Release 2.0.6
 
 Канонический исходный проект. Фактический список файлов релиза:
 
@@ -17,7 +17,7 @@ README_RU.md
 README_START_HERE_RU.txt
 RECOVERY_ORIGINAL.bat
 RELEASE_CHECKLIST_RU.txt
-RELEASE_FIX_2.1.0.md
+RELEASE_FIX_2.0.6.md
 RELEASE_NOTES_RU.md
 REPAIR_IDF_5_0_9.bat
 ROLLBACK_OTA0.bat

@@ -14,7 +14,7 @@ FGMDCharge / FD_ROUND V2 — RELEASE 2.1.0
 4. BLE-команды 0x66 / 0x0D / 0x0E (как в оригинале).
 5. Веб-панель показывает main_state, substate, реле, handoff, session.
 6. Кнопки Start charge / Stop в веб-UI (требуют X-Cube-Key).
-7. Исправлен критический баг 2.1.0: CUBE_LCD_BL_GPIO = -1 (GPIO2 не драйвится).
+7. Исправлен критический баг 2.0.6: CUBE_LCD_BL_GPIO = -1 (GPIO2 не драйвится).
 
 КРИТИЧЕСКИЕ ПРАВИЛА
 -------------------

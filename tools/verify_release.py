@@ -10,7 +10,7 @@ import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-VERSION = "2.1.0"
+VERSION = "2.0.6"
 DUMP_SHA256 = "1428dbddc0749eee8ac133b1e16b6c0805a2da4bb4b0c73bc759c1500b03f233"
 MAX_OTA = 0x190000
 
@@ -21,7 +21,7 @@ REQUIRED = [
     "main/gbt_tp.c", "main/gbt_tp.h", "main/display.c", "main/display.h",
     "main/touch_cst816s.c", "main/touch_cst816s.h", "main/ble.c", "main/ble.h",
     "main/web.c", "main/web.h", "main/safe_ota.c", "main/safe_ota.h",
-    "main/settings.c", "main/settings.h", "main/adc_pwm.c", "main/sm_relay.c", "main/sm_relay.h", "main/board_pins.h",
+    "main/settings.c", "main/settings.h", "main/adc_pwm.c", "main/board_pins.h",
     "main/web/index.html", "main/web/style.css", "main/web/app.js",
     "host_tests/test_core.py", "tools/static_audit.py", "tools/write_release_manifest.py",
     "tools/check_app_image.py", "tools/ota_slot.py", "tools/flash_app_to_ota1.py",

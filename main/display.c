@@ -201,26 +201,20 @@ esp_err_t display_init(void) {
     ESP_LOGW(TAG, "panel on (mirror X=0 Y=0, RGB, gap=0)");
 
     /* Original FW: no backlight GPIO. GPIO2 is strapping — do NOT drive.
-       Relays are GPIO6/GPIO7. Keep CUBE_LCD_BL_GPIO = -1.
-       Use runtime int so the compiler never evaluates 1ULL << (-1). */
-#if (CUBE_LCD_BL_GPIO >= 0) && (CUBE_LCD_BL_GPIO != 2)
-    {
-        const int bl_gpio = CUBE_LCD_BL_GPIO;
+       Relays are GPIO6/GPIO7. Keep CUBE_LCD_BL_GPIO = -1. */
+    if (CUBE_LCD_BL_GPIO >= 0 && CUBE_LCD_BL_GPIO != 2) {
         gpio_config_t bl = {
-            .pin_bit_mask = (1ULL << bl_gpio),
+            .pin_bit_mask = 1ULL << CUBE_LCD_BL_GPIO,
             .mode = GPIO_MODE_OUTPUT,
             .pull_up_en = GPIO_PULLUP_DISABLE,
             .pull_down_en = GPIO_PULLDOWN_DISABLE,
             .intr_type = GPIO_INTR_DISABLE,
         };
         if (gpio_config(&bl) == ESP_OK) {
-            (void)gpio_set_level(bl_gpio, 1);
-            ESP_LOGW(TAG, "backlight GPIO%d = ON (post-init)", bl_gpio);
+            (void)gpio_set_level(CUBE_LCD_BL_GPIO, 1);
+            ESP_LOGW(TAG, "backlight GPIO%d = ON (post-init)", CUBE_LCD_BL_GPIO);
         }
     }
-#else
-    ESP_LOGI(TAG, "backlight GPIO disabled (CUBE_LCD_BL_GPIO=%d)", CUBE_LCD_BL_GPIO);
-#endif
 
 
     lv_disp_draw_buf_init(&s_draw_buf, s_buf1, s_buf2, draw_buf_pixels);

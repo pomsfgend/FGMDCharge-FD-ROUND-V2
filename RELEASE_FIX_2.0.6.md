@@ -1,4 +1,4 @@
-# FD_ROUND V2 — release 2.1.0
+# FD_ROUND V2 — release 2.0.6
 
 ## Исправлено по реальному runtime 2.0.5
 
