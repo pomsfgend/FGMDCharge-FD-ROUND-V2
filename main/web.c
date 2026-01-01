@@ -560,6 +560,18 @@ esp_err_t web_wifi_restart(void)
     return err;
 }
 
+
+static void wifi_boot_scan_task(void *arg)
+{
+    (void)arg;
+    vTaskDelay(pdMS_TO_TICKS(400));
+    ESP_LOGW(TAG, "background scan start");
+    (void)web_scan_now();
+    (void)esp_wifi_set_max_tx_power(84);
+    ESP_LOGW(TAG, "background scan done, AP stays up");
+    vTaskDelete(NULL);
+}
+
 esp_err_t web_init(void)
 {
     esp_err_t err = esp_netif_init();
@@ -606,12 +618,10 @@ esp_err_t web_init(void)
     (void)esp_wifi_set_country_code("01", true);
     if ((err = esp_wifi_start()) != ESP_OK && err != ESP_ERR_INVALID_STATE) return err;
     (void)esp_wifi_set_max_tx_power(84);
-    ESP_LOGW(TAG, "APSTA SSID=%s ch=%u auth=%s (scan kick like 2.2.9)",
-             CUBE_WIFI_SSID, (unsigned)CUBE_WIFI_CHANNEL,
-             (strlen(CUBE_WIFI_PASSWORD) >= 8U) ? "WPA2" : "OPEN");
-    (void)web_scan_now();
-    (void)esp_wifi_set_config(WIFI_IF_AP, &ap);
     (void)esp_wifi_set_max_tx_power(84);
+    ESP_LOGW(TAG, "APSTA up now SSID=%s ch=%u HTTP first, scan in background",
+             CUBE_WIFI_SSID, (unsigned)CUBE_WIFI_CHANNEL);
+    xTaskCreate(wifi_boot_scan_task, "wifi_scan", 4096, NULL, 3, NULL);
 
     httpd_config_t hc = HTTPD_DEFAULT_CONFIG();
     hc.max_uri_handlers = 36;

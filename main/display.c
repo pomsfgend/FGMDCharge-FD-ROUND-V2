@@ -154,49 +154,47 @@ static int cpu_load_pct(void)
 }
 
 
+
+static lv_obj_t *s_card_u;
+static lv_obj_t *s_card_i;
+static lv_obj_t *s_dots;
+static void gesture_cb(lv_event_t *e);
+
 static void style_screen(lv_obj_t *scr)
 {
-    lv_obj_set_style_bg_color(scr, lv_color_hex(0x061018), 0);
+    lv_obj_set_style_bg_color(scr, lv_color_hex(0x071018), 0);
     lv_obj_set_style_bg_opa(scr, LV_OPA_COVER, 0);
     lv_obj_set_style_text_color(scr, lv_color_hex(0xE8EEF4), 0);
+    lv_obj_clear_flag(scr, LV_OBJ_FLAG_SCROLLABLE);
+    lv_obj_add_event_cb(scr, gesture_cb, LV_EVENT_GESTURE, NULL);
+    lv_obj_add_event_cb(scr, gesture_cb, LV_EVENT_PRESSED, NULL);
 }
 
-static void style_btn(lv_obj_t *b, bool accent)
+static void apply_page(int p)
 {
-    lv_obj_set_style_bg_color(b, lv_color_hex(accent ? 0x1F6FEB : 0x1A2430), 0);
-    lv_obj_set_style_bg_opa(b, LV_OPA_COVER, 0);
-    lv_obj_set_style_border_width(b, 0, 0);
-    lv_obj_set_style_shadow_width(b, 0, 0);
-    lv_obj_set_style_text_color(b, lv_color_hex(0xF4F7FB), 0);
-    lv_obj_set_style_radius(b, 6, 0);
-}
-
-static void mark_nav(void)
-{
-    for (int i = 0; i < 3; ++i) {
-        if (!s_nav_btn[i]) continue;
-        style_btn(s_nav_btn[i], i == s_page);
-    }
-}
-
-static void show_page(int p)
-{
+    if (p < 0) p = 2;
+    if (p > 2) p = 0;
     s_page = p;
     if (s_pad) lv_obj_add_flag(s_pad, LV_OBJ_FLAG_HIDDEN);
     lv_scr_load(p == 0 ? s_scr_chg : (p == 1 ? s_scr_sys : s_scr_wifi));
-    mark_nav();
+    if (s_dots) {
+        const char *d = p == 0 ? "o  -  -" : (p == 1 ? "-  o  -" : "-  -  o");
+        lv_label_set_text(s_dots, d);
+    }
 }
 
-static void nav_cb(lv_event_t *e)
+static void gesture_cb(lv_event_t *e)
 {
-    int p = (int)(intptr_t)lv_event_get_user_data(e);
-    show_page(p);
+    if (lv_event_get_code(e) != LV_EVENT_GESTURE) return;
+    lv_dir_t dir = lv_indev_get_gesture_dir(lv_indev_get_act());
+    lv_indev_wait_release(lv_indev_get_act());
+    if (dir == LV_DIR_LEFT) apply_page(s_page + 1);
+    else if (dir == LV_DIR_RIGHT) apply_page(s_page - 1);
 }
 
 static void br_cb(lv_event_t *e)
 {
-    lv_obj_t *sl = lv_event_get_target(e);
-    int v = lv_slider_get_value(sl);
+    int v = lv_slider_get_value(lv_event_get_target(e));
     display_set_brightness(v);
     if (s_br_label) {
         char b[24];
@@ -214,14 +212,8 @@ static void pad_key_cb(lv_event_t *e)
 {
     const char *k = (const char *)lv_event_get_user_data(e);
     if (!s_wifi_ta || !k) return;
-    if (k[0] == 'X') {
-        lv_textarea_del_char(s_wifi_ta);
-        return;
-    }
-    if (k[0] == 'H') {
-        pad_hide();
-        return;
-    }
+    if (k[0] == 'X') { lv_textarea_del_char(s_wifi_ta); return; }
+    if (k[0] == 'H') { pad_hide(); return; }
     lv_textarea_add_text(s_wifi_ta, k);
 }
 
@@ -239,23 +231,31 @@ static void wifi_rst_cb(lv_event_t *e)
     web_wifi_restart();
 }
 
+static void refresh_scan_label(void)
+{
+    if (!s_scan_lbl) return;
+    int n = web_scan_count();
+    if (n <= 0) {
+        lv_label_set_text(s_scan_lbl, "nets: 0");
+        return;
+    }
+    char buf[180];
+    int o = 0;
+    buf[0] = 0;
+    for (int i = 0; i < n && o < (int)sizeof(buf) - 20; ++i) {
+        o += snprintf(buf + o, sizeof(buf) - (size_t)o, "%s%d %s\n",
+                      i == s_pick ? ">" : " ", i, web_scan_ssid(i));
+    }
+    lv_label_set_text(s_scan_lbl, buf);
+}
+
 static void scan_cb(lv_event_t *e)
 {
     (void)e;
     if (s_scan_lbl) lv_label_set_text(s_scan_lbl, "SCAN...");
     (void)web_scan_now();
-    char buf[160];
-    int n = web_scan_count();
-    if (n <= 0) {
-        snprintf(buf, sizeof(buf), "nets: 0");
-    } else {
-        int o = snprintf(buf, sizeof(buf), "%d: %s", 0, web_scan_ssid(0));
-        for (int i = 1; i < n && o < (int)sizeof(buf) - 8; ++i) {
-            o += snprintf(buf + o, sizeof(buf) - (size_t)o, "\n%d: %s", i, web_scan_ssid(i));
-        }
-    }
-    if (s_scan_lbl) lv_label_set_text(s_scan_lbl, buf);
     s_pick = 0;
+    refresh_scan_label();
 }
 
 static void pick_cb(lv_event_t *e)
@@ -264,11 +264,7 @@ static void pick_cb(lv_event_t *e)
     int n = web_scan_count();
     if (n <= 0) return;
     s_pick = (s_pick + d + n) % n;
-    if (s_scan_lbl) {
-        char b[48];
-        snprintf(b, sizeof(b), "SEL %d %s", s_pick, web_scan_ssid(s_pick));
-        lv_label_set_text(s_scan_lbl, b);
-    }
+    refresh_scan_label();
 }
 
 static void join_cb(lv_event_t *e)
@@ -285,50 +281,23 @@ static void join_cb(lv_event_t *e)
     pad_hide();
 }
 
-static lv_obj_t *mk_nav(lv_obj_t *parent)
-{
-    lv_obj_t *bar = lv_obj_create(parent);
-    lv_obj_set_size(bar, 232, 40);
-    lv_obj_align(bar, LV_ALIGN_BOTTOM_MID, 0, -2);
-    lv_obj_set_style_pad_all(bar, 2, 0);
-    lv_obj_set_style_bg_color(bar, lv_color_hex(0x0C141C), 0);
-    lv_obj_set_style_bg_opa(bar, LV_OPA_COVER, 0);
-    lv_obj_set_style_border_width(bar, 0, 0);
-    lv_obj_set_style_shadow_width(bar, 0, 0);
-    lv_obj_clear_flag(bar, LV_OBJ_FLAG_SCROLLABLE);
-    const char *names[] = {"CHG", "SYS", "WiFi"};
-    for (int i = 0; i < 3; i++) {
-        lv_obj_t *b = lv_btn_create(bar);
-        lv_obj_set_size(b, 72, 32);
-        lv_obj_align(b, LV_ALIGN_LEFT_MID, 4 + i * 76, 0);
-        style_btn(b, i == s_page);
-        lv_obj_add_event_cb(b, nav_cb, LV_EVENT_CLICKED, (void *)(intptr_t)i);
-        lv_obj_t *l = lv_label_create(b);
-        lv_label_set_text(l, names[i]);
-        lv_obj_set_style_text_color(l, lv_color_hex(0xF4F7FB), 0);
-        lv_obj_center(l);
-        s_nav_btn[i] = b;
-    }
-    return bar;
-}
-
 static void make_pad(lv_obj_t *parent)
 {
     s_pad = lv_obj_create(parent);
-    lv_obj_set_size(s_pad, 232, 168);
-    lv_obj_align(s_pad, LV_ALIGN_BOTTOM_MID, 0, -44);
+    lv_obj_set_size(s_pad, 232, 156);
+    lv_obj_align(s_pad, LV_ALIGN_BOTTOM_MID, 0, -8);
     lv_obj_set_style_bg_color(s_pad, lv_color_hex(0x101820), 0);
     lv_obj_set_style_bg_opa(s_pad, LV_OPA_COVER, 0);
-    lv_obj_set_style_border_width(s_pad, 1, 0);
-    lv_obj_set_style_border_color(s_pad, lv_color_hex(0x3A4A5C), 0);
+    lv_obj_set_style_border_width(s_pad, 0, 0);
     lv_obj_set_style_pad_all(s_pad, 4, 0);
     lv_obj_clear_flag(s_pad, LV_OBJ_FLAG_SCROLLABLE);
     const char *keys[] = {"1","2","3","4","5","6","7","8","9","X","0","H"};
     for (int i = 0; i < 12; ++i) {
         lv_obj_t *b = lv_btn_create(s_pad);
-        lv_obj_set_size(b, 70, 36);
-        lv_obj_set_pos(b, (i % 3) * 74, (i / 3) * 40);
-        style_btn(b, false);
+        lv_obj_set_size(b, 72, 34);
+        lv_obj_set_pos(b, (i % 3) * 76, (i / 3) * 38);
+        lv_obj_set_style_bg_color(b, lv_color_hex(0x1A2430), 0);
+        lv_obj_set_style_shadow_width(b, 0, 0);
         lv_obj_add_event_cb(b, pad_key_cb, LV_EVENT_CLICKED, (void *)keys[i]);
         lv_obj_t *l = lv_label_create(b);
         lv_label_set_text(l, keys[i][0]=='X' ? "DEL" : (keys[i][0]=='H' ? "HIDE" : keys[i]));
@@ -338,116 +307,133 @@ static void make_pad(lv_obj_t *parent)
     lv_obj_add_flag(s_pad, LV_OBJ_FLAG_HIDDEN);
 }
 
-static lv_obj_t *big_label(lv_obj_t *parent, const char *txt, int y)
+static lv_obj_t *card(lv_obj_t *parent, int x, int y, lv_obj_t **value, const char *cap)
+{
+    lv_obj_t *c = lv_obj_create(parent);
+    lv_obj_set_size(c, 110, 78);
+    lv_obj_set_pos(c, x, y);
+    lv_obj_set_style_bg_color(c, lv_color_hex(0x122033), 0);
+    lv_obj_set_style_bg_opa(c, LV_OPA_COVER, 0);
+    lv_obj_set_style_border_width(c, 0, 0);
+    lv_obj_set_style_radius(c, 10, 0);
+    lv_obj_set_style_pad_all(c, 6, 0);
+    lv_obj_clear_flag(c, LV_OBJ_FLAG_SCROLLABLE);
+    lv_obj_add_event_cb(c, gesture_cb, LV_EVENT_GESTURE, NULL);
+    lv_obj_t *k = lv_label_create(c);
+    lv_label_set_text(k, cap);
+    lv_obj_set_style_text_color(k, lv_color_hex(0x8FB4D6), 0);
+    lv_obj_align(k, LV_ALIGN_TOP_LEFT, 0, 0);
+    *value = lv_label_create(c);
+    lv_label_set_text(*value, "--");
+    lv_obj_set_style_text_color(*value, lv_color_hex(0xF4F7FB), 0);
+    lv_obj_align(*value, LV_ALIGN_BOTTOM_LEFT, 0, 0);
+    return c;
+}
+
+static lv_obj_t *line(lv_obj_t *parent, const char *txt, int y)
 {
     lv_obj_t *l = lv_label_create(parent);
     lv_label_set_text(l, txt);
-    lv_obj_set_style_text_color(l, lv_color_hex(0xF4F7FB), 0);
+    lv_obj_set_width(l, 224);
+    lv_label_set_long_mode(l, LV_LABEL_LONG_CLIP);
+    lv_obj_set_style_text_color(l, lv_color_hex(0xD5DEE8), 0);
     lv_obj_align(l, LV_ALIGN_TOP_LEFT, 8, y);
+    lv_obj_add_event_cb(l, gesture_cb, LV_EVENT_GESTURE, NULL);
     return l;
 }
 
 static void build_ui(void)
 {
-    lv_obj_t *scr0 = lv_scr_act();
-    s_scr_chg = scr0;
-    style_screen(scr0);
-
-    lv_obj_t *title = big_label(scr0, "CUBE  2.3.1", 2);
-    (void)title;
-    s_voltage = big_label(scr0, "U  --.- V", 24);
-    s_current = big_label(scr0, "I  --.- A", 44);
-    s_power = big_label(scr0, "P  -- W", 64);
-    s_soc = big_label(scr0, "SOC -- %", 84);
-    s_stage = big_label(scr0, "STAGE IDLE", 104);
-    s_relay = big_label(scr0, "RELAY A0 B0", 124);
-    s_cml = big_label(scr0, "CML -- V", 144);
-    s_can = big_label(scr0, "CAN rx0 tx0", 164);
-    s_status = big_label(scr0, "AP Cube / 123456789", 184);
-    lv_obj_set_width(s_status, 224);
-    mk_nav(scr0);
+    s_scr_chg = lv_scr_act();
+    style_screen(s_scr_chg);
+    line(s_scr_chg, "CUBE  2.3.2", 4);
+    s_card_u = card(s_scr_chg, 8, 26, &s_voltage, "VOLT");
+    s_card_i = card(s_scr_chg, 122, 26, &s_current, "AMP");
+    (void)s_card_u; (void)s_card_i;
+    s_power = line(s_scr_chg, "P -- W", 112);
+    s_soc = line(s_scr_chg, "SOC -- %", 132);
+    s_stage = line(s_scr_chg, "STAGE IDLE", 152);
+    s_relay = line(s_scr_chg, "RELAY A0 B0", 172);
+    s_cml = line(s_scr_chg, "CML --", 192);
+    s_can = line(s_scr_chg, "CAN rx0 tx0", 212);
+    s_status = line(s_scr_chg, "AP Cube", 232);
+    s_dots = line(s_scr_chg, "o  -  -   swipe", 254);
 
     s_scr_sys = lv_obj_create(NULL);
     style_screen(s_scr_sys);
-    big_label(s_scr_sys, "SYSTEM", 2);
-    s_sys_temp = big_label(s_scr_sys, "CPU -- C", 26);
-    s_sys_cpu = big_label(s_scr_sys, "F 160 MHz", 46);
-    s_sys_load = big_label(s_scr_sys, "Load -- %", 66);
-    s_sys_heap = big_label(s_scr_sys, "Heap --", 86);
-    s_sys_wifi = big_label(s_scr_sys, "AP Cube", 106);
-    s_sys_touch = big_label(s_scr_sys, "Touch --", 126);
-    s_br_label = big_label(s_scr_sys, "Bright 70%", 148);
+    line(s_scr_sys, "SYSTEM", 4);
+    s_sys_temp = line(s_scr_sys, "CPU -- C", 28);
+    s_sys_cpu = line(s_scr_sys, "F 160 MHz", 48);
+    s_sys_load = line(s_scr_sys, "Load -- %", 68);
+    s_sys_heap = line(s_scr_sys, "Heap --", 88);
+    s_sys_wifi = line(s_scr_sys, "AP Cube", 108);
+    s_sys_touch = line(s_scr_sys, "Touch --", 128);
+    s_br_label = line(s_scr_sys, "Bright 70%", 152);
     lv_obj_t *sl = lv_slider_create(s_scr_sys);
-    lv_obj_set_width(sl, 200);
+    lv_obj_set_width(sl, 210);
     lv_slider_set_range(sl, 5, 100);
     lv_slider_set_value(sl, s_brightness, LV_ANIM_OFF);
-    lv_obj_align(sl, LV_ALIGN_TOP_MID, 0, 170);
+    lv_obj_align(sl, LV_ALIGN_TOP_MID, 0, 176);
     lv_obj_add_event_cb(sl, br_cb, LV_EVENT_VALUE_CHANGED, NULL);
     lv_obj_t *rb = lv_btn_create(s_scr_sys);
-    lv_obj_set_size(rb, 160, 34);
-    lv_obj_align(rb, LV_ALIGN_TOP_MID, 0, 200);
-    style_btn(rb, true);
+    lv_obj_set_size(rb, 180, 36);
+    lv_obj_align(rb, LV_ALIGN_TOP_MID, 0, 210);
+    lv_obj_set_style_bg_color(rb, lv_color_hex(0x1F6FEB), 0);
+    lv_obj_set_style_shadow_width(rb, 0, 0);
     lv_obj_add_event_cb(rb, wifi_rst_cb, LV_EVENT_CLICKED, NULL);
     lv_obj_t *rl = lv_label_create(rb);
     lv_label_set_text(rl, "RESTART WiFi");
-    lv_obj_set_style_text_color(rl, lv_color_hex(0xF4F7FB), 0);
     lv_obj_center(rl);
-    mk_nav(s_scr_sys);
+    line(s_scr_sys, "-  o  -   swipe", 254);
 
     s_scr_wifi = lv_obj_create(NULL);
     style_screen(s_scr_wifi);
-    big_label(s_scr_wifi, "WiFi  digits only", 2);
-    s_scan_lbl = big_label(s_scr_wifi, "nets: --", 22);
+    line(s_scr_wifi, "WiFi  digits", 2);
+    s_scan_lbl = lv_label_create(s_scr_wifi);
+    lv_label_set_text(s_scan_lbl, "nets: --");
     lv_obj_set_width(s_scan_lbl, 224);
+    lv_obj_set_height(s_scan_lbl, 72);
+    lv_label_set_long_mode(s_scan_lbl, LV_LABEL_LONG_DOT);
+    lv_obj_set_style_text_color(s_scan_lbl, lv_color_hex(0xD5DEE8), 0);
+    lv_obj_align(s_scan_lbl, LV_ALIGN_TOP_LEFT, 8, 22);
     s_wifi_ta = lv_textarea_create(s_scr_wifi);
     lv_obj_set_size(s_wifi_ta, 220, 32);
-    lv_obj_align(s_wifi_ta, LV_ALIGN_TOP_MID, 0, 78);
+    lv_obj_align(s_wifi_ta, LV_ALIGN_TOP_MID, 0, 100);
     lv_textarea_set_placeholder_text(s_wifi_ta, "password 0-9");
     lv_textarea_set_one_line(s_wifi_ta, true);
-    lv_textarea_set_password_mode(s_wifi_ta, false);
-    lv_obj_add_event_cb(s_wifi_ta, ta_focus_cb, LV_EVENT_FOCUSED, NULL);
     lv_obj_add_event_cb(s_wifi_ta, ta_focus_cb, LV_EVENT_CLICKED, NULL);
-    s_ip_lbl = big_label(s_scr_wifi, "STA IP --", 114);
+    s_ip_lbl = line(s_scr_wifi, "STA IP --", 136);
 
     lv_obj_t *sc = lv_btn_create(s_scr_wifi);
     lv_obj_set_size(sc, 70, 32);
-    lv_obj_align(sc, LV_ALIGN_TOP_LEFT, 6, 140);
-    style_btn(sc, true);
+    lv_obj_align(sc, LV_ALIGN_TOP_LEFT, 6, 162);
+    lv_obj_set_style_shadow_width(sc, 0, 0);
     lv_obj_add_event_cb(sc, scan_cb, LV_EVENT_CLICKED, NULL);
-    lv_obj_t *slb = lv_label_create(sc);
-    lv_label_set_text(slb, "SCAN");
-    lv_obj_center(slb);
+    lv_obj_t *slb = lv_label_create(sc); lv_label_set_text(slb, "SCAN"); lv_obj_center(slb);
 
     lv_obj_t *up = lv_btn_create(s_scr_wifi);
     lv_obj_set_size(up, 36, 32);
-    lv_obj_align(up, LV_ALIGN_TOP_LEFT, 82, 140);
-    style_btn(up, false);
+    lv_obj_align(up, LV_ALIGN_TOP_LEFT, 82, 162);
+    lv_obj_set_style_shadow_width(up, 0, 0);
     lv_obj_add_event_cb(up, pick_cb, LV_EVENT_CLICKED, (void *)(intptr_t)-1);
-    lv_obj_t *ul = lv_label_create(up);
-    lv_label_set_text(ul, "-");
-    lv_obj_center(ul);
+    lv_obj_t *ul = lv_label_create(up); lv_label_set_text(ul, "-"); lv_obj_center(ul);
 
     lv_obj_t *dn = lv_btn_create(s_scr_wifi);
     lv_obj_set_size(dn, 36, 32);
-    lv_obj_align(dn, LV_ALIGN_TOP_LEFT, 122, 140);
-    style_btn(dn, false);
+    lv_obj_align(dn, LV_ALIGN_TOP_LEFT, 122, 162);
+    lv_obj_set_style_shadow_width(dn, 0, 0);
     lv_obj_add_event_cb(dn, pick_cb, LV_EVENT_CLICKED, (void *)(intptr_t)1);
-    lv_obj_t *dl = lv_label_create(dn);
-    lv_label_set_text(dl, "+");
-    lv_obj_center(dl);
+    lv_obj_t *dl = lv_label_create(dn); lv_label_set_text(dl, "+"); lv_obj_center(dl);
 
     lv_obj_t *jn = lv_btn_create(s_scr_wifi);
     lv_obj_set_size(jn, 70, 32);
-    lv_obj_align(jn, LV_ALIGN_TOP_LEFT, 164, 140);
-    style_btn(jn, true);
+    lv_obj_align(jn, LV_ALIGN_TOP_LEFT, 164, 162);
+    lv_obj_set_style_shadow_width(jn, 0, 0);
     lv_obj_add_event_cb(jn, join_cb, LV_EVENT_CLICKED, NULL);
-    lv_obj_t *jl = lv_label_create(jn);
-    lv_label_set_text(jl, "JOIN");
-    lv_obj_center(jl);
+    lv_obj_t *jl = lv_label_create(jn); lv_label_set_text(jl, "JOIN"); lv_obj_center(jl);
 
+    line(s_scr_wifi, "-  -  o   swipe", 204);
     make_pad(s_scr_wifi);
-    mk_nav(s_scr_wifi);
-    mark_nav();
 }
 
 esp_err_t display_init(void)
@@ -557,11 +543,11 @@ void display_set_values(void)
                                                : st.battery_current_0p1a / 10.0f;
     if (ia < 0) ia = -ia;
     if (s_voltage) {
-        snprintf(b, sizeof(b), "U  %.1f V", (double)uv);
+        snprintf(b, sizeof(b), "%.1f V", (double)uv);
         lv_label_set_text(s_voltage, b);
     }
     if (s_current) {
-        snprintf(b, sizeof(b), "I  %.1f A", (double)ia);
+        snprintf(b, sizeof(b), "%.1f A", (double)ia);
         lv_label_set_text(s_current, b);
     }
     if (s_power) {
@@ -622,10 +608,8 @@ void display_set_values(void)
         snprintf(b, sizeof(b), "WiFi %s / %s", CUBE_WIFI_SSID, CUBE_WIFI_PASSWORD);
         lv_label_set_text(s_status, b);
     }
-    /* Thermal hint */
-    if (tc > 75.0f && s_brightness > 40) {
-        display_set_brightness(40);
-    }
+    /* Brightness stays on the SYS slider; do not override it. */
+    (void)tc;
     display_unlock();
 }
 
