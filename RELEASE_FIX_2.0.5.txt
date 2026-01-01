@@ -1,14 +1,14 @@
 FGMDCharge / FD_ROUND V2 — Release 2.0.5
 =======================================
 
-Build fixes:
-1) Nested comment in web_assets.c fixed.
-2) Version strings unified to 2.0.5 (static_audit / verify_release).
-3) BUILD_RELEASE.bat rewritten: always shows output, always pauses on error,
-   rejects paths with spaces, CRLF line endings. START_BUILD.cmd added.
-4) LVGL config: CONFIG_LV_USE_IMG=y (required by animimg headers) and
-   CONFIG_LV_USE_ANIMIMG=n. Previous over-aggressive widget disable broke
-   the LVGL dependency chain.
-5) Size optimization kept (COMPILER_OPTIMIZATION_SIZE, reduced buffers).
+Build pipeline fixes:
+1) web_assets.c nested-comment error fixed
+2) version strings unified to 2.0.5
+3) BUILD_RELEASE.bat always pauses; rejects paths with spaces
+4) LVGL: stopped half-disabling widgets/themes (caused animimg and
+   unused-const-variable errors in lv_theme_default). Keep only safe
+   options: color depth, fonts 14/28, LV_USE_IMG, LV_USE_LABEL.
+5) Size: CONFIG_COMPILER_OPTIMIZATION_SIZE + reduced WiFi/LWIP buffers
 
-Binary must stay <= 0x190000 to match original OTA slot layout.
+If app still exceeds 0x190000 after -Os, next step is partition resize
+or further feature trim — only after a clean compile.

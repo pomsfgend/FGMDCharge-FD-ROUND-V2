@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Force BLE + size + safe LVGL policy."""
+"""Force BLE + size + required LVGL fonts/img."""
 from pathlib import Path
 
 root = Path(__file__).resolve().parents[1]
@@ -22,7 +22,6 @@ required = {
     "CONFIG_LOG_DEFAULT_LEVEL_WARN": "y",
     "CONFIG_LV_USE_IMG": "y",
     "CONFIG_LV_USE_LABEL": "y",
-    "CONFIG_LV_USE_ANIMIMG": "n",
     "CONFIG_LV_FONT_MONTSERRAT_14": "y",
     "CONFIG_LV_FONT_MONTSERRAT_28": "y",
 }
@@ -44,4 +43,4 @@ for key, value in required.items():
     if key not in seen:
         out.append(f"{key}={value}")
 p.write_text("\n".join(out) + "\n", encoding="utf-8")
-print("sdkconfig policy forced: Bluedroid + size + LV_USE_IMG=y / ANIMIMG=n")
+print("sdkconfig policy forced: Bluedroid + size + LV fonts/img")
