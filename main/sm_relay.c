@@ -98,7 +98,6 @@ static void set_state(uint8_t s)
 static void end_session(void)
 {
     session_log_request(1, SESSION_LOG_STOP);
-    session_log_service();
     app_state_release_auto_protocol();
     if (s_main == ST_IDLE) return;
     set_state(ST_STOP);
@@ -619,5 +618,4 @@ void sm_relay_tick(void)
         s_auto_hold_until = t + 8000;
         sm_stop_session();
     }
-    session_log_service();
 }

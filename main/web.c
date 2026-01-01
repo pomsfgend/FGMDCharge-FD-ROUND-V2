@@ -7,6 +7,7 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include "esp_heap_caps.h"
 #include "esp_log.h"
 #include "esp_http_server.h"
 #include "esp_wifi.h"
@@ -16,6 +17,7 @@
 #include "esp_timer.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
+#include "lwip/sockets.h"
 
 #include "config.h"
 #include "app_state.h"
@@ -83,7 +85,25 @@ static esp_err_t send_asset(httpd_req_t *req, const char *type, const uint8_t *d
     set_security_headers(req);
     (void)httpd_resp_set_type(req, type);
     (void)httpd_resp_set_hdr(req, "Cache-Control", cache ? "public, max-age=3600" : "no-cache");
-    return httpd_resp_send(req, (const char *)data, len);
+    /* One TCP send of the whole page needs several free Wi-Fi buffers at once.
+       On this chip that times out (errno 11) and the phone shows a blank site.
+       1 KiB at a time reuses a single buffer. */
+    size_t off = 0;
+    while (off < len) {
+        size_t n = len - off;
+        if (n > 1024U) n = 1024U;
+        esp_err_t err = httpd_resp_send_chunk(req, (const char *)data + off, (ssize_t)n);
+        if (err != ESP_OK) {
+            ESP_LOGW(TAG, "page send failed %s off=%u/%u heap=%u", req->uri,
+                     (unsigned)off, (unsigned)len,
+                     (unsigned)heap_caps_get_free_size(MALLOC_CAP_8BIT));
+            (void)httpd_resp_send_chunk(req, NULL, 0);
+            return err;
+        }
+        off += n;
+        if (off < len) vTaskDelay(1);
+    }
+    return httpd_resp_send_chunk(req, NULL, 0);
 }
 
 static esp_err_t root_get(httpd_req_t *req)
@@ -457,8 +477,9 @@ static void wifi_ap_event_handler(void *arg, esp_event_base_t event_base,
     if (event_id == WIFI_EVENT_AP_STACONNECTED) {
         const wifi_event_ap_staconnected_t *e = (const wifi_event_ap_staconnected_t *)event_data;
         s_ap_clients++;
-        ESP_LOGI(TAG, "STA connected %02X:%02X:%02X:%02X:%02X:%02X AID=%u",
-                 e->mac[0], e->mac[1], e->mac[2], e->mac[3], e->mac[4], e->mac[5], e->aid);
+        ESP_LOGI(TAG, "STA connected %02X:%02X:%02X:%02X:%02X:%02X AID=%u heap=%u",
+                 e->mac[0], e->mac[1], e->mac[2], e->mac[3], e->mac[4], e->mac[5], e->aid,
+                 (unsigned)heap_caps_get_free_size(MALLOC_CAP_8BIT));
     } else if (event_id == WIFI_EVENT_AP_STADISCONNECTED) {
         /* IDF 5.0.9: wifi_event_ap_stadisconnected_t has only mac + aid (no reason). */
         const wifi_event_ap_stadisconnected_t *e = (const wifi_event_ap_stadisconnected_t *)event_data;
@@ -484,14 +505,26 @@ static esp_err_t captive_text_get(httpd_req_t *req)
 
 static esp_err_t captive_html_get(httpd_req_t *req)
 {
-    return root_get(req);
+    /* A phone probe must not be handed the full page: it often does not read
+       the body, the only HTTP task then sits in send() for the whole timeout,
+       and the real site at / never gets a turn. */
+    set_security_headers(req);
+    set_no_cache(req);
+    if (strcmp(req->uri, "/generate_204") == 0 || strcmp(req->uri, "/gen_204") == 0) {
+        httpd_resp_set_status(req, "204 No Content");
+        return httpd_resp_send(req, NULL, 0);
+    }
+    (void)httpd_resp_set_type(req, "text/html; charset=utf-8");
+    return httpd_resp_sendstr(req,
+        "<!DOCTYPE html><html><head><title>Success</title></head><body>Success</body></html>");
 }
 
 static esp_err_t portal_catchall_get(httpd_req_t *req)
 {
-    /* Captive-portal clients frequently probe vendor-specific paths. Serve the
-       local UI instead of returning a 404 that makes some clients abandon the AP. */
-    return root_get(req);
+    set_security_headers(req);
+    httpd_resp_set_status(req, "302 Found");
+    (void)httpd_resp_set_hdr(req, "Location", "http://192.168.4.1/");
+    return httpd_resp_send(req, NULL, 0);
 }
 
 
@@ -868,6 +901,16 @@ static esp_err_t logs_zip_get(httpd_req_t *req)
     return session_log_send_zip(req);
 }
 
+static esp_err_t http_open(httpd_handle_t hd, int sockfd)
+{
+    int nodelay = 1;
+    int snd = 2048;
+    (void)hd;
+    (void)setsockopt(sockfd, IPPROTO_TCP, TCP_NODELAY, &nodelay, sizeof(nodelay));
+    (void)setsockopt(sockfd, SOL_SOCKET, SO_SNDBUF, &snd, sizeof(snd));
+    return ESP_OK;
+}
+
 void web_boot_original(void)
 {
     const esp_partition_t *orig = esp_partition_find_first(
@@ -900,8 +943,30 @@ esp_err_t web_init(void)
     if (!esp_netif_create_default_wifi_sta()) return ESP_ERR_NO_MEM;
 
     wifi_init_config_t cfg = WIFI_INIT_CONFIG_DEFAULT();
+    /* A saved sdkconfig from an older build still has the IDF defaults
+       (rx 32 / tx 32 / AMPDU). Those eat the RAM the page needs, and send()
+       then dies with errno 11. Override here so that file cannot bring the
+       fat buffers back. If the slim init is rejected, fall back so the AP
+       still comes up. */
+    cfg.static_rx_buf_num = 6;
+    cfg.dynamic_rx_buf_num = 8;
+    cfg.dynamic_tx_buf_num = 8;
+    cfg.cache_tx_buf_num = 16;
+    cfg.ampdu_rx_enable = 0;
+    cfg.ampdu_tx_enable = 0;
+    cfg.amsdu_tx_enable = 0;
+    cfg.rx_ba_win = 6;
+    cfg.mgmt_sbuf_num = 8;
     err = esp_wifi_init(&cfg);
-    if (err != ESP_OK) return err;
+    if (err != ESP_OK) {
+        ESP_LOGW(TAG, "slim wifi init failed: %s", esp_err_to_name(err));
+        cfg = WIFI_INIT_CONFIG_DEFAULT();
+        err = esp_wifi_init(&cfg);
+        if (err != ESP_OK && err != ESP_ERR_INVALID_STATE) return err;
+    }
+    ESP_LOGW(TAG, "wifi buffers static_rx=%d dyn_rx=%d dyn_tx=%d ampdu_rx=%d",
+             cfg.static_rx_buf_num, cfg.dynamic_rx_buf_num, cfg.dynamic_tx_buf_num,
+             cfg.ampdu_rx_enable);
     /* RAM storage: a stale NVS key makes the phone associate and then
        drop with reason 15 (Android shows that as "wrong password"). */
     if ((err = esp_wifi_set_storage(WIFI_STORAGE_RAM)) != ESP_OK && err != ESP_ERR_INVALID_STATE) return err;
@@ -951,10 +1016,11 @@ esp_err_t web_init(void)
     hc.max_uri_handlers = 40;
     hc.stack_size = 12288;
     hc.recv_wait_timeout = 10;
-    hc.send_wait_timeout = 10;
+    hc.send_wait_timeout = 4;
     hc.lru_purge_enable = true;
     hc.uri_match_fn = httpd_uri_match_wildcard;
     hc.max_open_sockets = 4;
+    hc.open_fn = http_open;
     if ((err = httpd_start(&s_server, &hc)) != ESP_OK) {
         ESP_LOGE(TAG, "httpd_start failed: %s", esp_err_to_name(err));
         return err;

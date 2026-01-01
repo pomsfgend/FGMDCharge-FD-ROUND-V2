@@ -243,7 +243,7 @@ assert after_unplug(1, False) == 0
 assert after_unplug(1, True) == 1
 
 cfg = (Path(__file__).resolve().parents[1] / "main" / "config.h").read_text(encoding="utf-8")
-assert '#define CUBE_FW_VERSION              "2.8.12"' in cfg
+assert '#define CUBE_FW_VERSION              "2.8.13"' in cfg
 assert "#define CUBE_TX_DEFAULT_ENABLED      1" in cfg
 
 def crc32_zip(data: bytes) -> int:

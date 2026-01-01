@@ -1,6 +1,7 @@
 #include "session_log.h"
 
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 #include <stdarg.h>
 
@@ -21,8 +22,7 @@ static int s_pending_reason;
 static int s_open = -1;
 static uint16_t s_open_seq;
 static uint8_t s_page[CUBE_LOG_SLOT_SIZE] __attribute__((aligned(4)));
-static char s_text[3800];
-static uint8_t s_zip[36000] __attribute__((aligned(4)));
+static char s_text[3072];
 
 #define LOG_MAGIC 0x474F4C43u
 #define LOG_HDR   16
@@ -325,20 +325,25 @@ static int read_payload(int newest_index)
 esp_err_t session_log_send_last(httpd_req_t *req)
 {
     int len;
-    session_log_service();
+    char *body = NULL;
     if (!s_mu) return ESP_FAIL;
     (void)xSemaphoreTake(s_mu, portMAX_DELAY);
     len = read_payload(0);
     if (len <= 0) len = compose(SESSION_LOG_UPDATE);
+    if (len > 0) {
+        body = malloc((size_t)len);
+        if (body) memcpy(body, s_text, (size_t)len);
+    }
+    (void)xSemaphoreGive(s_mu);
     (void)httpd_resp_set_type(req, "text/plain; charset=utf-8");
     (void)httpd_resp_set_hdr(req, "Content-Disposition", "attachment; filename=\"cube-last.txt\"");
-    if (len <= 0) {
-        (void)xSemaphoreGive(s_mu);
+    if (!body || len <= 0) {
+        free(body);
         return httpd_resp_sendstr(req, "логов нет\n");
     }
     {
-        esp_err_t err = httpd_resp_send(req, s_text, len);
-        (void)xSemaphoreGive(s_mu);
+        esp_err_t err = httpd_resp_send(req, body, len);
+        free(body);
         return err;
     }
 }
@@ -356,93 +361,95 @@ static uint32_t crc32_zip(const uint8_t *data, size_t len)
     return ~crc;
 }
 
-static int zip_append(size_t *used, const uint8_t *bytes, size_t n)
-{
-    if (*used + n > sizeof(s_zip)) return 0;
-    memcpy(s_zip + *used, bytes, n);
-    *used += n;
-    return 1;
-}
-
 esp_err_t session_log_send_zip(httpd_req_t *req)
 {
     slot_rec_t slots[CUBE_LOG_SLOTS];
-    int n;
-    size_t used = 0;
-    size_t central_at;
-    uint8_t central[8][80];
-    uint16_t central_len[8];
-    uint32_t local_off[8];
+    uint8_t cd[700];
+    size_t cd_used = 0;
+    uint32_t offset = 0;
     int files = 0;
-    session_log_service();
+    int n;
+    esp_err_t err = ESP_OK;
     if (!s_mu) return ESP_FAIL;
     (void)xSemaphoreTake(s_mu, portMAX_DELAY);
     n = collect(slots);
-    for (int i = n - 1; i >= 0 && files < CUBE_LOG_SLOTS; --i) {
+    (void)xSemaphoreGive(s_mu);
+    if (n <= 0) {
+        (void)httpd_resp_set_type(req, "text/plain; charset=utf-8");
+        return httpd_resp_sendstr(req, "логов нет\n");
+    }
+    (void)httpd_resp_set_type(req, "application/zip");
+    (void)httpd_resp_set_hdr(req, "Content-Disposition", "attachment; filename=\"cube-logs.zip\"");
+    for (int i = n - 1; i >= 0 && err == ESP_OK; --i) {
         char name[40];
-        uint8_t local[64];
-        uint32_t crc;
+        uint8_t local[30];
+        uint8_t *copy = NULL;
+        unsigned len = 0;
         int name_len;
-        unsigned len = slots[i].len;
-        if (esp_flash_read(NULL, s_page, slot_addr(slots[i].index), CUBE_LOG_SLOT_SIZE) != ESP_OK) continue;
-        if (get_u32(s_page) != LOG_MAGIC || len == 0 || len > (unsigned)(CUBE_LOG_SLOT_SIZE - LOG_HDR)) continue;
+        uint32_t crc;
+        int slot = slots[i].index;
+        (void)xSemaphoreTake(s_mu, portMAX_DELAY);
+        if (esp_flash_read(NULL, s_page, slot_addr(slot), CUBE_LOG_SLOT_SIZE) == ESP_OK &&
+            get_u32(s_page) == LOG_MAGIC) {
+            len = get_u16(s_page + 6);
+            if (len > 0 && len <= (unsigned)(CUBE_LOG_SLOT_SIZE - LOG_HDR)) {
+                copy = malloc(len);
+                if (copy) memcpy(copy, s_page + LOG_HDR, len);
+            }
+        }
+        (void)xSemaphoreGive(s_mu);
+        if (!copy) continue;
         name_len = snprintf(name, sizeof(name), "cube-%u-%s-%s.txt", slots[i].seq,
                             proto_tag(slots[i].protocol), reason_en(slots[i].reason));
-        if (name_len <= 0 || name_len >= (int)sizeof(name)) continue;
-        crc = crc32_zip(s_page + LOG_HDR, len);
-        local_off[files] = (uint32_t)used;
+        if (name_len <= 0 || name_len >= (int)sizeof(name) || cd_used + 46u + (size_t)name_len > sizeof(cd)) {
+            free(copy);
+            continue;
+        }
+        crc = crc32_zip(copy, len);
         memset(local, 0, sizeof(local));
         put_u32(local, 0x04034b50u);
         put_u16(local + 4, 20);
-        put_u16(local + 8, 0);
         put_u32(local + 14, crc);
         put_u32(local + 18, len);
         put_u32(local + 22, len);
         put_u16(local + 26, (unsigned)name_len);
-        put_u16(local + 28, 0);
-        if (!zip_append(&used, local, 30)) break;
-        if (!zip_append(&used, (const uint8_t *)name, (size_t)name_len)) break;
-        if (!zip_append(&used, s_page + LOG_HDR, len)) break;
-        memset(central[files], 0, sizeof(central[files]));
-        put_u32(central[files], 0x02014b50u);
-        put_u16(central[files] + 4, 20);
-        put_u16(central[files] + 6, 20);
-        put_u32(central[files] + 16, crc);
-        put_u32(central[files] + 20, len);
-        put_u32(central[files] + 24, len);
-        put_u16(central[files] + 28, (unsigned)name_len);
-        put_u32(central[files] + 42, local_off[files]);
-        memcpy(central[files] + 46, name, (size_t)name_len);
-        central_len[files] = (uint16_t)(46 + name_len);
+        memset(cd + cd_used, 0, 46);
+        put_u32(cd + cd_used, 0x02014b50u);
+        put_u16(cd + cd_used + 4, 20);
+        put_u16(cd + cd_used + 6, 20);
+        put_u32(cd + cd_used + 16, crc);
+        put_u32(cd + cd_used + 20, len);
+        put_u32(cd + cd_used + 24, len);
+        put_u16(cd + cd_used + 28, (unsigned)name_len);
+        put_u32(cd + cd_used + 42, offset);
+        memcpy(cd + cd_used + 46, name, (size_t)name_len);
+        cd_used += 46u + (size_t)name_len;
+        err = httpd_resp_send_chunk(req, (const char *)local, 30);
+        if (err == ESP_OK) err = httpd_resp_send_chunk(req, name, name_len);
+        if (err == ESP_OK) err = httpd_resp_send_chunk(req, (const char *)copy, (ssize_t)len);
+        offset += 30u + (uint32_t)name_len + len;
         files++;
+        free(copy);
     }
-    central_at = used;
-    for (int i = 0; i < files; ++i) {
-        if (!zip_append(&used, central[i], central_len[i])) {
-            files = i;
-            break;
-        }
+    if (err != ESP_OK) {
+        (void)httpd_resp_send_chunk(req, NULL, 0);
+        return err;
     }
-    {
+    if (files == 0) {
+        (void)httpd_resp_set_type(req, "text/plain; charset=utf-8");
+        return httpd_resp_sendstr(req, "логов нет\n");
+    }
+    if (err == ESP_OK) {
         uint8_t end[22];
         memset(end, 0, sizeof(end));
         put_u32(end, 0x06054b50u);
         put_u16(end + 8, (unsigned)files);
         put_u16(end + 10, (unsigned)files);
-        put_u32(end + 12, (unsigned)(used - central_at));
-        put_u32(end + 16, (unsigned)central_at);
-        (void)zip_append(&used, end, sizeof(end));
+        put_u32(end + 12, (unsigned)cd_used);
+        put_u32(end + 16, offset);
+        err = httpd_resp_send_chunk(req, (const char *)cd, (ssize_t)cd_used);
+        if (err == ESP_OK) err = httpd_resp_send_chunk(req, (const char *)end, sizeof(end));
+        if (err == ESP_OK) err = httpd_resp_send_chunk(req, NULL, 0);
     }
-    if (files <= 0 || used < 22) {
-        (void)httpd_resp_set_type(req, "text/plain; charset=utf-8");
-        (void)xSemaphoreGive(s_mu);
-        return httpd_resp_sendstr(req, "логов нет\n");
-    }
-    (void)httpd_resp_set_type(req, "application/zip");
-    (void)httpd_resp_set_hdr(req, "Content-Disposition", "attachment; filename=\"cube-logs.zip\"");
-    {
-        esp_err_t err = httpd_resp_send(req, (const char *)s_zip, (ssize_t)used);
-        (void)xSemaphoreGive(s_mu);
-        return err;
-    }
+    return err;
 }

@@ -14,7 +14,7 @@
 #include "esp_ota_ops.h"
 #include "nvs.h"
 #include "esp_timer.h"
-#include "esp_log.h"
+#include "esp_heap_caps.h"
 #include <stdio.h>
 #include <stdarg.h>
 #include "sm_relay.h"
@@ -138,7 +138,8 @@ void app_main(void) {
         ESP_LOGE(TAG, "Timer task creation failed");
     }
 
-    ESP_LOGW(TAG, "READY %s CAN_TX=%d WiFi=%s key=%s", CUBE_FW_VERSION,
-             gbt_can_get_tx_enabled(), CUBE_WIFI_SSID, CUBE_WEB_KEY);
+    ESP_LOGW(TAG, "READY %s CAN_TX=%d WiFi=%s heap=%u", CUBE_FW_VERSION,
+             gbt_can_get_tx_enabled(), CUBE_WIFI_SSID,
+             (unsigned)heap_caps_get_free_size(MALLOC_CAP_8BIT));
     for (;;) vTaskDelay(pdMS_TO_TICKS(1000));
 }
