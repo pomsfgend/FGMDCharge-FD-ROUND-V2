@@ -231,6 +231,10 @@ static lv_obj_t *s_out_v;
 static lv_obj_t *s_out_a;
 static lv_obj_t *s_watt;
 static lv_obj_t *s_stat;
+static void pad_show(void);
+static lv_obj_t *s_active_ta;
+static lv_obj_t *s_pass_box;
+static lv_obj_t *s_pass_title;
 
 static void ask_pass(int act)
 {
@@ -289,7 +293,6 @@ static void pad_show(void)
     if (s_pad) lv_obj_clear_flag(s_pad, LV_OBJ_FLAG_HIDDEN);
 }
 
-static lv_obj_t *s_active_ta;
 static int s_set_v = 240;
 static int s_set_i = 50;
 static int s_set_soc = 20;
@@ -300,8 +303,6 @@ static lv_obj_t *s_v_ta;
 static lv_obj_t *s_i_ta;
 static lv_obj_t *s_soc_ta;
 static lv_obj_t *s_kwh_ta;
-static lv_obj_t *s_pass_box;
-static lv_obj_t *s_pass_title;
 static lv_obj_t *s_ip_box;
 static lv_obj_t *s_ip_msg;
 static int s_ip_shown;
@@ -436,26 +437,39 @@ static lv_obj_t *s_edge_r;
 static void make_pad(lv_obj_t *parent)
 {
     s_pad = lv_obj_create(parent);
-    lv_obj_set_size(s_pad, 228, 168);
-    lv_obj_align(s_pad, LV_ALIGN_BOTTOM_MID, 0, -4);
-    lv_obj_set_style_bg_color(s_pad, lv_color_hex(0x101820), 0);
+    lv_obj_set_size(s_pad, 240, 280);
+    lv_obj_align(s_pad, LV_ALIGN_TOP_LEFT, 0, 0);
+    lv_obj_set_style_bg_color(s_pad, lv_color_hex(0x1A1D22), 0);
     lv_obj_set_style_bg_opa(s_pad, LV_OPA_COVER, 0);
     lv_obj_set_style_border_width(s_pad, 0, 0);
-    lv_obj_set_style_pad_all(s_pad, 4, 0);
+    lv_obj_set_style_pad_all(s_pad, 0, 0);
     lv_obj_clear_flag(s_pad, LV_OBJ_FLAG_SCROLLABLE);
+    lv_obj_t *banner = lv_obj_create(s_pad);
+    lv_obj_set_size(banner, 220, 36);
+    lv_obj_align(banner, LV_ALIGN_TOP_MID, 0, 8);
+    lv_obj_set_style_bg_color(banner, lv_color_hex(0x2EC8C0), 0);
+    lv_obj_set_style_bg_opa(banner, LV_OPA_COVER, 0);
+    lv_obj_set_style_radius(banner, 8, 0);
+    lv_obj_set_style_border_width(banner, 0, 0);
+    lv_obj_clear_flag(banner, LV_OBJ_FLAG_SCROLLABLE);
+    lv_obj_t *bt = lv_label_create(banner);
+    lv_label_set_text(bt, "4 цифры");
+    lv_obj_set_style_text_color(bt, lv_color_hex(0x07302E), 0);
+    lv_obj_center(bt);
     const char *keys[] = {"1","2","3","4","5","6","7","8","9","<","0","OK"};
     for (int i = 0; i < 12; ++i) {
         lv_obj_t *b = lv_btn_create(s_pad);
         if (!b) break;
-        lv_obj_set_size(b, 68, 36);
-        lv_obj_set_pos(b, (i % 3) * 74, (i / 3) * 40);
-        lv_obj_set_style_bg_color(b, lv_color_hex(0x1A2430), 0);
+        lv_obj_set_size(b, 76, 52);
+        lv_obj_set_pos(b, 4 + (i % 3) * 78, 52 + (i / 3) * 56);
+        lv_obj_set_style_bg_color(b, lv_color_hex(0xC5C8CE), 0);
+        lv_obj_set_style_radius(b, 0, 0);
         lv_obj_set_style_shadow_width(b, 0, 0);
         lv_obj_add_event_cb(b, pad_key_cb, LV_EVENT_CLICKED, (void *)keys[i]);
         lv_obj_t *l = lv_label_create(b);
         if (!l) break;
-        lv_label_set_text(l, keys[i]);
-        lv_obj_set_style_text_color(l, lv_color_hex(0xF4F7FB), 0);
+        lv_label_set_text(l, keys[i][0] == 'O' ? "V" : keys[i]);
+        lv_obj_set_style_text_color(l, lv_color_hex(0x1A1D22), 0);
         lv_obj_center(l);
     }
     lv_obj_add_flag(s_pad, LV_OBJ_FLAG_HIDDEN);
@@ -615,7 +629,7 @@ static void build_ui(void)
 {
     s_scr_chg = lv_scr_act();
     style_screen(s_scr_chg);
-    line(s_scr_chg, "КУБ 2.7.5", 4);
+    line(s_scr_chg, "КУБ 2.7.6", 4);
     s_time = line(s_scr_chg, "время 0 мин", 28);
     s_relay = line(s_scr_chg, "выход OFF", 50);
     s_req_v = line(s_scr_chg, "запрос 240 В", 78);
@@ -740,7 +754,7 @@ static void build_ui(void)
     lv_obj_set_height(s_can_lbl, 110);
     s_scr_sys = lv_obj_create(NULL);
     style_screen(s_scr_sys);
-    line(s_scr_sys, "СИСТЕМА 2.7.5", 4);
+    line(s_scr_sys, "СИСТЕМА 2.7.6", 4);
     s_sys_temp = line(s_scr_sys, "CPU -- C", 28);
     s_sys_cpu = line(s_scr_sys, "F 160 MHz", 48);
     s_sys_load = line(s_scr_sys, "Load -- %", 68);
