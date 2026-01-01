@@ -1,4 +1,4 @@
-FGMDCharge FD_ROUND V2 — 2.3.0
+FGMDCharge FD_ROUND V2 — 2.3.1
 ================================
 
 Что нового

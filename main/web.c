@@ -474,8 +474,75 @@ static esp_err_t session_stop_post(httpd_req_t *req)
 
 
 static int s_ap_channel = CUBE_WIFI_CHANNEL;
+static char s_scan_ssid[8][33];
+static int s_scan_n;
+static char s_sta_ip[20] = "--";
+static char s_join_ssid[33];
 
 int web_get_ap_channel(void) { return s_ap_channel; }
+int web_scan_count(void) { return s_scan_n; }
+const char *web_scan_ssid(int index)
+{
+    if (index < 0 || index >= s_scan_n) return "";
+    return s_scan_ssid[index];
+}
+const char *web_sta_ip(void) { return s_sta_ip; }
+
+static void wifi_ip_handler(void *arg, esp_event_base_t base, int32_t id, void *data)
+{
+    (void)arg; (void)base;
+    if (id == IP_EVENT_STA_GOT_IP && data) {
+        ip_event_got_ip_t *ev = (ip_event_got_ip_t *)data;
+        uint32_t a = ev->ip_info.ip.addr;
+        snprintf(s_sta_ip, sizeof(s_sta_ip), "%u.%u.%u.%u",
+                 (unsigned)(a & 255u), (unsigned)((a >> 8) & 255u),
+                 (unsigned)((a >> 16) & 255u), (unsigned)((a >> 24) & 255u));
+        ESP_LOGW(TAG, "STA got IP %s", s_sta_ip);
+    }
+}
+
+esp_err_t web_scan_now(void)
+{
+    wifi_scan_config_t scan = {
+        .show_hidden = true,
+        .scan_type = WIFI_SCAN_TYPE_ACTIVE,
+    };
+    esp_err_t err = esp_wifi_scan_start(&scan, true);
+    if (err != ESP_OK) {
+        ESP_LOGW(TAG, "scan failed: %s", esp_err_to_name(err));
+        return err;
+    }
+    uint16_t n = 8;
+    wifi_ap_record_t rec[8];
+    memset(rec, 0, sizeof(rec));
+    if (esp_wifi_scan_get_ap_records(&n, rec) != ESP_OK) n = 0;
+    s_scan_n = (int)n;
+    for (int i = 0; i < s_scan_n; ++i) {
+        memcpy(s_scan_ssid[i], rec[i].ssid, 32);
+        s_scan_ssid[i][32] = 0;
+        ESP_LOGW(TAG, "scan[%d] %s rssi=%d ch=%u", i, s_scan_ssid[i], rec[i].rssi, rec[i].primary);
+    }
+    return ESP_OK;
+}
+
+esp_err_t web_sta_join(const char *ssid, const char *password)
+{
+    if (!ssid || !ssid[0]) return ESP_ERR_INVALID_ARG;
+    wifi_config_t sta = {0};
+    snprintf((char *)sta.sta.ssid, sizeof(sta.sta.ssid), "%s", ssid);
+    if (password) snprintf((char *)sta.sta.password, sizeof(sta.sta.password), "%s", password);
+    sta.sta.threshold.authmode = (password && strlen(password) >= 8) ? WIFI_AUTH_WPA2_PSK : WIFI_AUTH_OPEN;
+    sta.sta.pmf_cfg.capable = true;
+    sta.sta.pmf_cfg.required = false;
+    snprintf(s_join_ssid, sizeof(s_join_ssid), "%s", ssid);
+    snprintf(s_sta_ip, sizeof(s_sta_ip), "wait");
+    esp_err_t err = esp_wifi_set_config(WIFI_IF_STA, &sta);
+    if (err != ESP_OK) return err;
+    (void)esp_wifi_disconnect();
+    err = esp_wifi_connect();
+    ESP_LOGW(TAG, "STA join '%s' -> %s", ssid, esp_err_to_name(err));
+    return err;
+}
 
 esp_err_t web_wifi_restart(void)
 {
@@ -486,6 +553,7 @@ esp_err_t web_wifi_restart(void)
     if (err == ESP_OK) {
         (void)esp_wifi_set_max_tx_power(84);
         ESP_LOGW(TAG, "WiFi restarted SSID=%s", CUBE_WIFI_SSID);
+        (void)web_scan_now();
     } else {
         ESP_LOGE(TAG, "WiFi restart failed: %s", esp_err_to_name(err));
     }
@@ -500,7 +568,9 @@ esp_err_t web_init(void)
     if (err != ESP_OK && err != ESP_ERR_INVALID_STATE) return err;
     (void)esp_event_handler_register(WIFI_EVENT, WIFI_EVENT_AP_STACONNECTED, &wifi_ap_event_handler, NULL);
     (void)esp_event_handler_register(WIFI_EVENT, WIFI_EVENT_AP_STADISCONNECTED, &wifi_ap_event_handler, NULL);
+    (void)esp_event_handler_register(IP_EVENT, IP_EVENT_STA_GOT_IP, &wifi_ip_handler, NULL);
     if (!esp_netif_create_default_wifi_ap()) return ESP_ERR_NO_MEM;
+    if (!esp_netif_create_default_wifi_sta()) return ESP_ERR_NO_MEM;
 
     wifi_init_config_t cfg = WIFI_INIT_CONFIG_DEFAULT();
     err = esp_wifi_init(&cfg);
@@ -527,17 +597,21 @@ esp_err_t web_init(void)
         ap.ap.authmode = WIFI_AUTH_OPEN;
         ap.ap.password[0] = 0;
     }
-    if ((err = esp_wifi_set_mode(WIFI_MODE_AP)) != ESP_OK) return err;
+    if ((err = esp_wifi_set_mode(WIFI_MODE_APSTA)) != ESP_OK) return err;
     if ((err = esp_wifi_set_config(WIFI_IF_AP, &ap)) != ESP_OK) return err;
+    { wifi_config_t sta0 = {0}; (void)esp_wifi_set_config(WIFI_IF_STA, &sta0); }
     (void)esp_wifi_set_ps(WIFI_PS_NONE);
     (void)esp_wifi_set_protocol(WIFI_IF_AP, WIFI_PROTOCOL_11B | WIFI_PROTOCOL_11G | WIFI_PROTOCOL_11N);
     (void)esp_wifi_set_bandwidth(WIFI_IF_AP, WIFI_BW_HT20);
     (void)esp_wifi_set_country_code("01", true);
     if ((err = esp_wifi_start()) != ESP_OK && err != ESP_ERR_INVALID_STATE) return err;
     (void)esp_wifi_set_max_tx_power(84);
-    ESP_LOGW(TAG, "AP SSID=%s ch=%u auth=%s",
+    ESP_LOGW(TAG, "APSTA SSID=%s ch=%u auth=%s (scan kick like 2.2.9)",
              CUBE_WIFI_SSID, (unsigned)CUBE_WIFI_CHANNEL,
              (strlen(CUBE_WIFI_PASSWORD) >= 8U) ? "WPA2" : "OPEN");
+    (void)web_scan_now();
+    (void)esp_wifi_set_config(WIFI_IF_AP, &ap);
+    (void)esp_wifi_set_max_tx_power(84);
 
     httpd_config_t hc = HTTPD_DEFAULT_CONFIG();
     hc.max_uri_handlers = 36;

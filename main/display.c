@@ -46,11 +46,16 @@ static int s_brightness = CUBE_LCD_BL_PWM_DUTY_DEFAULT;
 /* UI */
 static lv_obj_t *s_scr_chg, *s_scr_sys, *s_scr_wifi;
 static lv_obj_t *s_voltage, *s_current, *s_power, *s_stage, *s_status;
+static lv_obj_t *s_soc, *s_relay, *s_cml, *s_can;
 static lv_obj_t *s_sys_temp, *s_sys_cpu, *s_sys_load, *s_sys_heap, *s_sys_wifi, *s_sys_touch;
 static lv_obj_t *s_br_label;
-static lv_obj_t *s_kb;
+static lv_obj_t *s_pad;
 static lv_obj_t *s_wifi_ta;
+static lv_obj_t *s_scan_lbl;
+static lv_obj_t *s_ip_lbl;
+static lv_obj_t *s_nav_btn[3];
 static int s_page; /* 0 CHG 1 SYS 2 WIFI */
+static int s_pick;
 
 static bool lcd_flush_done(esp_lcd_panel_io_handle_t panel_io,
                            esp_lcd_panel_io_event_data_t *edata, void *user_ctx)
@@ -148,11 +153,38 @@ static int cpu_load_pct(void)
     return load;
 }
 
+
+static void style_screen(lv_obj_t *scr)
+{
+    lv_obj_set_style_bg_color(scr, lv_color_hex(0x061018), 0);
+    lv_obj_set_style_bg_opa(scr, LV_OPA_COVER, 0);
+    lv_obj_set_style_text_color(scr, lv_color_hex(0xE8EEF4), 0);
+}
+
+static void style_btn(lv_obj_t *b, bool accent)
+{
+    lv_obj_set_style_bg_color(b, lv_color_hex(accent ? 0x1F6FEB : 0x1A2430), 0);
+    lv_obj_set_style_bg_opa(b, LV_OPA_COVER, 0);
+    lv_obj_set_style_border_width(b, 0, 0);
+    lv_obj_set_style_shadow_width(b, 0, 0);
+    lv_obj_set_style_text_color(b, lv_color_hex(0xF4F7FB), 0);
+    lv_obj_set_style_radius(b, 6, 0);
+}
+
+static void mark_nav(void)
+{
+    for (int i = 0; i < 3; ++i) {
+        if (!s_nav_btn[i]) continue;
+        style_btn(s_nav_btn[i], i == s_page);
+    }
+}
+
 static void show_page(int p)
 {
     s_page = p;
-    if (s_kb) lv_obj_add_flag(s_kb, LV_OBJ_FLAG_HIDDEN);
+    if (s_pad) lv_obj_add_flag(s_pad, LV_OBJ_FLAG_HIDDEN);
     lv_scr_load(p == 0 ? s_scr_chg : (p == 1 ? s_scr_sys : s_scr_wifi));
+    mark_nav();
 }
 
 static void nav_cb(lv_event_t *e)
@@ -168,23 +200,37 @@ static void br_cb(lv_event_t *e)
     display_set_brightness(v);
     if (s_br_label) {
         char b[24];
-        snprintf(b, sizeof(b), "Яркость %d%%", v);
+        snprintf(b, sizeof(b), "Bright %d%%", v);
         lv_label_set_text(s_br_label, b);
     }
 }
 
-static void kb_hide_cb(lv_event_t *e)
+static void pad_hide(void)
 {
-    (void)e;
-    if (s_kb) lv_obj_add_flag(s_kb, LV_OBJ_FLAG_HIDDEN);
+    if (s_pad) lv_obj_add_flag(s_pad, LV_OBJ_FLAG_HIDDEN);
+}
+
+static void pad_key_cb(lv_event_t *e)
+{
+    const char *k = (const char *)lv_event_get_user_data(e);
+    if (!s_wifi_ta || !k) return;
+    if (k[0] == 'X') {
+        lv_textarea_del_char(s_wifi_ta);
+        return;
+    }
+    if (k[0] == 'H') {
+        pad_hide();
+        return;
+    }
+    lv_textarea_add_text(s_wifi_ta, k);
 }
 
 static void ta_focus_cb(lv_event_t *e)
 {
-    if (!s_kb) return;
-    lv_keyboard_set_textarea(s_kb, lv_event_get_target(e));
-    lv_obj_clear_flag(s_kb, LV_OBJ_FLAG_HIDDEN);
-    lv_obj_move_foreground(s_kb);
+    (void)e;
+    if (!s_pad) return;
+    lv_obj_clear_flag(s_pad, LV_OBJ_FLAG_HIDDEN);
+    lv_obj_move_foreground(s_pad);
 }
 
 static void wifi_rst_cb(lv_event_t *e)
@@ -193,153 +239,216 @@ static void wifi_rst_cb(lv_event_t *e)
     web_wifi_restart();
 }
 
+static void scan_cb(lv_event_t *e)
+{
+    (void)e;
+    if (s_scan_lbl) lv_label_set_text(s_scan_lbl, "SCAN...");
+    (void)web_scan_now();
+    char buf[160];
+    int n = web_scan_count();
+    if (n <= 0) {
+        snprintf(buf, sizeof(buf), "nets: 0");
+    } else {
+        int o = snprintf(buf, sizeof(buf), "%d: %s", 0, web_scan_ssid(0));
+        for (int i = 1; i < n && o < (int)sizeof(buf) - 8; ++i) {
+            o += snprintf(buf + o, sizeof(buf) - (size_t)o, "\n%d: %s", i, web_scan_ssid(i));
+        }
+    }
+    if (s_scan_lbl) lv_label_set_text(s_scan_lbl, buf);
+    s_pick = 0;
+}
+
+static void pick_cb(lv_event_t *e)
+{
+    int d = (int)(intptr_t)lv_event_get_user_data(e);
+    int n = web_scan_count();
+    if (n <= 0) return;
+    s_pick = (s_pick + d + n) % n;
+    if (s_scan_lbl) {
+        char b[48];
+        snprintf(b, sizeof(b), "SEL %d %s", s_pick, web_scan_ssid(s_pick));
+        lv_label_set_text(s_scan_lbl, b);
+    }
+}
+
+static void join_cb(lv_event_t *e)
+{
+    (void)e;
+    const char *ssid = web_scan_ssid(s_pick);
+    const char *pass = s_wifi_ta ? lv_textarea_get_text(s_wifi_ta) : "";
+    if (!ssid || !ssid[0]) {
+        if (s_ip_lbl) lv_label_set_text(s_ip_lbl, "no scan");
+        return;
+    }
+    (void)web_sta_join(ssid, pass);
+    if (s_ip_lbl) lv_label_set_text(s_ip_lbl, "joining...");
+    pad_hide();
+}
+
 static lv_obj_t *mk_nav(lv_obj_t *parent)
 {
     lv_obj_t *bar = lv_obj_create(parent);
-    lv_obj_set_size(bar, 236, 36);
+    lv_obj_set_size(bar, 232, 40);
     lv_obj_align(bar, LV_ALIGN_BOTTOM_MID, 0, -2);
     lv_obj_set_style_pad_all(bar, 2, 0);
-    lv_obj_set_style_bg_color(bar, lv_color_hex(0x101820), 0);
-    lv_obj_set_flex_flow(bar, LV_FLEX_FLOW_ROW);
-    lv_obj_set_flex_align(bar, LV_FLEX_ALIGN_SPACE_EVENLY, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
+    lv_obj_set_style_bg_color(bar, lv_color_hex(0x0C141C), 0);
+    lv_obj_set_style_bg_opa(bar, LV_OPA_COVER, 0);
+    lv_obj_set_style_border_width(bar, 0, 0);
+    lv_obj_set_style_shadow_width(bar, 0, 0);
+    lv_obj_clear_flag(bar, LV_OBJ_FLAG_SCROLLABLE);
     const char *names[] = {"CHG", "SYS", "WiFi"};
     for (int i = 0; i < 3; i++) {
         lv_obj_t *b = lv_btn_create(bar);
-        lv_obj_set_size(b, 70, 30);
+        lv_obj_set_size(b, 72, 32);
+        lv_obj_align(b, LV_ALIGN_LEFT_MID, 4 + i * 76, 0);
+        style_btn(b, i == s_page);
         lv_obj_add_event_cb(b, nav_cb, LV_EVENT_CLICKED, (void *)(intptr_t)i);
         lv_obj_t *l = lv_label_create(b);
         lv_label_set_text(l, names[i]);
+        lv_obj_set_style_text_color(l, lv_color_hex(0xF4F7FB), 0);
         lv_obj_center(l);
+        s_nav_btn[i] = b;
     }
     return bar;
+}
+
+static void make_pad(lv_obj_t *parent)
+{
+    s_pad = lv_obj_create(parent);
+    lv_obj_set_size(s_pad, 232, 168);
+    lv_obj_align(s_pad, LV_ALIGN_BOTTOM_MID, 0, -44);
+    lv_obj_set_style_bg_color(s_pad, lv_color_hex(0x101820), 0);
+    lv_obj_set_style_bg_opa(s_pad, LV_OPA_COVER, 0);
+    lv_obj_set_style_border_width(s_pad, 1, 0);
+    lv_obj_set_style_border_color(s_pad, lv_color_hex(0x3A4A5C), 0);
+    lv_obj_set_style_pad_all(s_pad, 4, 0);
+    lv_obj_clear_flag(s_pad, LV_OBJ_FLAG_SCROLLABLE);
+    const char *keys[] = {"1","2","3","4","5","6","7","8","9","X","0","H"};
+    for (int i = 0; i < 12; ++i) {
+        lv_obj_t *b = lv_btn_create(s_pad);
+        lv_obj_set_size(b, 70, 36);
+        lv_obj_set_pos(b, (i % 3) * 74, (i / 3) * 40);
+        style_btn(b, false);
+        lv_obj_add_event_cb(b, pad_key_cb, LV_EVENT_CLICKED, (void *)keys[i]);
+        lv_obj_t *l = lv_label_create(b);
+        lv_label_set_text(l, keys[i][0]=='X' ? "DEL" : (keys[i][0]=='H' ? "HIDE" : keys[i]));
+        lv_obj_set_style_text_color(l, lv_color_hex(0xF4F7FB), 0);
+        lv_obj_center(l);
+    }
+    lv_obj_add_flag(s_pad, LV_OBJ_FLAG_HIDDEN);
+}
+
+static lv_obj_t *big_label(lv_obj_t *parent, const char *txt, int y)
+{
+    lv_obj_t *l = lv_label_create(parent);
+    lv_label_set_text(l, txt);
+    lv_obj_set_style_text_color(l, lv_color_hex(0xF4F7FB), 0);
+    lv_obj_align(l, LV_ALIGN_TOP_LEFT, 8, y);
+    return l;
 }
 
 static void build_ui(void)
 {
     lv_obj_t *scr0 = lv_scr_act();
     s_scr_chg = scr0;
-    lv_obj_set_style_bg_color(scr0, lv_color_hex(0x0a1018), 0);
+    style_screen(scr0);
 
-    lv_obj_t *title = lv_label_create(scr0);
-    lv_label_set_text(title, "CUBE  2.3.0");
-    lv_obj_align(title, LV_ALIGN_TOP_MID, 0, 4);
-
-    s_voltage = lv_label_create(scr0);
-    lv_label_set_text(s_voltage, "U: -- V");
-    lv_obj_align(s_voltage, LV_ALIGN_TOP_LEFT, 8, 28);
-
-    s_current = lv_label_create(scr0);
-    lv_label_set_text(s_current, "I: -- A");
-    lv_obj_align(s_current, LV_ALIGN_TOP_LEFT, 8, 48);
-
-    s_power = lv_label_create(scr0);
-    lv_label_set_text(s_power, "P: -- W");
-    lv_obj_align(s_power, LV_ALIGN_TOP_LEFT, 8, 68);
-
-    s_stage = lv_label_create(scr0);
-    lv_label_set_text(s_stage, "Этап: IDLE");
-    lv_obj_align(s_stage, LV_ALIGN_TOP_LEFT, 8, 96);
-
-    s_status = lv_label_create(scr0);
-    lv_label_set_text(s_status, "WiFi Cube / 123456789");
-    lv_obj_align(s_status, LV_ALIGN_TOP_LEFT, 8, 120);
-    lv_obj_set_width(s_status, 220);
-    lv_label_set_long_mode(s_status, LV_LABEL_LONG_WRAP);
-
+    lv_obj_t *title = big_label(scr0, "CUBE  2.3.1", 2);
+    (void)title;
+    s_voltage = big_label(scr0, "U  --.- V", 24);
+    s_current = big_label(scr0, "I  --.- A", 44);
+    s_power = big_label(scr0, "P  -- W", 64);
+    s_soc = big_label(scr0, "SOC -- %", 84);
+    s_stage = big_label(scr0, "STAGE IDLE", 104);
+    s_relay = big_label(scr0, "RELAY A0 B0", 124);
+    s_cml = big_label(scr0, "CML -- V", 144);
+    s_can = big_label(scr0, "CAN rx0 tx0", 164);
+    s_status = big_label(scr0, "AP Cube / 123456789", 184);
+    lv_obj_set_width(s_status, 224);
     mk_nav(scr0);
 
-    /* SYS */
     s_scr_sys = lv_obj_create(NULL);
-    lv_obj_set_style_bg_color(s_scr_sys, lv_color_hex(0x0a1018), 0);
-    lv_obj_t *st = lv_label_create(s_scr_sys);
-    lv_label_set_text(st, "СИСТЕМА");
-    lv_obj_align(st, LV_ALIGN_TOP_MID, 0, 4);
-
-    s_sys_temp = lv_label_create(s_scr_sys);
-    lv_label_set_text(s_sys_temp, "CPU: -- C");
-    lv_obj_align(s_sys_temp, LV_ALIGN_TOP_LEFT, 8, 28);
-
-    s_sys_cpu = lv_label_create(s_scr_sys);
-    lv_label_set_text(s_sys_cpu, "F: 160 MHz");
-    lv_obj_align(s_sys_cpu, LV_ALIGN_TOP_LEFT, 8, 48);
-
-    s_sys_load = lv_label_create(s_scr_sys);
-    lv_label_set_text(s_sys_load, "Load: -- %");
-    lv_obj_align(s_sys_load, LV_ALIGN_TOP_LEFT, 8, 68);
-
-    s_sys_heap = lv_label_create(s_scr_sys);
-    lv_label_set_text(s_sys_heap, "Heap: --");
-    lv_obj_align(s_sys_heap, LV_ALIGN_TOP_LEFT, 8, 88);
-
-    s_sys_wifi = lv_label_create(s_scr_sys);
-    lv_label_set_text(s_sys_wifi, "AP: Cube ch?");
-    lv_obj_align(s_sys_wifi, LV_ALIGN_TOP_LEFT, 8, 108);
-
-    s_sys_touch = lv_label_create(s_scr_sys);
-    lv_label_set_text(s_sys_touch, "Touch: OK");
-    lv_obj_align(s_sys_touch, LV_ALIGN_TOP_LEFT, 8, 128);
-
-    s_br_label = lv_label_create(s_scr_sys);
-    lv_label_set_text(s_br_label, "Яркость 70%");
-    lv_obj_align(s_br_label, LV_ALIGN_TOP_LEFT, 8, 152);
-
+    style_screen(s_scr_sys);
+    big_label(s_scr_sys, "SYSTEM", 2);
+    s_sys_temp = big_label(s_scr_sys, "CPU -- C", 26);
+    s_sys_cpu = big_label(s_scr_sys, "F 160 MHz", 46);
+    s_sys_load = big_label(s_scr_sys, "Load -- %", 66);
+    s_sys_heap = big_label(s_scr_sys, "Heap --", 86);
+    s_sys_wifi = big_label(s_scr_sys, "AP Cube", 106);
+    s_sys_touch = big_label(s_scr_sys, "Touch --", 126);
+    s_br_label = big_label(s_scr_sys, "Bright 70%", 146);
+    /* slider kept: user brightness control */
     lv_obj_t *sl = lv_slider_create(s_scr_sys);
     lv_obj_set_width(sl, 200);
     lv_slider_set_range(sl, 5, 100);
     lv_slider_set_value(sl, s_brightness, LV_ANIM_OFF);
-    lv_obj_align(sl, LV_ALIGN_TOP_MID, 0, 175);
+    lv_obj_align(sl, LV_ALIGN_TOP_MID, 0, 170);
     lv_obj_add_event_cb(sl, br_cb, LV_EVENT_VALUE_CHANGED, NULL);
-
     lv_obj_t *rb = lv_btn_create(s_scr_sys);
-    lv_obj_set_size(rb, 160, 36);
-    lv_obj_align(rb, LV_ALIGN_TOP_MID, 0, 210);
+    lv_obj_set_size(rb, 160, 34);
+    lv_obj_align(rb, LV_ALIGN_TOP_MID, 0, 200);
+    style_btn(rb, true);
     lv_obj_add_event_cb(rb, wifi_rst_cb, LV_EVENT_CLICKED, NULL);
     lv_obj_t *rl = lv_label_create(rb);
     lv_label_set_text(rl, "RESTART WiFi");
+    lv_obj_set_style_text_color(rl, lv_color_hex(0xF4F7FB), 0);
     lv_obj_center(rl);
-
     mk_nav(s_scr_sys);
 
-    /* WIFI page */
     s_scr_wifi = lv_obj_create(NULL);
-    lv_obj_set_style_bg_color(s_scr_wifi, lv_color_hex(0x0a1018), 0);
-    lv_obj_t *wt = lv_label_create(s_scr_wifi);
-    lv_label_set_text(wt, "WiFi STA");
-    lv_obj_align(wt, LV_ALIGN_TOP_MID, 0, 4);
-
-    lv_obj_t *hint = lv_label_create(s_scr_wifi);
-    lv_label_set_text(hint, "Пароль STA (скрывается OK):");
-    lv_obj_align(hint, LV_ALIGN_TOP_LEFT, 8, 28);
-
+    style_screen(s_scr_wifi);
+    big_label(s_scr_wifi, "WiFi  digits only", 2);
+    s_scan_lbl = big_label(s_scr_wifi, "nets: --", 22);
+    lv_obj_set_width(s_scan_lbl, 224);
     s_wifi_ta = lv_textarea_create(s_scr_wifi);
-    lv_obj_set_size(s_wifi_ta, 220, 36);
-    lv_obj_align(s_wifi_ta, LV_ALIGN_TOP_MID, 0, 48);
+    lv_obj_set_size(s_wifi_ta, 220, 32);
+    lv_obj_align(s_wifi_ta, LV_ALIGN_TOP_MID, 0, 78);
+    lv_textarea_set_placeholder_text(s_wifi_ta, "password 0-9");
     lv_textarea_set_one_line(s_wifi_ta, true);
-    lv_textarea_set_password_mode(s_wifi_ta, true);
-    lv_textarea_set_placeholder_text(s_wifi_ta, "password");
+    lv_textarea_set_password_mode(s_wifi_ta, false);
     lv_obj_add_event_cb(s_wifi_ta, ta_focus_cb, LV_EVENT_FOCUSED, NULL);
-    lv_obj_add_event_cb(s_wifi_ta, kb_hide_cb, LV_EVENT_DEFOCUSED, NULL);
+    lv_obj_add_event_cb(s_wifi_ta, ta_focus_cb, LV_EVENT_CLICKED, NULL);
+    s_ip_lbl = big_label(s_scr_wifi, "STA IP --", 114);
 
-    lv_obj_t *hide = lv_btn_create(s_scr_wifi);
-    lv_obj_set_size(hide, 100, 32);
-    lv_obj_align(hide, LV_ALIGN_TOP_LEFT, 8, 92);
-    lv_obj_add_event_cb(hide, kb_hide_cb, LV_EVENT_CLICKED, NULL);
-    lv_obj_t *hl = lv_label_create(hide);
-    lv_label_set_text(hl, "Скрыть KB");
-    lv_obj_center(hl);
+    lv_obj_t *sc = lv_btn_create(s_scr_wifi);
+    lv_obj_set_size(sc, 70, 32);
+    lv_obj_align(sc, LV_ALIGN_TOP_LEFT, 6, 140);
+    style_btn(sc, true);
+    lv_obj_add_event_cb(sc, scan_cb, LV_EVENT_CLICKED, NULL);
+    lv_obj_t *slb = lv_label_create(sc);
+    lv_label_set_text(slb, "SCAN");
+    lv_obj_center(slb);
 
-    /* Large keyboard */
-    s_kb = lv_keyboard_create(s_scr_wifi);
-    lv_obj_set_size(s_kb, 240, 110);
-    lv_obj_align(s_kb, LV_ALIGN_BOTTOM_MID, 0, -40);
-    lv_keyboard_set_textarea(s_kb, s_wifi_ta);
-    lv_obj_set_style_pad_all(s_kb, 2, 0);
-    lv_obj_add_flag(s_kb, LV_OBJ_FLAG_HIDDEN);
-    /* Hide on ready */
-    lv_obj_add_event_cb(s_kb, kb_hide_cb, LV_EVENT_READY, NULL);
-    lv_obj_add_event_cb(s_kb, kb_hide_cb, LV_EVENT_CANCEL, NULL);
+    lv_obj_t *up = lv_btn_create(s_scr_wifi);
+    lv_obj_set_size(up, 36, 32);
+    lv_obj_align(up, LV_ALIGN_TOP_LEFT, 82, 140);
+    style_btn(up, false);
+    lv_obj_add_event_cb(up, pick_cb, LV_EVENT_CLICKED, (void *)(intptr_t)-1);
+    lv_obj_t *ul = lv_label_create(up);
+    lv_label_set_text(ul, "-");
+    lv_obj_center(ul);
 
+    lv_obj_t *dn = lv_btn_create(s_scr_wifi);
+    lv_obj_set_size(dn, 36, 32);
+    lv_obj_align(dn, LV_ALIGN_TOP_LEFT, 122, 140);
+    style_btn(dn, false);
+    lv_obj_add_event_cb(dn, pick_cb, LV_EVENT_CLICKED, (void *)(intptr_t)1);
+    lv_obj_t *dl = lv_label_create(dn);
+    lv_label_set_text(dl, "+");
+    lv_obj_center(dl);
+
+    lv_obj_t *jn = lv_btn_create(s_scr_wifi);
+    lv_obj_set_size(jn, 70, 32);
+    lv_obj_align(jn, LV_ALIGN_TOP_LEFT, 164, 140);
+    style_btn(jn, true);
+    lv_obj_add_event_cb(jn, join_cb, LV_EVENT_CLICKED, NULL);
+    lv_obj_t *jl = lv_label_create(jn);
+    lv_label_set_text(jl, "JOIN");
+    lv_obj_center(jl);
+
+    make_pad(s_scr_wifi);
     mk_nav(s_scr_wifi);
+    mark_nav();
 }
 
 esp_err_t display_init(void)
@@ -436,11 +545,55 @@ esp_err_t display_init(void)
 void display_set_values(void)
 {
     if (!display_lock()) return;
-    char b[48];
+    char b[64];
     float tc = read_temp_c();
     size_t heap = heap_caps_get_free_size(MALLOC_CAP_8BIT);
     int load = cpu_load_pct();
     int ch = web_get_ap_channel();
+    cube_state_snapshot_t st;
+    app_state_snapshot(&st);
+    float uv = st.ccs_output_voltage_raw > 0 ? st.ccs_output_voltage_raw / 10.0f
+                                             : st.battery_voltage_0p1v / 10.0f;
+    float ia = st.ccs_output_current_0p1a != 0 ? st.ccs_output_current_0p1a / 10.0f
+                                               : st.battery_current_0p1a / 10.0f;
+    if (ia < 0) ia = -ia;
+    if (s_voltage) {
+        snprintf(b, sizeof(b), "U  %.1f V", (double)uv);
+        lv_label_set_text(s_voltage, b);
+    }
+    if (s_current) {
+        snprintf(b, sizeof(b), "I  %.1f A", (double)ia);
+        lv_label_set_text(s_current, b);
+    }
+    if (s_power) {
+        snprintf(b, sizeof(b), "P  %.0f W", (double)(uv * ia));
+        lv_label_set_text(s_power, b);
+    }
+    if (s_soc) {
+        snprintf(b, sizeof(b), "SOC %u %%", (unsigned)st.soc_percent);
+        lv_label_set_text(s_soc, b);
+    }
+    if (s_stage) {
+        snprintf(b, sizeof(b), "STAGE %s", cube_main_state_name(st.main_state));
+        lv_label_set_text(s_stage, b);
+    }
+    if (s_relay) {
+        snprintf(b, sizeof(b), "RELAY A%d B%d", st.relay_a, st.relay_b);
+        lv_label_set_text(s_relay, b);
+    }
+    if (s_cml) {
+        snprintf(b, sizeof(b), "CML %.1f V / %.1f A",
+                 st.cml_max_voltage_raw / 10.0, st.cml_max_current_0p1a / 10.0);
+        lv_label_set_text(s_cml, b);
+    }
+    if (s_can) {
+        snprintf(b, sizeof(b), "CAN rx%lu tx%lu", (unsigned long)st.rx_count, (unsigned long)st.tx_count);
+        lv_label_set_text(s_can, b);
+    }
+    if (s_ip_lbl) {
+        snprintf(b, sizeof(b), "STA IP %s", web_sta_ip());
+        lv_label_set_text(s_ip_lbl, b);
+    }
 
     if (s_sys_temp) {
         if (tc > -50) snprintf(b, sizeof(b), "CPU: %.0f C", (double)tc);
@@ -470,10 +623,8 @@ void display_set_values(void)
         snprintf(b, sizeof(b), "WiFi %s / %s", CUBE_WIFI_SSID, CUBE_WIFI_PASSWORD);
         lv_label_set_text(s_status, b);
     }
-    /* Thermal hint */
-    if (tc > 75.0f && s_brightness > 40) {
-        display_set_brightness(40);
-    }
+    /* Brightness stays on the SYS slider; do not override it. */
+    (void)tc;
     display_unlock();
 }
 
