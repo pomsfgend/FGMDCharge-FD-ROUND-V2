@@ -53,7 +53,6 @@ static lv_obj_t *s_pad;
 static lv_obj_t *s_wifi_ta;
 static lv_obj_t *s_scan_lbl;
 static lv_obj_t *s_ip_lbl;
-static lv_obj_t *s_nav_btn[3];
 static int s_page; /* 0 CHG 1 SYS 2 WIFI */
 static int s_pick;
 
@@ -346,7 +345,7 @@ static void build_ui(void)
 {
     s_scr_chg = lv_scr_act();
     style_screen(s_scr_chg);
-    line(s_scr_chg, "CUBE  2.3.2", 4);
+    line(s_scr_chg, "CUBE  2.3.3", 4);
     s_card_u = card(s_scr_chg, 8, 26, &s_voltage, "VOLT");
     s_card_i = card(s_scr_chg, 122, 26, &s_current, "AMP");
     (void)s_card_u; (void)s_card_i;
@@ -559,7 +558,7 @@ void display_set_values(void)
         lv_label_set_text(s_soc, b);
     }
     if (s_stage) {
-        snprintf(b, sizeof(b), "STAGE %s", cube_main_state_name(st.main_state));
+        snprintf(b, sizeof(b), "%s %s", cube_protocol_name(st.protocol), cube_main_state_name(st.main_state));
         lv_label_set_text(s_stage, b);
     }
     if (s_relay) {

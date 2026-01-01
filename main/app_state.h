@@ -99,6 +99,7 @@ typedef struct {
     cube_can_frame_t last;
     uint32_t rx_count;
     uint32_t tx_count;
+    uint8_t protocol;
 } cube_state_snapshot_t;
 
 void app_state_init(void);
@@ -137,3 +138,4 @@ void app_state_can_tx_ok(void);
 void app_state_can_tx_drop(void);
 
 const char *cube_charge_stage_name(cube_charge_stage_t stage);
+const char *cube_protocol_name(uint8_t protocol);

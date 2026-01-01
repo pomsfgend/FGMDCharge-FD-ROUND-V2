@@ -149,7 +149,7 @@ static esp_err_t status_get(httpd_req_t *req)
         "\"ccs_charge_permit\":%u,\"ccs_status_raw\":%u,\"power_w\":%ld,"
         "\"cro_status_raw\":%u,\"cst_status_raw\":%u,\"csd_time_min\":%u,\"csd_energy_0p1kwh\":%u,"
         "\"bcl_voltage_0p1v\":%u,\"bcl_current_0p1a\":%d,\"bcl_mode\":%u,"
-        "\"ble\":%s,\"notify\":%s,\"indicate\":%s,\"display\":%s,\"touch\":%s,\"touch_pressed\":%s}",
+        "\"ble\":%s,\"notify\":%s,\"indicate\":%s,\"display\":%s,\"touch\":%s,\"touch_pressed\":%s,"\"protocol\":\"%s\",\"voltage_v\":%.1f,\"current_a\":%.1f,\"power_w\":%ld,\"time_min\":%u,"\"permit\":\"%s\",\"ccs\":\"%s\",\"can\":\"%s\",\"limit_v\":\"%.1f\",\"limit_i\":\"%.1f\",\"request\":\"%.1f/%.1f\",\"mode\":\"%s\",\"wifi\":\"%s\",\"sub_state\":%u}",
         CUBE_FW_NAME, CUBE_FW_VERSION,
         s.can_up ? "true" : "false", s.tx_enabled ? "true" : "false",
         (unsigned long)s.rx_count, (unsigned long)s.tx_count,
@@ -168,7 +168,17 @@ static esp_err_t status_get(httpd_req_t *req)
         (int)s.bcl_requested_current_0p1a, (unsigned)s.bcl_mode,
         s.ble_connected ? "true" : "false", s.ble_notify_enabled ? "true" : "false",
         s.ble_indicate_enabled ? "true" : "false", s.display_ready ? "true" : "false",
-        s.touch_enabled ? "true" : "false", s.touch_pressed ? "true" : "false");
+        s.touch_enabled ? "true" : "false", s.touch_pressed ? "true" : "false",
+        cube_protocol_name(s.protocol),
+        (s.ccs_output_voltage_raw ? s.ccs_output_voltage_raw : s.battery_voltage_0p1v) / 10.0,
+        (s.ccs_output_current_0p1a ? s.ccs_output_current_0p1a : s.battery_current_0p1a) / 10.0,
+        power_w, (unsigned)s.ccs_charge_time_min,
+        s.ccs_charge_permit ? "YES" : "NO",
+        s.ccs_status_raw ? "RUN" : "—",
+        s.can_up ? "UP" : "DOWN",
+        s.cml_max_voltage_raw / 10.0, s.cml_max_current_0p1a / 10.0,
+        s.bcl_requested_voltage_raw / 10.0, s.bcl_requested_current_0p1a / 10.0,
+        s.bcl_mode ? "CC" : "CV", CUBE_WIFI_SSID, (unsigned)s.substate);
     if (written < 0 || (size_t)written >= sizeof(json)) return ESP_ERR_NO_MEM;
     set_no_cache(req);
     (void)httpd_resp_set_type(req, "application/json; charset=utf-8");
