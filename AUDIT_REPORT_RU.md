@@ -1,4 +1,4 @@
-# FGMDCharge / FD_ROUND V2 — RELEASE 2.8.8
+# FGMDCharge / FD_ROUND V2 — RELEASE 2.8.9
 
 Numeric fields, 16-SSID list, edge-only swipe, AP before display.
 

@@ -398,6 +398,18 @@ static esp_err_t reboot_post(httpd_req_t *req)
     return err;
 }
 
+static void drain_rest(httpd_req_t *req, size_t got)
+{
+    uint8_t b[512];
+    size_t left = (req && req->content_len > got) ? (req->content_len - got) : 0;
+    while (left) {
+        size_t n = left > sizeof(b) ? sizeof(b) : left;
+        int g = req_reader(b, n, req);
+        if (g <= 0) break;
+        left -= (size_t)g;
+    }
+}
+
 static esp_err_t update_post(httpd_req_t *req)
 {
     set_security_headers(req);
@@ -406,15 +418,17 @@ static esp_err_t update_post(httpd_req_t *req)
         httpd_resp_set_status(req, "413 Payload Too Large");
         return httpd_resp_sendstr(req, "{\"ok\":false,\"error\":\"invalid_size\"}");
     }
-    display_ota_progress(1, "FILE");
     uint8_t first[4096];
     size_t first_want = req->content_len < sizeof(first) ? req->content_len : sizeof(first);
     int got = req_reader(first, first_want, req);
     if (got <= 0) {
+        display_ota_hide();
         httpd_resp_set_status(req, "408 Request Timeout");
         return httpd_resp_sendstr(req, "{\"ok\":false,\"error\":\"upload_timeout\"}");
     }
     if (first[0] != 0xE9) {
+        drain_rest(req, (size_t)got);
+        display_ota_hide();
         httpd_resp_set_status(req, "400 Bad Request");
         return httpd_resp_sendstr(req, "{\"ok\":false,\"error\":\"not_esp_image\"}");
     }
@@ -423,7 +437,9 @@ static esp_err_t update_post(httpd_req_t *req)
     (void)httpd_resp_set_type(req, "application/json; charset=utf-8");
     if (err != ESP_OK) {
         char msg[160];
+        display_ota_hide();
         (void)snprintf(msg, sizeof(msg), "{\"ok\":false,\"error\":\"%s\"}", esp_err_to_name(err));
+        httpd_resp_set_status(req, "500 Internal Server Error");
         return httpd_resp_sendstr(req, msg);
     }
     esp_err_t send_err = httpd_resp_sendstr(req, "{\"ok\":true,\"rebooting\":true}");
@@ -623,7 +639,7 @@ static void ota_url_task(void *arg)
     };
     esp_http_client_handle_t client = esp_http_client_init(&cfg);
     if (!client || esp_http_client_open(client, 0) != ESP_OK) {
-        display_ota_progress(0, "NET FAIL");
+        display_ota_hide();
         if (client) esp_http_client_cleanup(client);
         vTaskDelete(NULL);
         return;
@@ -633,7 +649,7 @@ static void ota_url_task(void *arg)
     uint8_t first[1024];
     int got = esp_http_client_read(client, (char *)first, sizeof(first));
     if (got <= 0 || first[0] != 0xE9 || total < got) {
-        display_ota_progress(0, "NOT BIN");
+        display_ota_hide();
         esp_http_client_close(client);
         esp_http_client_cleanup(client);
         vTaskDelete(NULL);
@@ -647,6 +663,7 @@ static void ota_url_task(void *arg)
         vTaskDelay(pdMS_TO_TICKS(600));
         esp_restart();
     }
+    display_ota_hide();
     vTaskDelete(NULL);
 }
 

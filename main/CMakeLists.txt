@@ -14,6 +14,7 @@ idf_component_register(
         "web.c"
         "web_assets.c"
         "safe_ota.c"
+        "lzss.c"
         "settings.c"
         "adc_pwm.c"
         "sm_relay.c"
@@ -29,6 +30,7 @@ idf_component_register(
         nvs_flash
         bt
         app_update
+        spi_flash
         esp_timer
         esp_http_client
         lvgl

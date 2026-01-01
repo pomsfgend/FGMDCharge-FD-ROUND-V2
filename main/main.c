@@ -18,6 +18,7 @@
 #include <stdio.h>
 #include <stdarg.h>
 #include "sm_relay.h"
+#include "safe_ota.h"
 
 static const char *TAG = "MAIN";
 
@@ -67,6 +68,7 @@ void app_main(void) {
         ESP_LOGE(TAG, "NVS init failed: %s", esp_err_to_name(err));
         return;
     }
+    safe_ota_boot_continue();
 
     app_state_init();
     s_prev_log = esp_log_set_vprintf(console_hook);

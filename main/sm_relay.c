@@ -1,8 +1,8 @@
 /*
  * State machine + relay control reconstructed from original FGMDCharge dump.
  * Sequence (CONFIRMED):
- *   State4 entry  -> GPIO6 = HIGH (prepare)
- *   State5 + 10s + substate==3 -> GPIO6 = LOW, GPIO7 = HIGH (main power)
+ *   State4 entry  -> GPIO6 = HIGH (prepare, first click of the relay test)
+ *   State5 + CCS >= 50.0V stable 3s -> GPIO6 = LOW, GPIO7 = HIGH (load, second click)
  *   Stop / idle / error -> both relays LOW
  * BLE 0x66 only touches GPIO6 + substate, never GPIO7.
  */
@@ -41,6 +41,7 @@ static uint32_t s_relay_test_ms = 0;
 static bool     s_boot_started = false;
 static uint32_t s_power_seen_ms = 0;
 static bool s_load_on = false;
+static uint16_t s_v_anchor = 0;
 
 static uint32_t now_ms(void)
 {
@@ -67,6 +68,12 @@ static void set_state(uint8_t s)
     app_state_set_main_state(s);
     app_state_set_handoff(false);
 
+    if (s == ST_IDLE || s == ST_STOP || s == ST_FINALIZE ||
+        s == ST_HANDSHAKE_INIT || s == ST_CHARGING) {
+        s_load_on = false;
+        s_power_seen_ms = 0;
+        s_v_anchor = 0;
+    }
     if (s == ST_IDLE || s == ST_STOP || s == ST_FINALIZE) {
         relays_fail_safe();
         app_state_set_session(false);
@@ -436,18 +443,39 @@ void sm_relay_tick(void)
         break;
 
     case ST_CHARGING:
-        /* 10 s handoff when substate==3 */
-        /* GPIO6 onboard already on. GPIO7 external load 3 s after station voltage. */
-        if (st.ccs_output_voltage_raw > 500) {
-            if (s_power_seen_ms == 0) s_power_seen_ms = t;
-            /* Current setpoint is the BCL request, not a trip. Keep asking. */
-            if (!s_load_on && (t - s_power_seen_ms) >= 3000) {
-                relays_set(1, 1);
-                s_load_on = true;
-                s_handoff = true;
-                app_state_set_handoff(true);
-                app_state_log("load GPIO7 ON, 3s after station power");
+        /* GPIO6 prepare is already on. Load is GPIO7, the second relay in the test.
+           Close it only after station voltage is present and steady. */
+        if (!s_relay_test && !s_load_on) {
+            uint16_t v = st.ccs_output_voltage_raw;
+            if (v >= 500) {
+                if (s_power_seen_ms == 0 || s_v_anchor == 0) {
+                    s_power_seen_ms = t;
+                    s_v_anchor = v;
+                } else {
+                    uint32_t lo = (uint32_t)s_v_anchor - (uint32_t)s_v_anchor / 5u;
+                    uint32_t hi = (uint32_t)s_v_anchor + (uint32_t)s_v_anchor / 5u;
+                    if (v < lo || v > hi) {
+                        s_power_seen_ms = t;
+                        s_v_anchor = v;
+                    }
+                }
+                if ((t - s_power_seen_ms) >= 3000) {
+                    relays_set(0, 1);
+                    s_load_on = true;
+                    s_handoff = true;
+                    app_state_set_handoff(true);
+                    app_state_log("нагрузка ВКЛ, напряжение стабильно");
+                }
+            } else {
+                s_power_seen_ms = 0;
+                s_v_anchor = 0;
             }
+        } else if (s_load_on && st.ccs_output_voltage_raw < 300) {
+            relays_set(0, 0);
+            s_load_on = false;
+            s_power_seen_ms = 0;
+            s_v_anchor = 0;
+            app_state_log("нагрузка ВЫКЛ, напряжение пропало");
         }
         {
             float v = st.ccs_output_voltage_raw / 10.0f;

@@ -1,5 +1,4 @@
 #pragma once
-#include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
 #include "esp_err.h"
@@ -9,3 +8,5 @@ esp_err_t safe_ota_write_stream(const uint8_t *first, size_t first_len,
                                 void *ctx, size_t total_len);
 int safe_ota_percent(void);
 void safe_ota_set_percent(int percent);
+/* After NVS init, before the rest of boot. May restart. Keeps ota_0 as the factory image. */
+void safe_ota_boot_continue(void);

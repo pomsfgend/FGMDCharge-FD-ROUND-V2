@@ -253,7 +253,6 @@ static void stop_hold_cb(lv_event_t *e)
 {
     if (lv_event_get_code(e) != LV_EVENT_LONG_PRESSED) return;
     if (!s_unlocked) { ask_pass(2); return; }
-    s_unlocked = 0;
     sm_stop_session();
 }
 
@@ -261,7 +260,6 @@ static void relay_hold_cb(lv_event_t *e)
 {
     if (lv_event_get_code(e) != LV_EVENT_LONG_PRESSED) return;
     if (!s_unlocked) { ask_pass(1); return; }
-    s_unlocked = 0;
     sm_request_relay_test();
 }
 
@@ -328,12 +326,12 @@ static void pad_key_cb(lv_event_t *e)
         if (ta == s_wifi_ta) {
             const char *pw = s_wifi_ta ? lv_textarea_get_text(s_wifi_ta) : "";
             if (pw && strcmp(pw, "1234") == 0) {
+                s_unlocked = 1;
                 if (s_arm_act == 3 && s_v_ta) {
                     char nb[8];
                     snprintf(nb, sizeof(nb), "%d", s_set_v);
                     lv_textarea_set_text(s_v_ta, nb);
                     s_active_ta = s_v_ta;
-                    s_unlocked = 0;
                     if (s_pad_banner) lv_label_set_text(s_pad_banner, nb);
                     return;
                 }
@@ -342,12 +340,10 @@ static void pad_key_cb(lv_event_t *e)
                     snprintf(nb, sizeof(nb), "%d", s_set_i);
                     lv_textarea_set_text(s_i_ta, nb);
                     s_active_ta = s_i_ta;
-                    s_unlocked = 0;
                     if (s_pad_banner) lv_label_set_text(s_pad_banner, nb);
                     return;
                 }
-                s_unlocked = 1;
-                app_state_log(s_arm_act == 1 ? "ещё раз удержать выход" : "ещё раз удержать Вт");
+                app_state_log(s_arm_act == 1 ? "пароль принят, ещё раз удержать выход" : "пароль принят, ещё раз удержать Вт");
             } else {
                 s_unlocked = 0;
                 app_state_log("пароль не 1234");
@@ -370,7 +366,6 @@ static void ta_focus_cb(lv_event_t *e)
     int which = (int)(intptr_t)lv_event_get_user_data(e);
     if (which == 3 || which == 4) {
         if (!s_unlocked) { ask_pass(which); return; }
-        s_unlocked = 0;
         s_arm_act = which;
         if (which == 3 && s_v_ta) {
             char nb[8]; snprintf(nb, sizeof(nb), "%d", s_set_v);
@@ -737,7 +732,7 @@ static void build_ui(void)
 #undef TILE
     lv_obj_clear_flag(s_scr_chg, LV_OBJ_FLAG_SCROLLABLE);
     lv_obj_set_scroll_dir(s_scr_chg, LV_DIR_NONE);
-    s_dots = line(s_scr_chg, "пароль 1234: В, А, выход, Вт", 248);
+    s_dots = line(s_scr_chg, "пароль 1234 до выкл", 248);
     if (s_dots) { lv_obj_set_height(s_dots, 16); lv_label_set_long_mode(s_dots, LV_LABEL_LONG_DOT); }
     s_log_lbl = s_dots;
     s_ip_lbl = line(s_scr_chg, "Cube  12345678", 264);
@@ -856,7 +851,7 @@ static void build_ui(void)
     lv_obj_set_height(s_can_lbl, 110);
     s_scr_sys = lv_obj_create(NULL);
     style_screen(s_scr_sys);
-    line(s_scr_sys, "СИСТЕМА 2.8.8", 4);
+    line(s_scr_sys, "СИСТЕМА 2.8.9", 4);
     s_sys_temp = line(s_scr_sys, "CPU -- C", 28);
     s_sys_cpu = line(s_scr_sys, "F 160 MHz", 48);
     s_sys_load = line(s_scr_sys, "Load -- %", 68);
