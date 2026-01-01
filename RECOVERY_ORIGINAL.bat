@@ -19,7 +19,7 @@ choice /C YN /N /M "DANGER: overwrite entire 4 MiB with ORIGINAL dump1.bin? [Y/N
 if errorlevel 2 exit /b 0
 python tools\verify_original_dump.py
 if errorlevel 1 (echo Refusing restore: original dump verification failed.&pause&exit /b 1)
-python -m esptool --chip esp32c3 --port "%PORT%" write-flash 0x0 original\dump1.bin
+python -m esptool --chip esp32c3 --port "%PORT%" write_flash 0x0 original\dump1.bin
 if errorlevel 1 (echo RECOVERY FAILED.&pause&exit /b 1)
 echo ORIGINAL FLASH RESTORED.
 pause

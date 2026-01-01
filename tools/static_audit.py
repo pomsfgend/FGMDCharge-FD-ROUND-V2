@@ -10,7 +10,7 @@ import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-VERSION = "2.0.4"
+VERSION = "2.0.5"
 DUMP_SHA = "1428dbddc0749eee8ac133b1e16b6c0805a2da4bb4b0c73bc759c1500b03f233"
 ERRORS: list[str] = []
 
@@ -248,7 +248,9 @@ def check_web() -> None:
     for label, text in (("HTML", html), ("CSS", css), ("JS", js)):
         if len(text) < 1000: fail(f"web {label} unexpectedly small")
         if "https://" in text: fail(f"web {label} contains external HTTPS resource")
-    if re.search(r"\bon(?:click|load|error|input|change)\s*=", html, flags=re.I): fail("inline HTML event handler found")
+    html_wo_script = re.sub(r"<script[\s\S]*?</script>", "", html, flags=re.I)
+    html_wo_script = re.sub(r"<style[\s\S]*?</style>", "", html_wo_script, flags=re.I)
+    if re.search(r"\bon(?:click|load|error|input|change)\s*=", html_wo_script, flags=re.I): fail("inline HTML event handler found")
     for needle in ("prefers-reduced-motion", ".metric-card:hover", "@keyframes"):
         if needle not in css: fail(f"web CSS hook missing: {needle}")
     for needle in ("XMLHttpRequest", "upload.onprogress", "xhr.timeout", "0x190000"):
@@ -266,8 +268,8 @@ def check_python() -> None:
 def check_windows_scripts() -> None:
     required = {
         "BUILD_RELEASE.bat": ("idf.py set-target esp32c3", "idf.py build", "static_audit.py", "verify_release.py"),
-        "FLASH_RELEASE_OTA1.bat": ("read-flash 0x0 0x400000", "write-flash 0x1A0000", "ota_slot.py", "backup"),
-        "RECOVERY_ORIGINAL.bat": ("verify_original_dump.py", "write-flash 0x0", "dump1.bin"),
+        "FLASH_RELEASE_OTA1.bat": ("read_flash 0x0 0x400000", "write_flash 0x1A0000", "ota_slot.py", "backup"),
+        "RECOVERY_ORIGINAL.bat": ("verify_original_dump.py", "write_flash 0x0", "dump1.bin"),
         "ROLLBACK_OTA0.bat": ("ota_slot.py", "ota0"),
     }
     for rel, needles in required.items():

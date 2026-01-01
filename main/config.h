@@ -1,12 +1,12 @@
 #pragma once
 
 #define CUBE_FW_NAME                 "FD_ROUND_V2"
-#define CUBE_FW_VERSION              "2.0.4"
+#define CUBE_FW_VERSION              "2.0.5"
 
 /* Web API protection. Change before installing on a real vehicle/charging setup. */
-#define CUBE_WEB_KEY                 "change-me-2026"
+#define CUBE_WEB_KEY                 ""  /* empty = no API password on local AP */
 #define CUBE_WIFI_SSID               "FGMDCharge-V2"
-#define CUBE_WIFI_PASSWORD           "FDcube2026"  /* change before field use */
+#define CUBE_WIFI_PASSWORD           ""  /* empty = open AP (no password) */
 #define CUBE_WIFI_CHANNEL            1
 #define CUBE_WIFI_MAX_CONNECTIONS    4
 
@@ -22,7 +22,13 @@
 #define CUBE_LCD_SCLK_GPIO           19
 #define CUBE_LCD_CS_GPIO             4
 #define CUBE_LCD_DC_GPIO             18
-#define CUBE_LCD_SPI_HZ              20000000
+#define CUBE_LCD_SPI_HZ              10000000
+/* From dump lcd_main: SPI MOSI5/SCLK19/CS4/DC18 RST=-1, driver ili9341.
+   Relays: GPIO6 and GPIO20 — NEVER drive.
+   GPIO2: only pin that previously lit the panel/LED; enable AFTER boot (not strap sample). */
+#define CUBE_LCD_BL_GPIO             2
+#define CUBE_LCD_RST_GPIO            (-1)
+#define CUBE_STATUS_LED_GPIO         (-1)
 #define CUBE_LCD_QUEUE_DEPTH         10
 #define CUBE_LCD_MAX_TRANSFER        38400
 

@@ -1,4 +1,4 @@
-FGMDCharge / FD_ROUND V2 — Release 2.0.4
+FGMDCharge / FD_ROUND V2 — Release 2.0.5
 
 Canonical source package file index (generated build directories intentionally absent).
 Runtime firmware is produced locally by BUILD_RELEASE.bat.
@@ -16,7 +16,7 @@ README_RU.md	3683 bytes
 README_START_HERE_RU.txt	3873 bytes
 RECOVERY_ORIGINAL.bat	1178 bytes
 RELEASE_CHECKLIST_RU.txt	975 bytes
-RELEASE_FIX_2.0.4.txt	1427 bytes
+RELEASE_FIX_2.0.5.txt	1427 bytes
 RELEASE_NOTES_RU.md	3828 bytes
 REPAIR_IDF_5_0_9.bat	998 bytes
 ROLLBACK_OTA0.bat	732 bytes

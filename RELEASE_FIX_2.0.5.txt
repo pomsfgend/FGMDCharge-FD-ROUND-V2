@@ -1,0 +1,15 @@
+FGMDCharge / FD_ROUND V2 — Release 2.0.5 (runtime fix)
+======================================================
+
+After first successful OTA1 flash, monitor showed:
+  - BLE: config advertising data failed: ESP_ERR_INVALID_ARG
+  - httpd: max_open_sockets too large (max allowed 5)
+  - Web init failed: ESP_ERR_INVALID_ARG
+
+Fixes:
+1) ble.c — ADV payload reduced to name+flags; service UUID/TX power
+   removed; flags-only fallback if name ADV still fails.
+2) web.c — httpd max_open_sockets = 4
+3) sdkconfig.defaults — CONFIG_LWIP_MAX_SOCKETS=16
+
+Rebuild + FLASH_RELEASE_OTA1.bat again (OTA0 still intact).
