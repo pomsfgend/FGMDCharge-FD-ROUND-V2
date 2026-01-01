@@ -22,7 +22,7 @@
 #define CUBE_LCD_SCLK_GPIO           19
 #define CUBE_LCD_CS_GPIO             4
 #define CUBE_LCD_DC_GPIO             18
-#define CUBE_LCD_SPI_HZ              20000000
+#define CUBE_LCD_SPI_HZ              10000000
 /* From dump lcd_main: SPI MOSI5/SCLK19/CS4/DC18 RST=-1, driver ili9341.
    Relays: GPIO6 and GPIO20 — NEVER drive.
    GPIO2: only pin that previously lit the panel/LED; enable AFTER boot (not strap sample). */

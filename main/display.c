@@ -49,13 +49,15 @@ static bool lcd_flush_done(esp_lcd_panel_io_handle_t panel_io,
 }
 
 static void lv_flush(lv_disp_drv_t *drv, const lv_area_t *area, lv_color_t *color_p) {
-    /* Synchronous flush: avoids tear/noise when DMA completion races LVGL. */
+    (void)drv;
+    /* Must NOT call lv_disp_flush_ready here — DMA still owns the buffer.
+       lcd_flush_done() signals ready when SPI transfer completes. */
     esp_err_t err = esp_lcd_panel_draw_bitmap(s_panel, area->x1, area->y1,
                                                area->x2 + 1, area->y2 + 1, color_p);
     if (err != ESP_OK) {
         ESP_LOGW(TAG, "LCD flush failed: %s", esp_err_to_name(err));
+        if (s_display) lv_disp_flush_ready(s_display->driver);
     }
-    lv_disp_flush_ready(drv);
 }
 
 static void tick_cb(void *arg) {
