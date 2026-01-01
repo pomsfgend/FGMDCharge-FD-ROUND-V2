@@ -203,7 +203,7 @@ static void gesture_cb(lv_event_t *e)
     if (dx < 0) dx = -dx;
     if (dy < 0) dy = -dy;
     if (dx < 48 || dx < dy * 2) return;
-    apply_page(s_page + ((pt.x < s_down.x) ? 1 : -1));
+    return;
 }
 
 static void stop_hold_cb(lv_event_t *e)
@@ -225,6 +225,11 @@ static void br_cb(lv_event_t *e)
 static void pad_hide(void)
 {
     if (s_pad) lv_obj_add_flag(s_pad, LV_OBJ_FLAG_HIDDEN);
+}
+
+static void pad_show(void)
+{
+    if (s_pad) lv_obj_clear_flag(s_pad, LV_OBJ_FLAG_HIDDEN);
 }
 
 static void pad_key_cb(lv_event_t *e)
@@ -290,6 +295,8 @@ static void pick_cb(lv_event_t *e)
     if (n <= 0) return;
     s_pick = (s_pick + d + n) % n;
     refresh_scan_label();
+    if (s_wifi_ta) lv_obj_clear_flag(s_wifi_ta, LV_OBJ_FLAG_HIDDEN);
+    pad_show();
 }
 
 static void join_cb(lv_event_t *e)
@@ -304,6 +311,7 @@ static void join_cb(lv_event_t *e)
     (void)web_sta_join(ssid, pass);
     if (s_ip_lbl) lv_label_set_text(s_ip_lbl, "joining...");
     pad_hide();
+    lv_obj_add_flag(s_wifi_ta, LV_OBJ_FLAG_HIDDEN);
 }
 
 static void make_pad(lv_obj_t *parent)
@@ -373,7 +381,7 @@ static void build_ui(void)
 {
     s_scr_chg = lv_scr_act();
     style_screen(s_scr_chg);
-    line(s_scr_chg, "CUBE 2.4.7", 6);
+    line(s_scr_chg, "CUBE 2.4.8", 22);
     s_card_u = card(s_scr_chg, 10, 40, &s_voltage, "V");
     s_card_i = card(s_scr_chg, 122, 40, &s_current, "A");
     (void)s_card_u; (void)s_card_i;
@@ -444,7 +452,8 @@ static void build_ui(void)
     s_wifi_ta = lv_textarea_create(s_scr_wifi);
     lv_obj_set_size(s_wifi_ta, 220, 32);
     lv_obj_align(s_wifi_ta, LV_ALIGN_TOP_MID, 0, 100);
-    lv_textarea_set_placeholder_text(s_wifi_ta, "password 0-9");
+    lv_textarea_set_placeholder_text(s_wifi_ta, "password");
+    lv_obj_add_flag(s_wifi_ta, LV_OBJ_FLAG_HIDDEN);
     lv_textarea_set_one_line(s_wifi_ta, true);
     lv_obj_add_event_cb(s_wifi_ta, ta_focus_cb, LV_EVENT_CLICKED, NULL);
     s_ip_lbl = line(s_scr_wifi, "STA IP --", 136);

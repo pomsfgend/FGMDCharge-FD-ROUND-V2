@@ -21,6 +21,8 @@
 #include "sm_relay.h"
 #include "can_gbt.h"
 #include "safe_ota.h"
+#include "esp_ota_ops.h"
+#include "esp_partition.h"
 
 extern const uint8_t web_index_html[];
 extern const size_t web_index_html_len;
@@ -643,6 +645,36 @@ static esp_err_t wifi_scan_get(httpd_req_t *req)
     return httpd_resp_sendstr(req, buf);
 }
 
+
+static esp_err_t wifi_join_post(httpd_req_t *req)
+{
+    set_security_headers(req);
+    char body[160] = {0};
+    int n = httpd_req_recv(req, body, sizeof(body) - 1);
+    if (n < 0) return ESP_FAIL;
+    body[n] = 0;
+    char ssid[33] = {0};
+    char pass[65] = {0};
+    sscanf(body, "ssid=%32[^&]&pass=%64s", ssid, pass);
+    for (char *p = ssid; *p; p++) if (*p == '+') *p = ' ';
+    esp_err_t err = web_sta_join(ssid, pass);
+    httpd_resp_set_type(req, "application/json");
+    return httpd_resp_sendstr(req, err == ESP_OK ? "{\"ok\":true}" : "{\"ok\":false}");
+}
+
+static esp_err_t boot_original_post(httpd_req_t *req)
+{
+    set_security_headers(req);
+    const esp_partition_t *orig = esp_partition_find_first(
+        ESP_PARTITION_TYPE_APP, ESP_PARTITION_SUBTYPE_APP_OTA_0, NULL);
+    if (!orig) return httpd_resp_sendstr(req, "{\"ok\":false}");
+    esp_ota_set_boot_partition(orig);
+    httpd_resp_sendstr(req, "{\"ok\":true,\"rebooting\":true}");
+    vTaskDelay(pdMS_TO_TICKS(400));
+    esp_restart();
+    return ESP_OK;
+}
+
 esp_err_t web_init(void)
 {
     esp_err_t err = esp_netif_init();
@@ -722,6 +754,8 @@ esp_err_t web_init(void)
         {.uri = "/success.txt", .method = HTTP_GET, .handler = captive_text_get},
         {.uri = "/api/status", .method = HTTP_GET, .handler = status_get},
         {.uri = "/api/wifi/scan", .method = HTTP_GET, .handler = wifi_scan_get},
+        {.uri = "/api/wifi/join", .method = HTTP_POST, .handler = wifi_join_post},
+        {.uri = "/api/boot/original", .method = HTTP_POST, .handler = boot_original_post},
         {.uri = "/api/can/recent", .method = HTTP_GET, .handler = can_recent_get},
         {.uri = "/api/can", .method = HTTP_GET, .handler = can_recent_get},
         {.uri = "/api/start", .method = HTTP_POST, .handler = session_start_post},

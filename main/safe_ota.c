@@ -1,6 +1,7 @@
 #include "safe_ota.h"
 #include "esp_log.h"
 #include "esp_ota_ops.h"
+#include "esp_partition.h"
 #include "esp_system.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
@@ -15,7 +16,12 @@ esp_err_t safe_ota_write_stream(const uint8_t *first, size_t first_len,
     }
     if (first[0] != 0xE9) return ESP_ERR_INVALID_ARG;
 
-    const esp_partition_t *part = esp_ota_get_next_update_partition(NULL);
+    const esp_partition_t *part = esp_partition_find_first(
+        ESP_PARTITION_TYPE_APP, ESP_PARTITION_SUBTYPE_APP_OTA_1, NULL);
+    const esp_partition_t *running = esp_ota_get_running_partition();
+    if (part && running && part->address == running->address) {
+        return ESP_ERR_INVALID_STATE; /* running modified slot; USB flash only */
+    }
     if (!part) return ESP_ERR_NOT_FOUND;
     if (part->type != ESP_PARTITION_TYPE_APP || total_len > part->size) return ESP_ERR_INVALID_SIZE;
 
