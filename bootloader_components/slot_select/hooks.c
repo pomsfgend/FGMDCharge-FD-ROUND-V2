@@ -8,15 +8,17 @@ void bootloader_reset(void);
 #define OTADATA 0xD000
 #define CHOICE ((volatile uint32_t *)0x50001FF0)
 #define MAGIC_OLD 0x01D0F00Du
+#define MAGIC_FORCED 0x0F0C3D01u
 
 static int entry_ok(const uint8_t *e, uint32_t *seq_out)
 {
-    uint32_t seq, crc, calc;
+    uint32_t seq, crc, c4, c28;
     memcpy(&seq, e, 4);
     memcpy(&crc, e + 28, 4);
     if (seq == 0 || seq == 0xFFFFFFFFu) return 0;
-    calc = esp_rom_crc32_le(0xFFFFFFFF, (const uint8_t *)&seq, 4);
-    if (calc != crc) return 0;
+    c4 = esp_rom_crc32_le(0xFFFFFFFF, e, 4);
+    c28 = esp_rom_crc32_le(0xFFFFFFFF, e, 28);
+    if (crc != c4 && crc != c28) return 0;
     *seq_out = seq;
     return 1;
 }
@@ -44,10 +46,10 @@ static void write_slot(int slot, uint32_t prev)
     uint32_t seq = prev + 1;
     if (seq < 1) seq = 1;
     if (((seq - 1) & 1) != (uint32_t)slot) seq++;
-    uint32_t crc = esp_rom_crc32_le(0xFFFFFFFF, (uint8_t *)&seq, 4);
     uint8_t entry[32];
     memset(entry, 0xFF, sizeof(entry));
     memcpy(entry, &seq, 4);
+    uint32_t crc = esp_rom_crc32_le(0xFFFFFFFF, entry, 28);
     memcpy(entry + 28, &crc, 4);
     uint8_t page[64];
     memcpy(page, entry, 32);
@@ -66,7 +68,12 @@ void bootloader_after_init(void)
         esp_rom_printf("BOOT keep old until power off\n");
         return;
     }
+    if (*CHOICE == MAGIC_FORCED) {
+        esp_rom_printf("BOOT menu already forced\n");
+        return;
+    }
     if (slot != 1) {
+        *CHOICE = MAGIC_FORCED;
         write_slot(1, seq);
         esp_rom_printf("BOOT power -> menu, reset\n");
         bootloader_reset();
