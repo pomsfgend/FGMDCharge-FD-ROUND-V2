@@ -4,9 +4,9 @@
 #include <string.h>
 #include <limits.h>
 #include "config.h"
+#include "sdkconfig.h"
 #include "web.h"
 #include "esp_wifi.h"
-#include "esp_clk.h"
 #include "driver/temperature_sensor.h"
 #include "app_state.h"
 #include "touch_cst816s.h"
@@ -503,7 +503,7 @@ void display_set_values(void) {
             lv_label_set_text(s_sys_temp, "Temp CPU: n/a");
         }
         lv_label_set_text_fmt(s_sys_freq, "CPU: %u MHz",
-                              (unsigned)(esp_clk_cpu_freq() / 1000000));
+                              (unsigned)CONFIG_ESP_DEFAULT_CPU_FREQ_MHZ);
         {
             uint8_t ch = CUBE_WIFI_CHANNEL;
             wifi_config_t wcfg = {0};
