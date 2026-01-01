@@ -100,6 +100,8 @@ typedef struct {
     uint32_t rx_count;
     uint32_t tx_count;
     uint8_t protocol;
+    uint8_t crm_status;
+    uint32_t last_crm_ms;
 } cube_state_snapshot_t;
 
 void app_state_init(void);

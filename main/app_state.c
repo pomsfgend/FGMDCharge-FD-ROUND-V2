@@ -400,8 +400,19 @@ void app_state_can_rx(const cube_can_frame_t *f, bool charger_frame)
     s_state.last = *f;
     s_state.rx_count++;
     if (charger_frame) s_state.last_charger_rx_ms = now_ms();
-    if (f && f->id == 0x1826F456u) s_state.protocol = 1;          /* CHM: GB/T 27930-2015 */
-    else if (f && f->id == 0x1801F456u && s_state.protocol == 0) { s_state.protocol = 2; app_state_log("CRM without CHM -> GBT-2011"); }
+    if (f->id == 0x1826F456u) {
+        if (s_state.protocol != 1) app_state_log("CHM -> GBT-2015");
+        s_state.protocol = 1;
+    } else if (f->id == 0x1801F456u) {
+        if (s_state.protocol == 0) {
+            s_state.protocol = 2;
+            app_state_log("CRM without CHM -> GBT-2011");
+        }
+        if (f->dlc > 0) {
+            s_state.crm_status = f->data[0];
+            s_state.last_crm_ms = now_ms();
+        }
+    }
     if (f && charger_frame) {
         static uint32_t last_logged;
         if (f->id != last_logged) {
@@ -411,7 +422,6 @@ void app_state_can_rx(const cube_can_frame_t *f, bool charger_frame)
             last_logged = f->id;
         }
     }
-    if (f && f->id == 0x1826F456u) app_state_log("CHM -> GBT-2015");
     if (f && f->id == 0x081FF456u) app_state_log("CEM charger error, session kept");
     if (f && f->id == 0x101AF456u) app_state_log("CST from charger, session kept");
     unlock_state();

@@ -34,6 +34,7 @@
 
 static const char *TAG = "DISPLAY";
 extern const lv_font_t lv_font_ru_14;
+extern const lv_font_t lv_font_montserrat_28;
 static esp_lcd_panel_handle_t s_panel;
 static esp_lcd_panel_io_handle_t s_panel_io;
 static SemaphoreHandle_t s_lvgl_lock;
@@ -48,7 +49,7 @@ static temperature_sensor_handle_t s_temp;
 static int s_brightness = CUBE_LCD_BL_PWM_DUTY_DEFAULT;
 
 /* UI */
-static lv_obj_t *s_scr_chg, *s_scr_ses, *s_scr_chg, *s_scr_sys, *s_scr_wifi, *s_scr_log;
+static lv_obj_t *s_scr_chg, *s_scr_ses, *s_scr_sys, *s_scr_wifi, *s_scr_log;
 static lv_obj_t *s_ses_kwh, *s_ses_soc, *s_ses_min, *s_ses_req, *s_log_lbl, *s_can_lbl;
 static int s_pending_boot;
 static int s_edge = 0;
@@ -57,6 +58,7 @@ static lv_obj_t *s_soc, *s_relay, *s_cml, *s_can;
 static lv_obj_t *s_sys_temp, *s_sys_cpu, *s_sys_load, *s_sys_heap, *s_sys_wifi, *s_sys_touch;
 static lv_obj_t *s_br_label;
 static lv_obj_t *s_pad;
+static lv_obj_t *s_pad_banner;
 static lv_obj_t *s_wifi_ta;
 static lv_obj_t *s_scan_lbl;
 static lv_obj_t *s_list;
@@ -242,6 +244,7 @@ static void ask_pass(int act)
     if (s_pass_title) lv_label_set_text(s_pass_title, "пароль");
     if (s_wifi_ta) lv_textarea_set_text(s_wifi_ta, "");
     s_active_ta = s_wifi_ta;
+    if (s_pad_banner) lv_label_set_text(s_pad_banner, "пароль");
     if (s_pass_box) lv_obj_add_flag(s_pass_box, LV_OBJ_FLAG_HIDDEN);
     pad_show();
 }
@@ -313,23 +316,75 @@ static void pad_key_cb(lv_event_t *e)
     const char *k = (const char *)lv_event_get_user_data(e);
     lv_obj_t *ta = s_active_ta ? s_active_ta : s_wifi_ta;
     if (!ta || !k) return;
-    if (strcmp(k, "<") == 0) { lv_textarea_del_char(ta); return; }
-    if (strcmp(k, "C") == 0) { lv_textarea_set_text(ta, ""); return; }
+    if (strcmp(k, "<") == 0) {
+        lv_textarea_del_char(ta);
+        if (s_pad_banner) {
+            const char *t = lv_textarea_get_text(ta);
+            lv_label_set_text(s_pad_banner, (t && t[0]) ? t : (ta == s_wifi_ta ? "пароль" : ""));
+        }
+        return;
+    }
     if (strcmp(k, "OK") == 0) {
-        if (s_active_ta == s_wifi_ta) {
-            if (s_wifi_ta && strcmp(lv_textarea_get_text(s_wifi_ta), "1234") == 0) s_unlocked = 1;
+        if (ta == s_wifi_ta) {
+            const char *pw = s_wifi_ta ? lv_textarea_get_text(s_wifi_ta) : "";
+            if (pw && strcmp(pw, "1234") == 0) {
+                if (s_arm_act == 3 && s_v_ta) {
+                    char nb[8];
+                    snprintf(nb, sizeof(nb), "%d", s_set_v);
+                    lv_textarea_set_text(s_v_ta, nb);
+                    s_active_ta = s_v_ta;
+                    s_unlocked = 0;
+                    if (s_pad_banner) lv_label_set_text(s_pad_banner, nb);
+                    return;
+                }
+                if (s_arm_act == 4 && s_i_ta) {
+                    char nb[8];
+                    snprintf(nb, sizeof(nb), "%d", s_set_i);
+                    lv_textarea_set_text(s_i_ta, nb);
+                    s_active_ta = s_i_ta;
+                    s_unlocked = 0;
+                    if (s_pad_banner) lv_label_set_text(s_pad_banner, nb);
+                    return;
+                }
+                s_unlocked = 1;
+                app_state_log(s_arm_act == 1 ? "ещё раз удержать выход" : "ещё раз удержать Вт");
+            } else {
+                s_unlocked = 0;
+                app_state_log("пароль не 1234");
+            }
             pad_hide();
             if (s_pass_box) lv_obj_add_flag(s_pass_box, LV_OBJ_FLAG_HIDDEN);
             return;
         }
-        apply_field(); pad_hide(); return;
+        apply_field();
+        pad_hide();
+        return;
     }
     if (k[0] < '0' || k[0] > '9') return;
     lv_textarea_add_text(ta, k);
+    if (s_pad_banner) lv_label_set_text(s_pad_banner, lv_textarea_get_text(ta));
 }
 
 static void ta_focus_cb(lv_event_t *e)
 {
+    int which = (int)(intptr_t)lv_event_get_user_data(e);
+    if (which == 3 || which == 4) {
+        if (!s_unlocked) { ask_pass(which); return; }
+        s_unlocked = 0;
+        s_arm_act = which;
+        if (which == 3 && s_v_ta) {
+            char nb[8]; snprintf(nb, sizeof(nb), "%d", s_set_v);
+            lv_textarea_set_text(s_v_ta, nb); s_active_ta = s_v_ta;
+            if (s_pad_banner) lv_label_set_text(s_pad_banner, nb);
+        } else if (s_i_ta) {
+            char nb[8]; snprintf(nb, sizeof(nb), "%d", s_set_i);
+            lv_textarea_set_text(s_i_ta, nb); s_active_ta = s_i_ta;
+            if (s_pad_banner) lv_label_set_text(s_pad_banner, nb);
+        }
+        pad_show();
+        if (s_pad) lv_obj_move_foreground(s_pad);
+        return;
+    }
     s_active_ta = lv_event_get_target(e);
     if (!s_pad) return;
     lv_obj_clear_flag(s_pad, LV_OBJ_FLAG_HIDDEN);
@@ -450,10 +505,10 @@ static void make_pad(lv_obj_t *parent)
     lv_obj_set_style_radius(banner, 8, 0);
     lv_obj_set_style_border_width(banner, 0, 0);
     lv_obj_clear_flag(banner, LV_OBJ_FLAG_SCROLLABLE);
-    lv_obj_t *bt = lv_label_create(banner);
-    lv_label_set_text(bt, "4 цифры");
-    lv_obj_set_style_text_color(bt, lv_color_hex(0x07302E), 0);
-    lv_obj_center(bt);
+    s_pad_banner = lv_label_create(banner);
+    lv_label_set_text(s_pad_banner, "пароль");
+    lv_obj_set_style_text_color(s_pad_banner, lv_color_hex(0x07302E), 0);
+    lv_obj_center(s_pad_banner);
     const char *keys[] = {"1","2","3","4","5","6","7","8","9","<","0","OK"};
     for (int i = 0; i < 12; ++i) {
         lv_obj_t *b = lv_btn_create(s_pad);
@@ -466,7 +521,8 @@ static void make_pad(lv_obj_t *parent)
         lv_obj_add_event_cb(b, pad_key_cb, LV_EVENT_CLICKED, (void *)keys[i]);
         lv_obj_t *l = lv_label_create(b);
         if (!l) break;
-        lv_label_set_text(l, keys[i][0] == 'O' ? "V" : keys[i]);
+        lv_label_set_text(l, keys[i]);
+        lv_obj_set_style_text_font(l, &lv_font_montserrat_28, 0);
         lv_obj_set_style_text_color(l, lv_color_hex(0x1A1D22), 0);
         lv_obj_center(l);
     }
@@ -627,33 +683,65 @@ static void build_ui(void)
 {
     s_scr_chg = lv_scr_act();
     style_screen(s_scr_chg);
-    line(s_scr_chg, "КУБ 2.8.6", 4);
-    s_time = line(s_scr_chg, "время 0 мин", 28);
-    s_relay = line(s_scr_chg, "выход OFF", 50);
-    s_req_v = line(s_scr_chg, "запрос 240 В", 78);
-    s_req_i = line(s_scr_chg, "запрос 50 А", 100);
-    s_watt = line(s_scr_chg, "мощность -- Вт", 122);
-    s_out_v = line(s_scr_chg, "выход -- В", 150);
-    s_out_a = line(s_scr_chg, "выход -- А", 172);
-    s_stat = line(s_scr_chg, "статус 0", 194);
+    lv_obj_clear_flag(s_scr_chg, LV_OBJ_FLAG_SCROLLABLE);
+    lv_obj_set_scroll_dir(s_scr_chg, LV_DIR_NONE);
+    /* Hidden fields. The cyan tiles open the keypad; these only store the digits. */
     s_v_ta = lv_textarea_create(s_scr_chg);
-    lv_obj_set_size(s_v_ta, 90, 28); lv_obj_set_pos(s_v_ta, 12, 220);
-    lv_textarea_set_one_line(s_v_ta, true); lv_textarea_set_text(s_v_ta, "240");
-    lv_obj_add_event_cb(s_v_ta, ta_focus_cb, LV_EVENT_CLICKED, NULL);
+    lv_obj_add_flag(s_v_ta, LV_OBJ_FLAG_HIDDEN);
+    lv_textarea_set_text(s_v_ta, "240");
     s_i_ta = lv_textarea_create(s_scr_chg);
-    lv_obj_set_size(s_i_ta, 90, 28); lv_obj_set_pos(s_i_ta, 120, 220);
-    lv_textarea_set_one_line(s_i_ta, true); lv_textarea_set_text(s_i_ta, "50");
-    lv_obj_add_event_cb(s_i_ta, ta_focus_cb, LV_EVENT_CLICKED, NULL);
-    lv_obj_add_event_cb(s_watt, stop_hold_cb, LV_EVENT_LONG_PRESSED, NULL);
-    lv_obj_add_flag(s_watt, LV_OBJ_FLAG_CLICKABLE);
-    lv_obj_add_event_cb(s_relay, relay_hold_cb, LV_EVENT_LONG_PRESSED, NULL);
-    lv_obj_add_flag(s_relay, LV_OBJ_FLAG_CLICKABLE);
-    lv_obj_add_flag(s_scr_chg, LV_OBJ_FLAG_SCROLLABLE);
-    s_dots = line(s_scr_chg, "ниже: точка, лог, оригинал", 250);
-    s_ip_lbl = line(s_scr_chg, "Cube 192.168.4.1", 274);
-    s_log_lbl = line(s_scr_chg, "лог", 298);
-    lv_obj_set_width(s_log_lbl, 216);
-    lv_label_set_long_mode(s_log_lbl, LV_LABEL_LONG_WRAP);
+    lv_obj_add_flag(s_i_ta, LV_OBJ_FLAG_HIDDEN);
+    lv_textarea_set_text(s_i_ta, "50");
+
+#define TILE(x,y,w,h,bg) do { c = lv_obj_create(s_scr_chg); lv_obj_set_pos(c, (x), (y)); lv_obj_set_size(c, (w), (h)); \
+    lv_obj_set_style_bg_color(c, lv_color_hex(bg), 0); lv_obj_set_style_bg_opa(c, LV_OPA_COVER, 0); \
+    lv_obj_set_style_radius(c, 10, 0); lv_obj_set_style_border_width(c, 0, 0); lv_obj_set_style_pad_all(c, 2, 0); \
+    lv_obj_clear_flag(c, LV_OBJ_FLAG_SCROLLABLE); } while (0)
+    {
+        lv_obj_t *c;
+        TILE(4, 4, 74, 86, 0x127E9A);
+        s_time = lv_label_create(c); lv_label_set_text(s_time, "0"); lv_obj_set_style_text_font(s_time, &lv_font_montserrat_28, 0); lv_obj_set_style_text_color(s_time, lv_color_hex(0xFFFFFF), 0); lv_obj_align(s_time, LV_ALIGN_CENTER, 0, -10);
+        { lv_obj_t *k = lv_label_create(c); lv_label_set_text(k, "мин"); lv_obj_set_style_text_color(k, lv_color_hex(0xD6F4FF), 0); lv_obj_align(k, LV_ALIGN_BOTTOM_MID, 0, -2); }
+        TILE(4, 94, 74, 86, 0x127E9A);
+        s_relay = lv_label_create(c); lv_label_set_text(s_relay, "OFF"); lv_obj_set_style_text_font(s_relay, &lv_font_montserrat_28, 0); lv_obj_set_style_text_color(s_relay, lv_color_hex(0xFFFFFF), 0); lv_obj_align(s_relay, LV_ALIGN_CENTER, 0, -10);
+        { lv_obj_t *k = lv_label_create(c); lv_label_set_text(k, "выход"); lv_obj_set_style_text_color(k, lv_color_hex(0xD6F4FF), 0); lv_obj_align(k, LV_ALIGN_BOTTOM_MID, 0, -2); }
+        lv_obj_add_flag(c, LV_OBJ_FLAG_CLICKABLE);
+        lv_obj_add_event_cb(c, relay_hold_cb, LV_EVENT_LONG_PRESSED, NULL);
+        TILE(4, 184, 74, 60, 0x127E9A);
+        s_stat = lv_label_create(c); lv_label_set_text(s_stat, "авто"); lv_obj_set_style_text_color(s_stat, lv_color_hex(0xFFFFFF), 0); lv_obj_align(s_stat, LV_ALIGN_CENTER, 0, -8);
+        { lv_obj_t *k = lv_label_create(c); lv_label_set_text(k, "статус"); lv_obj_set_style_text_color(k, lv_color_hex(0xD6F4FF), 0); lv_obj_align(k, LV_ALIGN_BOTTOM_MID, 0, -1); }
+
+        TILE(82, 4, 76, 86, 0x2AD4EA);
+        s_req_v = lv_label_create(c); lv_label_set_text(s_req_v, "240"); lv_obj_set_style_text_font(s_req_v, &lv_font_montserrat_28, 0); lv_obj_set_style_text_color(s_req_v, lv_color_hex(0x042428), 0); lv_obj_align(s_req_v, LV_ALIGN_CENTER, 0, -10);
+        { lv_obj_t *k = lv_label_create(c); lv_label_set_text(k, "запрос В"); lv_obj_set_style_text_color(k, lv_color_hex(0x043038), 0); lv_obj_align(k, LV_ALIGN_BOTTOM_MID, 0, -2); }
+        lv_obj_add_flag(c, LV_OBJ_FLAG_CLICKABLE);
+        lv_obj_add_event_cb(c, ta_focus_cb, LV_EVENT_CLICKED, (void *)(intptr_t)3);
+        TILE(82, 94, 76, 86, 0x2AD4EA);
+        s_req_i = lv_label_create(c); lv_label_set_text(s_req_i, "50"); lv_obj_set_style_text_font(s_req_i, &lv_font_montserrat_28, 0); lv_obj_set_style_text_color(s_req_i, lv_color_hex(0x042428), 0); lv_obj_align(s_req_i, LV_ALIGN_CENTER, 0, -10);
+        { lv_obj_t *k = lv_label_create(c); lv_label_set_text(k, "запрос А"); lv_obj_set_style_text_color(k, lv_color_hex(0x043038), 0); lv_obj_align(k, LV_ALIGN_BOTTOM_MID, 0, -2); }
+        lv_obj_add_flag(c, LV_OBJ_FLAG_CLICKABLE);
+        lv_obj_add_event_cb(c, ta_focus_cb, LV_EVENT_CLICKED, (void *)(intptr_t)4);
+        TILE(82, 184, 76, 60, 0x2AD4EA);
+        s_watt = lv_label_create(c); lv_label_set_text(s_watt, "0"); lv_obj_set_style_text_font(s_watt, &lv_font_montserrat_28, 0); lv_obj_set_style_text_color(s_watt, lv_color_hex(0x042428), 0); lv_obj_align(s_watt, LV_ALIGN_CENTER, 0, -8);
+        { lv_obj_t *k = lv_label_create(c); lv_label_set_text(k, "Вт"); lv_obj_set_style_text_color(k, lv_color_hex(0x043038), 0); lv_obj_align(k, LV_ALIGN_BOTTOM_MID, 0, -1); }
+        lv_obj_add_flag(c, LV_OBJ_FLAG_CLICKABLE);
+        lv_obj_add_event_cb(c, stop_hold_cb, LV_EVENT_LONG_PRESSED, NULL);
+
+        TILE(162, 4, 74, 118, 0x101418);
+        s_out_v = lv_label_create(c); lv_label_set_text(s_out_v, "0"); lv_obj_set_style_text_font(s_out_v, &lv_font_montserrat_28, 0); lv_obj_set_style_text_color(s_out_v, lv_color_hex(0xFFFFFF), 0); lv_obj_align(s_out_v, LV_ALIGN_CENTER, 0, -8);
+        { lv_obj_t *k = lv_label_create(c); lv_label_set_text(k, "выход В"); lv_obj_set_style_text_color(k, lv_color_hex(0xE6C84A), 0); lv_obj_align(k, LV_ALIGN_BOTTOM_MID, 0, -4); }
+        TILE(162, 126, 74, 118, 0x101418);
+        s_out_a = lv_label_create(c); lv_label_set_text(s_out_a, "0"); lv_obj_set_style_text_font(s_out_a, &lv_font_montserrat_28, 0); lv_obj_set_style_text_color(s_out_a, lv_color_hex(0xFFFFFF), 0); lv_obj_align(s_out_a, LV_ALIGN_CENTER, 0, -8);
+        { lv_obj_t *k = lv_label_create(c); lv_label_set_text(k, "выход А"); lv_obj_set_style_text_color(k, lv_color_hex(0xE6C84A), 0); lv_obj_align(k, LV_ALIGN_BOTTOM_MID, 0, -4); }
+    }
+#undef TILE
+    lv_obj_clear_flag(s_scr_chg, LV_OBJ_FLAG_SCROLLABLE);
+    lv_obj_set_scroll_dir(s_scr_chg, LV_DIR_NONE);
+    s_dots = line(s_scr_chg, "пароль 1234: В, А, выход, Вт", 248);
+    if (s_dots) { lv_obj_set_height(s_dots, 16); lv_label_set_long_mode(s_dots, LV_LABEL_LONG_DOT); }
+    s_log_lbl = s_dots;
+    s_ip_lbl = line(s_scr_chg, "Cube  12345678", 264);
+    if (s_ip_lbl) { lv_obj_set_height(s_ip_lbl, 16); lv_label_set_long_mode(s_ip_lbl, LV_LABEL_LONG_DOT); }
     lv_obj_t *orig = lv_btn_create(s_scr_chg);
     lv_obj_set_size(orig, 200, 36);
     lv_obj_set_pos(orig, 12, 430);
@@ -702,28 +790,26 @@ static void build_ui(void)
     lv_obj_set_style_bg_color(go, lv_color_hex(0x1F6F5B), 0);
     lv_obj_add_event_cb(go, session_go_cb, LV_EVENT_CLICKED, NULL);
     lv_obj_t *gl = lv_label_create(go); lv_label_set_text(gl, "START"); lv_obj_center(gl);
-    s_scr_chg = lv_obj_create(NULL);
-    style_screen(s_scr_chg);
-    lv_obj_add_flag(s_scr_chg, LV_OBJ_FLAG_SCROLLABLE);
-    line(s_scr_chg, "ЗАРЯДКА", 300);
-    s_set_lbl = line(s_scr_chg, "поле, цифры, OK", 320);
-    line(s_scr_chg, "V", 342);
-    s_v_ta = lv_textarea_create(s_scr_chg);
+    /* Keep the visible dashboard. Extra fields scroll on the same page. */
+    line(s_scr_ses, "ещё", 300);
+    s_set_lbl = line(s_scr_ses, "поле, цифры, OK", 320);
+    line(s_scr_ses, "V", 342);
+    if (!s_v_ta) s_v_ta = lv_textarea_create(s_scr_chg);
     lv_obj_set_size(s_v_ta, 120, 32);
     lv_obj_set_pos(s_v_ta, 70, 338);
     lv_textarea_set_one_line(s_v_ta, true);
     lv_textarea_set_max_length(s_v_ta, 4);
     lv_textarea_set_text(s_v_ta, "240");
     lv_obj_add_event_cb(s_v_ta, ta_focus_cb, LV_EVENT_CLICKED, NULL);
-    line(s_scr_chg, "A", 380);
-    s_i_ta = lv_textarea_create(s_scr_chg);
+    line(s_scr_ses, "A", 380);
+    if (!s_i_ta) s_i_ta = lv_textarea_create(s_scr_chg);
     lv_obj_set_size(s_i_ta, 120, 32);
     lv_obj_set_pos(s_i_ta, 70, 376);
     lv_textarea_set_one_line(s_i_ta, true);
     lv_textarea_set_max_length(s_i_ta, 4);
     lv_textarea_set_text(s_i_ta, "50");
     lv_obj_add_event_cb(s_i_ta, ta_focus_cb, LV_EVENT_CLICKED, NULL);
-    line(s_scr_chg, "SOC", 418);
+    line(s_scr_ses, "SOC", 418);
     s_soc_ta = lv_textarea_create(s_scr_chg);
     lv_obj_set_size(s_soc_ta, 120, 32);
     lv_obj_set_pos(s_soc_ta, 70, 414);
@@ -731,7 +817,7 @@ static void build_ui(void)
     lv_textarea_set_max_length(s_soc_ta, 3);
     lv_textarea_set_text(s_soc_ta, "20");
     lv_obj_add_event_cb(s_soc_ta, ta_focus_cb, LV_EVENT_CLICKED, NULL);
-    line(s_scr_chg, "kWh", 456);
+    line(s_scr_ses, "kWh", 456);
     s_kwh_ta = lv_textarea_create(s_scr_chg);
     lv_obj_set_size(s_kwh_ta, 120, 32);
     lv_obj_set_pos(s_kwh_ta, 70, 452);
@@ -739,12 +825,16 @@ static void build_ui(void)
     lv_textarea_set_max_length(s_kwh_ta, 5);
     lv_textarea_set_text(s_kwh_ta, "7.5");
     lv_obj_add_event_cb(s_kwh_ta, ta_focus_cb, LV_EVENT_CLICKED, NULL);
+    lv_obj_add_flag(s_v_ta, LV_OBJ_FLAG_HIDDEN);
+    lv_obj_add_flag(s_i_ta, LV_OBJ_FLAG_HIDDEN);
+    lv_obj_add_flag(s_soc_ta, LV_OBJ_FLAG_HIDDEN);
+    lv_obj_add_flag(s_kwh_ta, LV_OBJ_FLAG_HIDDEN);
     s_active_ta = s_v_ta;
     {
         const char *pn[] = {"авто", "2015", "2011"};
         const int pv[] = {0, 1, 2};
         for (int i = 0; i < 3; ++i) {
-            lv_obj_t *b = lv_btn_create(s_scr_chg);
+            lv_obj_t *b = lv_btn_create(s_scr_ses);
             lv_obj_set_size(b, 70, 28);
             lv_obj_set_pos(b, 8 + i * 76, 500);
             lv_obj_set_style_shadow_width(b, 0, 0);
@@ -760,17 +850,13 @@ static void build_ui(void)
     line(s_scr_log, "ЛОГИ ESP", 8);
     lv_obj_add_flag(s_scr_log, LV_OBJ_FLAG_SCROLLABLE);
     lv_obj_set_scroll_dir(s_scr_log, LV_DIR_VER);
-    s_log_lbl = line(s_scr_chg, "нет событий", 760);
-    lv_label_set_long_mode(s_log_lbl, LV_LABEL_LONG_WRAP);
-    lv_obj_set_width(s_log_lbl, 210);
-    lv_obj_set_style_text_font(s_log_lbl, &lv_font_montserrat_14, 0);
     line(s_scr_log, "ЛОГИ CAN", 136);
     s_can_lbl = line(s_scr_log, "нет кадров", 156);
     lv_label_set_long_mode(s_can_lbl, LV_LABEL_LONG_WRAP);
     lv_obj_set_height(s_can_lbl, 110);
     s_scr_sys = lv_obj_create(NULL);
     style_screen(s_scr_sys);
-    line(s_scr_sys, "СИСТЕМА 2.8.6", 4);
+    line(s_scr_sys, "СИСТЕМА 2.8.7", 4);
     s_sys_temp = line(s_scr_sys, "CPU -- C", 28);
     s_sys_cpu = line(s_scr_sys, "F 160 MHz", 48);
     s_sys_load = line(s_scr_sys, "Load -- %", 68);
@@ -826,13 +912,12 @@ static void build_ui(void)
     style_screen(s_scr_wifi);
     line(s_scr_wifi, "СЕТЬ", 2);
     lv_obj_add_flag(s_scr_wifi, LV_OBJ_FLAG_SCROLLABLE);
-    s_list = lv_obj_create(s_scr_chg);
+    s_list = lv_obj_create(s_scr_wifi);
     lv_obj_set_size(s_list, 220, 160);
     lv_obj_set_pos(s_list, 10, 560);
     lv_obj_add_flag(s_list, LV_OBJ_FLAG_SCROLLABLE);
     lv_obj_set_style_pad_row(s_list, 4, 0);
-    s_scan_lbl = line(s_scr_chg, "nets: --", 540);
-    s_ip_lbl = line(s_scr_chg, "AP 192.168.4.1", 730);
+    s_scan_lbl = line(s_scr_wifi, "nets: --", 40);
 
     lv_obj_t *sc = lv_btn_create(s_scr_wifi);
     lv_obj_set_size(sc, 70, 32);
@@ -910,6 +995,7 @@ static void build_ui(void)
     lv_bar_set_range(s_ota_bar, 0, 100);
     lv_obj_set_style_bg_color(s_ota_bar, lv_color_hex(0x1F6F5B), LV_PART_INDICATOR);
     lv_obj_add_flag(s_ota_box, LV_OBJ_FLAG_HIDDEN);
+    lv_obj_move_foreground(pick);
 }
 
 void display_ota_progress(int percent, const char *msg)
@@ -1017,7 +1103,8 @@ esp_err_t display_init(void)
     lv_indev_drv_init(&s_touch_drv);
     s_touch_drv.type = LV_INDEV_TYPE_POINTER;
     s_touch_drv.read_cb = touch_lvgl_read;
-    lv_indev_drv_register(&s_touch_drv);
+    lv_indev_t *touch_in = lv_indev_drv_register(&s_touch_drv);
+    if (touch_in) lv_indev_set_long_press_time(touch_in, 700);
 
     const esp_timer_create_args_t tick_args = {
         .callback = tick_cb, .name = "lv_tick"
@@ -1046,16 +1133,20 @@ void display_set_values(void)
     float uv = live ? st.ccs_output_voltage_raw / 10.0f : 0;
     float ia = st.ccs_output_current_0p1a / 10.0f;
     if (ia < 0) ia = -ia;
-    if (s_out_v) lv_label_set_text(s_out_v, live ? (snprintf(b, sizeof(b), "выход %.0f В", (double)uv), b) : "выход -- В");
-    if (s_out_a) lv_label_set_text(s_out_a, live ? (snprintf(b, sizeof(b), "выход %.1f А", (double)ia), b) : "выход -- А");
-    if (s_req_v) { snprintf(b, sizeof(b), "запрос %d В", s_set_v); lv_label_set_text(s_req_v, b); }
-    if (s_req_i) { snprintf(b, sizeof(b), "запрос %d А", s_set_i); lv_label_set_text(s_req_i, b); }
-    if (s_time) { snprintf(b, sizeof(b), "время %u мин", (unsigned)st.ccs_charge_time_min); lv_label_set_text(s_time, b); }
-    if (s_stat) { snprintf(b, sizeof(b), "статус %u %s", (unsigned)st.main_state, cube_main_state_name(st.main_state)); lv_label_set_text(s_stat, b); }
+    if (s_out_v) { snprintf(b, sizeof(b), "%.0f", (double)uv); lv_label_set_text(s_out_v, b); }
+    if (s_out_a) { snprintf(b, sizeof(b), "%.0f", (double)ia); lv_label_set_text(s_out_a, b); }
+    if (s_req_v) { snprintf(b, sizeof(b), "%d", s_set_v); lv_label_set_text(s_req_v, b); }
+    if (s_req_i) { snprintf(b, sizeof(b), "%d", s_set_i); lv_label_set_text(s_req_i, b); }
+    if (s_time) { snprintf(b, sizeof(b), "%u", (unsigned)st.ccs_charge_time_min); lv_label_set_text(s_time, b); }
+    if (s_stat) lv_label_set_text(s_stat, st.protocol == 1 ? "2015" : st.protocol == 2 ? "2011" : "авто");
     if (s_voltage) lv_label_set_text(s_voltage, live ? (snprintf(b, sizeof(b), "%.0f", (double)uv), b) : "--");
     if (s_current) lv_label_set_text(s_current, live ? (snprintf(b, sizeof(b), "%.1f", (double)ia), b) : "--");
+    if (s_watt) {
+        snprintf(b, sizeof(b), "%.0f", (double)(uv * ia));
+        lv_label_set_text(s_watt, b);
+    }
     if (s_power) {
-        snprintf(b, sizeof(b), live ? "мощность %.0f Вт" : "мощность -- Вт", (double)(uv * ia));
+        snprintf(b, sizeof(b), "%.0f", (double)(uv * ia));
         lv_label_set_text(s_power, b);
     }
     if (s_soc) {
@@ -1076,8 +1167,11 @@ void display_set_values(void)
     }
     if (s_log_lbl) {
         char logb[160];
+        const char *last;
         app_state_log_text(logb, (int)sizeof(logb));
-        lv_label_set_text(s_log_lbl, logb);
+        last = logb;
+        for (char *p = logb; *p; ++p) if (*p == '\n' && p[1]) last = p + 1;
+        lv_label_set_text(s_log_lbl, last);
     }
     if (s_can_lbl) {
         cube_can_frame_t fr[4];
@@ -1102,7 +1196,7 @@ void display_set_values(void)
         lv_label_set_text(s_stage, b);
     }
     if (s_relay) {
-        snprintf(b, sizeof(b), (st.relay_a || st.relay_b) ? "выход ON" : "выход OFF");
+        snprintf(b, sizeof(b), (st.relay_a || st.relay_b) ? "ON" : "OFF");
         lv_label_set_text(s_relay, b);
     }
     if (s_cml) {
@@ -1115,7 +1209,7 @@ void display_set_values(void)
         lv_label_set_text(s_can, b);
     }
     if (s_ip_lbl) {
-        snprintf(b, sizeof(b), "STA IP %s", web_sta_ip());
+        snprintf(b, sizeof(b), "Cube  12345678");
         lv_label_set_text(s_ip_lbl, b);
     }
 

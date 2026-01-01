@@ -62,3 +62,7 @@ CONFIG_LV_USE_IMG=y
 # Avoid GPIO isolation side-effects during early init on this cube.
 CONFIG_ESP_SLEEP_GPIO_RESET_WORKAROUND=n
 CONFIG_ESP_SYSTEM_PANIC_PRINT_REBOOT=y
+
+# SoftAP is WPA2-PSK only. IDF 5.0 enables WPA3 SAE by default, and Android
+# then joins and leaves with reason 15 (shown as a wrong password).
+# CONFIG_ESP_WIFI_ENABLE_WPA3_SAE is not set

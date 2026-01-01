@@ -205,20 +205,22 @@ static void tx_bcs(void)
 {
     cube_state_snapshot_t st;
     app_state_snapshot(&st);
-    uint8_t d[8] = {0};
-    uint16_t v = st.battery_voltage_0p1v;
+    uint8_t b[9];
+    uint16_t v = st.battery_voltage_0p1v ? st.battery_voltage_0p1v : st.ccs_output_voltage_raw;
     int32_t i_enc = (int32_t)st.battery_current_0p1a + 4000;
+    uint16_t cell = 420; /* 4.20 V, group 0 */
     if (i_enc < 0) i_enc = 0;
     if (i_enc > 65535) i_enc = 65535;
-    d[0] = (uint8_t)(v & 0xFF);
-    d[1] = (uint8_t)(v >> 8);
-    d[2] = (uint8_t)(i_enc & 0xFF);
-    d[3] = (uint8_t)(i_enc >> 8);
-    d[4] = 0x00; /* block voltage placeholder */
-    d[5] = st.soc_percent;
-    d[6] = 0x00; /* remaining time placeholder */
-    d[7] = 0x00;
-    (void)gbt_can_send(0x181156F4u, d, 8);
+    memset(b, 0, sizeof(b));
+    b[0] = (uint8_t)(v & 0xFF);
+    b[1] = (uint8_t)(v >> 8);
+    b[2] = (uint8_t)(i_enc & 0xFF);
+    b[3] = (uint8_t)(i_enc >> 8);
+    b[4] = (uint8_t)(cell & 0xFF);
+    b[5] = (uint8_t)(cell >> 8);
+    b[6] = st.soc_percent;
+    /* bytes 7-8 remaining minutes, unknown */
+    tx_bam(0x001100u, b, 9);
 }
 
 static void tx_bsm(void)
@@ -385,8 +387,8 @@ void sm_relay_tick(void)
             tx_bhm();
             s_last_bhm_ms = t;
         }
-        if (st.last.id == 0x1801F456u && st.last.dlc > 0) {
-            if (st.last.data[0] == 0xAA) s_crmaa = true;
+        if (st.last_crm_ms != 0) {
+            if (st.crm_status == 0xAA) s_crmaa = true;
             else s_crm00 = true;
         }
         if (s_crm00 && !s_crmaa && (t - s_last_brm_ms) >= 250) {

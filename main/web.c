@@ -844,8 +844,10 @@ esp_err_t web_init(void)
     wifi_init_config_t cfg = WIFI_INIT_CONFIG_DEFAULT();
     err = esp_wifi_init(&cfg);
     if (err != ESP_OK) return err;
-    (void)esp_wifi_set_storage(WIFI_STORAGE_RAM);
-    if (err != ESP_OK && err != ESP_ERR_INVALID_STATE) return err;
+    /* RAM storage: a stale NVS key makes the phone associate and then
+       drop with reason 15 (Android shows that as "wrong password"). */
+    if ((err = esp_wifi_set_storage(WIFI_STORAGE_RAM)) != ESP_OK && err != ESP_ERR_INVALID_STATE) return err;
+    (void)esp_wifi_set_ps(WIFI_PS_NONE);
 
     wifi_config_t ap = {0};
     (void)snprintf((char *)ap.ap.ssid, sizeof(ap.ap.ssid), "%s", CUBE_WIFI_SSID);
@@ -853,25 +855,36 @@ esp_err_t web_init(void)
     ap.ap.channel = CUBE_WIFI_CHANNEL;
     s_ap_channel = ap.ap.channel;
     ap.ap.max_connection = CUBE_WIFI_MAX_CONNECTIONS;
-    ap.ap.ssid_hidden = 0;          /* always broadcast beacon */
+    ap.ap.ssid_hidden = 0;
     ap.ap.beacon_interval = 100;
-    ap.ap.pmf_cfg.capable = false; /* phones fail PMF on C3 softAP */
+    /* WPA3 is compiled into IDF 5.0 by default. capable=false makes Android
+       join and leave 4 s later with reason 15. Optional PMF, WPA2-CCMP only. */
+    ap.ap.pmf_cfg.capable = true;
     ap.ap.pmf_cfg.required = false;
     ap.ap.authmode = WIFI_AUTH_WPA2_PSK;
     ap.ap.pairwise_cipher = WIFI_CIPHER_TYPE_CCMP;
     (void)snprintf((char *)ap.ap.password, sizeof(ap.ap.password), "%s", CUBE_WIFI_PASSWORD);
+
     if ((err = esp_wifi_set_mode(WIFI_MODE_AP)) != ESP_OK) return err;
-    if ((err = esp_wifi_set_config(WIFI_IF_AP, &ap)) != ESP_OK) return err;
-    { wifi_config_t sta0 = {0}; (void)esp_wifi_set_config(WIFI_IF_STA, &sta0); }
-    (void)esp_wifi_set_ps(WIFI_PS_NONE);
     {
-        wifi_country_t country = { .cc = "CN", .schan = 1, .nchan = 13, .policy = WIFI_COUNTRY_POLICY_AUTO };
+        wifi_country_t country = { .cc = "CN", .schan = 1, .nchan = 13, .policy = WIFI_COUNTRY_POLICY_MANUAL };
         (void)esp_wifi_set_country(&country);
     }
+    /* protocol/bandwidth before set_config: calling them after wipes the PSK */
     (void)esp_wifi_set_protocol(WIFI_IF_AP, WIFI_PROTOCOL_11B | WIFI_PROTOCOL_11G | WIFI_PROTOCOL_11N);
     (void)esp_wifi_set_bandwidth(WIFI_IF_AP, WIFI_BW_HT20);
+    if ((err = esp_wifi_set_config(WIFI_IF_AP, &ap)) != ESP_OK) return err;
     if ((err = esp_wifi_start()) != ESP_OK && err != ESP_ERR_INVALID_STATE) return err;
-    (void)esp_wifi_set_max_tx_power(78);
+    if ((err = esp_wifi_set_config(WIFI_IF_AP, &ap)) != ESP_OK) return err;
+    (void)esp_wifi_set_max_tx_power(84);
+    {
+        wifi_config_t chk = {0};
+        if (esp_wifi_get_config(WIFI_IF_AP, &chk) == ESP_OK) {
+            ESP_LOGW(TAG, "AP check auth=%d pmf=%d key_len=%u ch=%u",
+                     (int)chk.ap.authmode, (int)chk.ap.pmf_cfg.capable,
+                     (unsigned)strlen((const char *)chk.ap.password), (unsigned)chk.ap.channel);
+        }
+    }
     ESP_LOGW(TAG, "AP only SSID=%s ch=%u key=%s",
              CUBE_WIFI_SSID, (unsigned)CUBE_WIFI_CHANNEL, CUBE_WIFI_PASSWORD);
     /* AP only, no scan */

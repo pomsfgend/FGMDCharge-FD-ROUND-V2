@@ -27,6 +27,9 @@ required = {
     "CONFIG_LV_MEM_SIZE_KILOBYTES": "64",
     "CONFIG_LV_USE_ASSERT_MALLOC": "n",
 }
+unset = (
+    "CONFIG_ESP_WIFI_ENABLE_WPA3_SAE",
+)
 lines = p.read_text(encoding="utf-8").splitlines() if p.exists() else []
 out = []
 seen = set()
@@ -39,10 +42,16 @@ for line in lines:
     if key in required:
         out.append(f"{key}={required[key]}")
         seen.add(key)
+    elif key in unset:
+        out.append(f"# {key} is not set")
+        seen.add(key)
     else:
         out.append(line)
 for key, value in required.items():
     if key not in seen:
         out.append(f"{key}={value}")
+for key in unset:
+    if key not in seen:
+        out.append(f"# {key} is not set")
 p.write_text("\n".join(out) + "\n", encoding="utf-8")
 print("sdkconfig policy forced: Bluedroid + size + LV fonts/img")

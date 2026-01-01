@@ -24,10 +24,12 @@ python -c "import struct,zlib,pathlib; seq=2; e=bytearray(b'\xFF'*32); struct.pa
 python -m esptool --chip esp32c3 -p %PORT% -b 921600 --before default_reset --after no_reset write_flash --flash_mode dio --flash_freq 80m --flash_size 4MB 0x0 build\bootloader\bootloader.bin 0x8000 build\partition_table\partition-table.bin 0xD000 build\otadata_ota1.bin 0x10000 original\ota0_from_dump1.bin 0x1A0000 release\FGMDCharge_FD_ROUND_V2.bin
 if errorlevel 1 goto fail
 echo.
-echo  FLASH DONE. Monitor is opening. Power the cube now.
-echo  It boots OUR firmware. To switch: remove power, wait 2 seconds, power again.
-echo  Do that 3 times. The third boot is the other firmware.
-echo  Three more power cycles switch back. Do not short any pin.
+echo  FLASH DONE. Monitor is opening. Then YOU power the cube.
+echo  Power-on opens the menu: НОВАЯ or СТАРАЯ.
+echo  СТАРАЯ stays in the original firmware until you cut power.
+echo  Next power-on opens the menu again.
+echo  Wi-Fi: Cube  password 12345678  channel 6  http://192.168.4.1/
+echo  If the phone says wrong password, forget Cube and join again.
 echo.
 idf.py -p %PORT% -b 115200 monitor
 exit /b 0
