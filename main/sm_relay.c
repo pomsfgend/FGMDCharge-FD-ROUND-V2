@@ -434,11 +434,8 @@ void sm_relay_tick(void)
         /* GPIO6 onboard already on. GPIO7 external load 3 s after station voltage. */
         if (st.ccs_output_voltage_raw > 500) {
             if (s_power_seen_ms == 0) s_power_seen_ms = t;
-            bool station_can = st.cml_min_voltage_raw == 0 ||
-                               st.bcl_requested_voltage_raw + 100 >= st.cml_min_voltage_raw;
-            if (!station_can) {
-                app_state_log("load held: request below station min");
-            } else if (!s_load_on && (t - s_power_seen_ms) >= 3000) {
+            /* Current setpoint is the BCL request, not a trip. Keep asking. */
+            if (!s_load_on && (t - s_power_seen_ms) >= 3000) {
                 relays_set(1, 1);
                 s_load_on = true;
                 s_handoff = true;
