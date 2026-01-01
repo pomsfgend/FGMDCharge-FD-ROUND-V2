@@ -1,7 +1,7 @@
 #pragma once
 
 #define CUBE_FW_NAME                 "FD_ROUND_V2"
-#define CUBE_FW_VERSION              "2.1.7"
+#define CUBE_FW_VERSION              "2.1.8"
 
 /* Web API protection. Change before installing on a real vehicle/charging setup. */
 #define CUBE_WEB_KEY                 "FDcube2026"
@@ -39,9 +39,9 @@
 #define CUBE_LCD_INVERT              1
 #define CUBE_LCD_GAP_X               0
 #define CUBE_LCD_GAP_Y               20
-#define CUBE_LCD_MIRROR_X            1
+#define CUBE_LCD_MIRROR_X            0
 #define CUBE_LCD_MIRROR_Y            0
-#define CUBE_LCD_BGR                 0
+#define CUBE_LCD_BGR                 1
 #define CUBE_STATUS_LED_GPIO         (-1)
 #define CUBE_LCD_QUEUE_DEPTH         10
 #define CUBE_LCD_MAX_TRANSFER        38400
