@@ -197,10 +197,10 @@ esp_err_t display_init(void) {
 #endif
     };
 #if CUBE_LCD_USE_ST7789
-    ESP_LOGW(TAG, "panel create ST7789...");
+    ESP_LOGW(TAG, "panel create ST7789 240x280 gap_y...");
     err = esp_lcd_new_panel_st7789(s_panel_io, &panel_cfg, &s_panel);
 #else
-    ESP_LOGW(TAG, "panel create ILI9341 (2.0.5 path)...");
+    ESP_LOGW(TAG, "panel create ILI9341...");
     err = esp_lcd_new_panel_ili9341(s_panel_io, &panel_cfg, &s_panel);
 #endif
     if (err != ESP_OK) {

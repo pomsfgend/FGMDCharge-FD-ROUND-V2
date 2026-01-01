@@ -92,6 +92,7 @@ void app_main(void) {
     if (err != ESP_OK) ESP_LOGE(TAG, "Web init failed: %s", esp_err_to_name(err));
     else ESP_LOGW(TAG, "stage: Web AP ok");
 
+#if CUBE_BLE_ENABLE
 #if (CUBE_BLE_START_DELAY_MS > 0)
     ESP_LOGW(TAG, "BLE delay %d ms (SoftAP first)", CUBE_BLE_START_DELAY_MS);
     vTaskDelay(pdMS_TO_TICKS(CUBE_BLE_START_DELAY_MS));
@@ -104,6 +105,9 @@ void app_main(void) {
     } else {
         ESP_LOGW(TAG, "stage: BLE ok");
     }
+#else
+    ESP_LOGW(TAG, "stage: BLE disabled (CUBE_BLE_ENABLE=0) — SoftAP only");
+#endif
 
     if (xTaskCreate(myTask_Timer, "myTask_Timer", 4096, NULL, 2, NULL) != pdPASS) {
         ESP_LOGE(TAG, "Timer task creation failed");

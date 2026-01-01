@@ -494,8 +494,8 @@ esp_err_t web_init(void)
     ap.ap.channel = CUBE_WIFI_CHANNEL;
     ap.ap.max_connection = CUBE_WIFI_MAX_CONNECTIONS;
     ap.ap.ssid_hidden = 0;          /* always broadcast beacon */
-    ap.ap.beacon_interval = 100;
-    ap.ap.pmf_cfg.capable = true;
+    ap.ap.beacon_interval = 100; /* TU */
+    ap.ap.pmf_cfg.capable = false;
     ap.ap.pmf_cfg.required = false;
     if (strlen(CUBE_WIFI_PASSWORD) >= 8U) {
         /* WPA2-PSK/CCMP is deterministic and avoids mixed-mode roaming quirks. */
@@ -518,6 +518,13 @@ esp_err_t web_init(void)
     ESP_LOGW(TAG, "AP SSID=%s ch=%u auth=%s",
              CUBE_WIFI_SSID, (unsigned)CUBE_WIFI_CHANNEL,
              (strlen(CUBE_WIFI_PASSWORD) >= 8U) ? "WPA2" : "OPEN");
+    {
+        uint8_t mac[6] = {0};
+        (void)esp_wifi_get_mac(WIFI_IF_AP, mac);
+        ESP_LOGW(TAG, "AP MAC %02X:%02X:%02X:%02X:%02X:%02X — scan for SSID '%s' (OPEN)",
+                 mac[0], mac[1], mac[2], mac[3], mac[4], mac[5], CUBE_WIFI_SSID);
+    }
+
 
     httpd_config_t hc = HTTPD_DEFAULT_CONFIG();
     hc.max_uri_handlers = 28;
