@@ -25,6 +25,6 @@ if check.returncode:
     raise SystemExit(check.returncode)
 
 cmd = [sys.executable, "-m", "esptool", "--chip", "esp32c3", "--port", a.port,
-       "write_flash", hex(OTA_OFFSET), str(app)]
+       "write-flash", hex(OTA_OFFSET), str(app)]
 print(f"Writing {len(data)} bytes to OTA1 at 0x{OTA_OFFSET:X} (slot 0x{OTA_SIZE:X}).")
 raise SystemExit(subprocess.call(cmd, cwd=ROOT))

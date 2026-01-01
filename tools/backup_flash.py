@@ -16,7 +16,7 @@ if not out.is_absolute():
     out = ROOT / out
 out.parent.mkdir(parents=True, exist_ok=True)
 cmd = [sys.executable, "-m", "esptool", "--chip", "esp32c3", "--port", a.port,
-       "read_flash", "0x0", "0x400000", str(out)]
+       "read-flash", "0x0", "0x400000", str(out)]
 rc = subprocess.call(cmd, cwd=ROOT)
 if rc != 0:
     raise SystemExit(rc)

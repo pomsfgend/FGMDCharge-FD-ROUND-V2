@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Force BLE + size + required LVGL fonts/img."""
+"""Force BLE + size policy required by the legacy Bluedroid API and OTA slot size."""
 from pathlib import Path
 
 root = Path(__file__).resolve().parents[1]
@@ -19,11 +19,7 @@ required = {
     "CONFIG_BT_CLASSIC_ENABLED": "n",
     "CONFIG_BT_NIMBLE_ENABLED": "n",
     "CONFIG_COMPILER_OPTIMIZATION_SIZE": "y",
-    "CONFIG_LOG_DEFAULT_LEVEL_INFO": "y",
-    "CONFIG_LV_USE_IMG": "y",
-    "CONFIG_LV_USE_LABEL": "y",
-    "CONFIG_LV_FONT_MONTSERRAT_14": "y",
-    "CONFIG_LV_FONT_MONTSERRAT_28": "y",
+    "CONFIG_LOG_DEFAULT_LEVEL_WARN": "y",
 }
 lines = p.read_text(encoding="utf-8").splitlines() if p.exists() else []
 out = []
@@ -43,4 +39,4 @@ for key, value in required.items():
     if key not in seen:
         out.append(f"{key}={value}")
 p.write_text("\n".join(out) + "\n", encoding="utf-8")
-print("sdkconfig policy forced: Bluedroid + size + LV fonts/img")
+print("sdkconfig policy forced: Bluedroid + BLE 4.2 ADV + size optimization")

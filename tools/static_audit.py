@@ -266,8 +266,8 @@ def check_python() -> None:
 def check_windows_scripts() -> None:
     required = {
         "BUILD_RELEASE.bat": ("idf.py set-target esp32c3", "idf.py build", "static_audit.py", "verify_release.py"),
-        "FLASH_RELEASE_OTA1.bat": ("read_flash 0x0 0x400000", "write_flash 0x1A0000", "ota_slot.py", "backup"),
-        "RECOVERY_ORIGINAL.bat": ("verify_original_dump.py", "write_flash 0x0", "dump1.bin"),
+        "FLASH_RELEASE_OTA1.bat": ("read-flash 0x0 0x400000", "write-flash 0x1A0000", "ota_slot.py", "backup"),
+        "RECOVERY_ORIGINAL.bat": ("verify_original_dump.py", "write-flash 0x0", "dump1.bin"),
         "ROLLBACK_OTA0.bat": ("ota_slot.py", "ota0"),
     }
     for rel, needles in required.items():

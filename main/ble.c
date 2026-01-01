@@ -126,38 +126,18 @@ static void gatts_cb(esp_gatts_cb_event_t event, esp_gatt_if_t gatts_if,
                 break;
             }
 
-            /* Keep ADV payload minimal: name + flags only.
-               Including 16-bit service UUID + TX power can yield ESP_ERR_INVALID_ARG
-               when the composed packet is invalid for this Bluedroid build. */
             memset(&s_adv_data, 0, sizeof(s_adv_data));
             s_adv_data.set_scan_rsp = false;
             s_adv_data.include_name = true;
-            s_adv_data.include_txpower = false;
-            s_adv_data.min_interval = 0x20;
-            s_adv_data.max_interval = 0x40;
-            s_adv_data.appearance = 0;
-            s_adv_data.manufacturer_len = 0;
-            s_adv_data.p_manufacturer_data = NULL;
-            s_adv_data.service_data_len = 0;
-            s_adv_data.p_service_data = NULL;
-            s_adv_data.service_uuid_len = 0;
-            s_adv_data.p_service_uuid = NULL;
+            s_adv_data.include_txpower = true;
+            s_adv_data.service_uuid_len = sizeof(s_service_uuid);
+            s_adv_data.p_service_uuid = (uint8_t *)&s_service_uuid;
             s_adv_data.flag = ESP_BLE_ADV_FLAG_GEN_DISC | ESP_BLE_ADV_FLAG_BREDR_NOT_SPT;
 
             err = esp_ble_gap_config_adv_data(&s_adv_data);
             if (err != ESP_OK) {
                 ESP_LOGE(TAG, "config advertising data failed: %s", esp_err_to_name(err));
-                /* Fallback: flags-only ADV so GATT still works after connect by address. */
-                memset(&s_adv_data, 0, sizeof(s_adv_data));
-                s_adv_data.set_scan_rsp = false;
-                s_adv_data.include_name = false;
-                s_adv_data.flag = ESP_BLE_ADV_FLAG_GEN_DISC | ESP_BLE_ADV_FLAG_BREDR_NOT_SPT;
-                err = esp_ble_gap_config_adv_data(&s_adv_data);
-                if (err != ESP_OK) {
-                    ESP_LOGE(TAG, "fallback ADV config failed: %s", esp_err_to_name(err));
-                    break;
-                }
-                ESP_LOGW(TAG, "ADV using flags-only fallback (name not in packet)");
+                break;
             }
             err = esp_ble_gatts_create_attr_tab(gatt_db, gatts_if, 8, 0);
             if (err != ESP_OK) {
