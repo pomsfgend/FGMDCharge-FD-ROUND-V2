@@ -1,0 +1,5 @@
+Full 2.7.4 tree is in FGMDCharge_FD_ROUND_V2_2.7.4.zip.
+GitHub connector accepts text only, about 100KB per commit.
+Not uploaded: original/*.bin (factory dump, 4MB dump1.bin and slot images).
+Uploaded in repo: docs, GO.bat, partitions, config, hooks, web UI, sdkconfig.
+Largest sources not yet in git: main/display.c, main/web.c, main/web_assets.c, main/lv_font_ru_14.c.
