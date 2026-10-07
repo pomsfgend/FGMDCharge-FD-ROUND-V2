@@ -1,7 +1,20 @@
 # FGMDCharge / FD_ROUND V2
 
-Private notes and the 2.7.4 slot-switch hook. Full flash zip is not in git: it contains the original firmware dump.
+Прошивка куба зарядки GB/T на ESP32-C3, ESP-IDF 5.0.9. Заводская программа остаётся в `ota_0`, наша — в `ota_1`. Чип целиком не стирать.
 
-Flash only with GO.bat on COM14. Do not erase the whole chip.
-Current intended firmware: 2.7.4. Last cube log was still factory FD_ROUND from Dec 29 2025.
-See HISTORY_ALL_CHATS_RU.md.
+Репозиторий приватный: внутри описания есть заводской дамп и пароль точки. Текущий исходник — **2.7.4**. На кубе в последнем логе была заводская `FD_ROUND` от 29 декабря 2025, не наша.
+
+## Как прошить
+
+1. Распаковать дерево в `C:\\FGMDCharge_V2`.
+2. Закрыть монитор порта COM14.
+3. Запустить `GO.bat`.
+4. Питание снимает человек. В мониторе должны быть `BOOT reason` и `READY 2.7.4`.
+
+Точка: `Cube` / `123456789`, канал 6, сайт `http://192.168.4.1/`.
+
+- [CHANGELOG.md](CHANGELOG.md)
+- [STATUS.md](STATUS.md)
+- [docs/HARDWARE.md](docs/HARDWARE.md)
+- [docs/UI.md](docs/UI.md)
+- [docs/FLASH.md](docs/FLASH.md)
