@@ -6,7 +6,7 @@ Issues and pull requests are welcome in any of those languages.
 
 Public firmware for the round ESP32-C3 cube that answers a DC charging station on CAN as the vehicle BMS.
 
-Release **2.8.17**. Journal: [CHANGELOG.md](CHANGELOG.md). Order of the work: [CHRONOLOGY.md](CHRONOLOGY.md). Version packages: [archive/](archive/). Branch rules: [docs/BRANCHES.md](docs/BRANCHES.md).
+Release **2.8.17**. Journal: [CHANGELOG.md](CHANGELOG.md). What changed in each old archive: [docs/ARCHIVE_CHANGES.md](docs/ARCHIVE_CHANGES.md). Old source, not this tree: branch [`history`](https://github.com/pomsfgend/FGMDCharge-FD-ROUND-V2/tree/history) and `src/X.Y.Z`. Packages: [archive/](archive/). Branch rules: [docs/BRANCHES.md](docs/BRANCHES.md).
 
 This tree was vibe-coded over a long time from the factory dump in `original/` and from trying the cube on real stations. There is no single author. The factory image itself was not written in this repository. The board was not designed here.
 
@@ -169,7 +169,7 @@ Avoid S3 strap pins GPIO0, GPIO3, GPIO45 and GPIO46. Edit only `main/config.h` f
 
 Публичная прошивка круглого куба на ESP32-C3. На CAN станции постоянного тока куб отвечает как BMS автомобиля, а не как зарядная станция.
 
-Release **2.8.17**. Журнал: [CHANGELOG.md](CHANGELOG.md). Порядок работ: [CHRONOLOGY.md](CHRONOLOGY.md). Пакеты версий: [archive/](archive/). Ветки: [docs/BRANCHES.md](docs/BRANCHES.md).
+Release **2.8.17**. Журнал: [CHANGELOG.md](CHANGELOG.md). Что менялось в каждом старом архиве: [docs/ARCHIVE_CHANGES.md](docs/ARCHIVE_CHANGES.md). Старый исходник, не это дерево: ветка [`history`](https://github.com/pomsfgend/FGMDCharge-FD-ROUND-V2/tree/history) и `src/X.Y.Z`. Пакеты: [archive/](archive/). Ветки: [docs/BRANCHES.md](docs/BRANCHES.md).
 
 Это дерево собрано вайбкодингом, долго, от заводского дампа в `original/` и от поездок к живым станциям. Одного автора нет. Заводской образ написан не здесь. Плату здесь не разрабатывали.
 
