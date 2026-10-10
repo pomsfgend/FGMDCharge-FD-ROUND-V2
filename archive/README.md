@@ -16,3 +16,5 @@ Not here, and not found in any folder named cube files on the machine that publi
 - the 2.8.6 zip named in an old note
 
 The factory chip read is [original/](../original/), not in this folder. It is not MIT.
+
+First batch of the historical zips is in [zips/](zips/CATALOG.md). It is not complete.
