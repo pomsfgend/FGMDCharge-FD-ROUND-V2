@@ -1,7 +1,11 @@
-# What is not in git
+# Factory image
 
-`original/*.bin` is a backup of the cube as it shipped. That image is not source code of this project and is not under the MIT license. It is not published here.
+`original/*.bin` is in this repository on purpose. Manufacturer of that image is unknown (`FD_ROUND` / `EVCHARGER` / `FGMDCharge` only). It is not MIT. See `original/README.md`.
 
-The firmware this repository builds is published as a release asset, `FGMDCharge_FD_ROUND_V2.bin`, on the GitHub release. `build/`, `managed_components/` and `sdkconfig` are generated locally by ESP-IDF 5.0.9.
+`build/`, `managed_components/` and `sdkconfig` are still generated on your machine by ESP-IDF 5.0.9 and are not committed.
 
-Cable flash of both slots (`GO.bat`) needs the factory slices on your own machine. OTA of the release bin does not.
+# Заводской образ
+
+`original/*.bin` лежит в репозитории намеренно. Производитель этого образа неизвестен (в нём только `FD_ROUND` / `EVCHARGER` / `FGMDCharge`). Это не MIT. См. `original/README.md`.
+
+`build/`, `managed_components/` и `sdkconfig` по-прежнему собираются у вас ESP-IDF 5.0.9 и в git не входят.

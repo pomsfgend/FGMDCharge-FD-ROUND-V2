@@ -20,6 +20,9 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 
-Factory images under original/ are a backup of the device as it shipped.
-They are not covered by the MIT license above and are not our source code.
-Do not treat those binaries as open-source works of this project.
+Factory images under original/ are a dump of the cube as it shipped.
+The manufacturer is unknown: the image identifies itself as project FD_ROUND,
+on-screen title EVCHARGER, BLE name FGMDCharge, chip ESP32-C3. No company name
+was found in it. Those binaries are not covered by the MIT license above and
+were not written by the author of the rest of this repository.
+
