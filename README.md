@@ -2,7 +2,7 @@
 
 Public firmware for the round ESP32-C3 cube that answers a DC charging station on CAN as the vehicle BMS.
 
-Release **2.8.17**. Journal of every earlier build: [CHANGELOG.md](CHANGELOG.md). Branch rules: [docs/BRANCHES.md](docs/BRANCHES.md). This repository's firmware, build scripts and documentation were written by **Grok (xAI)**. The round board and the factory image were already on the device. Grok did not design that PCB and did not write the factory firmware.
+Release **2.8.17**. Journal of every earlier build: [CHANGELOG.md](CHANGELOG.md). Order of the work: [CHRONOLOGY.md](CHRONOLOGY.md). Branch rules: [docs/BRANCHES.md](docs/BRANCHES.md). This repository's firmware, build scripts and documentation were written by **Grok (xAI)**. The round board and the factory image were already on the device. Grok did not design that PCB and did not write the factory firmware.
 
 [Русский](#русский) is below.
 

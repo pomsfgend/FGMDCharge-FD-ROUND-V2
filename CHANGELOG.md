@@ -142,4 +142,4 @@ Early builds: audit, local web, two OTA slots, GO.bat. Per-version trees were no
 
 - ESP32-S3 is documented and not built.
 - The factory image has no company name.
-- Source trees older than 2.8.17 are not in git.
+- Source trees older than 2.8.17 are not in git. The order of the work is [CHRONOLOGY.md](CHRONOLOGY.md). `analysis_original/` from the 2.1.x manifest is missing. A folder named `cube file` was not on the machine that published this.
