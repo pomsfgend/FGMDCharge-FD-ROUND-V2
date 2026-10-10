@@ -1,7 +1,7 @@
 /*******************************************************************************
  * Size: 14 px
  * Bpp: 4
- * Opts: --font /usr/share/fonts/truetype/dejavu/DejaVuSans.ttf --size 14 --bpp 4 --format lvgl --no-compress --no-kerning --lv-include lvgl.h --lv-font-name lv_font_ru_14 -r 0x20-0x7E -r 0x401 -r 0x410-0x44F -r 0x451 -o /tmp/fgmd/FGMDCharge_V2/main/lv_font_ru_14.c
+ * Opts: --font DejaVuSans.ttf --size 14 --bpp 4 --format lvgl --no-compress --no-kerning --lv-include lvgl.h --lv-font-name lv_font_ru_14 -r 0x20-0x7E -r 0x401 -r 0x410-0x44F -r 0x451 -o main/lv_font_ru_14.c
  ******************************************************************************/
 
 #ifdef LV_LVGL_H_INCLUDE_SIMPLE

@@ -21,7 +21,7 @@ if not "%PATH_CHECK%"=="%PROJECT_DIR%" (
   echo ERROR: Path contains SPACES.
   echo.
   echo Unpack to a short path WITHOUT spaces, for example:
-  echo   C:\FGMDCharge_V2
+  echo   the folder that contains this script
   echo.
   echo Current path is not usable.
   goto FAIL
@@ -81,7 +81,7 @@ if exist sdkconfig.old del /q sdkconfig.old 2>nul
 if exist dependencies.lock del /q dependencies.lock 2>nul
 if exist build rmdir /s /q build
 if exist build (
-  echo ERROR: C:\FGMDCharge_V2\build is locked. Close the serial monitor and delete that folder.
+  echo ERROR: the build folder is locked. Close the serial monitor and delete that folder.
   goto FAIL
 )
 if not exist release mkdir release

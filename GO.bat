@@ -1,7 +1,7 @@
 @echo off
 setlocal EnableExtensions
 cd /d "%~dp0"
-set "PORT=COM14"
+if not defined PORT set /p PORT=COM port, example COM7: 
 set "IDF_DIR=%USERPROFILE%\esp\esp-idf-5.0.9"
 echo.
 echo  FGMDCharge / FD_ROUND V2  RELEASE 2.8.17
@@ -14,7 +14,7 @@ call "%IDF_DIR%\export.bat"
 if errorlevel 1 goto fail
 if exist build rmdir /s /q build
 if exist build (
-  echo Close the serial monitor, delete C:\FGMDCharge_V2\build, run GO.bat again.
+  echo Close the serial monitor, delete the build folder, run GO.bat again.
   goto fail
 )
 echo.| call BUILD_RELEASE.bat

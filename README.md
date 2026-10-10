@@ -2,7 +2,7 @@
 
 Public firmware for the round ESP32-C3 cube that answers a DC charging station on CAN as the vehicle BMS.
 
-Release **2.8.17**. This repository's firmware, build scripts and documentation were written by **Grok (xAI)**. The round board and the factory image were already on the device. Grok did not design that PCB and did not write the factory firmware.
+Release **2.8.17**. Journal of every earlier build: [CHANGELOG.md](CHANGELOG.md). Branch rules: [docs/BRANCHES.md](docs/BRANCHES.md). This repository's firmware, build scripts and documentation were written by **Grok (xAI)**. The round board and the factory image were already on the device. Grok did not design that PCB and did not write the factory firmware.
 
 [Русский](#русский) is below.
 
@@ -117,10 +117,10 @@ SPI clock 40 MHz. CAN 250 kbit/s, extended frames, accept-all filter.
 Do not erase the whole chip if the factory app in `ota_0` must remain. To replace only this firmware:
 
 ```
-esptool.py --chip esp32c3 -p COM14 -b 460800 write_flash 0x1A0000 release/FGMDCharge_FD_ROUND_V2.bin
+esptool.py --chip esp32c3 -p COMx -b 460800 write_flash 0x1A0000 release/FGMDCharge_FD_ROUND_V2.bin
 ```
 
-`BUILD_RELEASE.bat` builds. `GO.bat` builds and writes bootloader, partition table, factory image and this app. Change `COM14` to your port.
+`BUILD_RELEASE.bat` builds. `GO.bat` builds and writes bootloader, partition table, factory image and this app. It asks for the COM port.
 
 ## ESP32-S3 later
 
@@ -278,10 +278,10 @@ SPI 40 МГц. CAN 250 кбит/с, расширенные кадры, филь�
 Весь чип не стирать, если заводское приложение в `ota_0` нужно оставить. Заменить только эту прошивку:
 
 ```
-esptool.py --chip esp32c3 -p COM14 -b 460800 write_flash 0x1A0000 release/FGMDCharge_FD_ROUND_V2.bin
+esptool.py --chip esp32c3 -p COMx -b 460800 write_flash 0x1A0000 release/FGMDCharge_FD_ROUND_V2.bin
 ```
 
-`BUILD_RELEASE.bat` собирает. `GO.bat` собирает и пишет загрузчик, таблицу, заводской образ и это приложение. `COM14` замените на свой порт.
+`BUILD_RELEASE.bat` собирает. `GO.bat` собирает и пишет загрузчик, таблицу, заводской образ и это приложение. Порт скрипт спрашивает сам.
 
 ### Позже на ESP32-S3
 
