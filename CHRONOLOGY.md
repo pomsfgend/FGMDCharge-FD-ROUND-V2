@@ -14,7 +14,7 @@ Dates are the days the notes were written, not a lab log. Personal paths and the
 | `archive/2.8.17/` | Source zip from the build that produced the bin now in `release/`. |
 | Listed in `RELEASE_MANIFEST_SHA256.txt` and `FILE_INDEX.txt` (release 2.1.1 / 2.1.4) and **absent** now | Whole directory `analysis_original/`: disassembly of CAN, BLE, LCD, ADC/PWM, `FIRMWARE_REPORT_RU.md`, `KANONICAL_VALUES.md`, `RECOVERED_HARDWARE.md`. |
 
-A folder named `cube file` was looked for again after it was said to have been copied onto `main`. No such commit and no such directory arrived. `analysis_original/` is still absent. What could be published from the build machine is now in `archive/`.
+The PC folder has now been copied in three batches. Every zip whose bytes differ is in `archive/zips/`. Exact duplicates were not stored twice. There is no `2.2.8` zip in that set. `analysis_original/` is inside the 2.1.x archives, not a separate folder.
 
 ## Line
 
@@ -43,9 +43,10 @@ A folder named `cube file` was looked for again after it was said to have been c
 23. 2.8.17. Country and mode set before `esp_wifi_start`. PMF off. This is `main`.
 24. After 2.8.17. Repository made public. Factory dump added, with the unknown-manufacturer note. Bilingual README, pin table, ESP32-S3 not built. Journal tags. Closed issues for the bugs above. RX shorted to TX on the module; that is a dead chip, not a firmware version.
 
-## Not filled, because the files are not here
+## What the PC folder did not contain
 
-- `analysis_original/` from 2.1.x
-- Source of 2.3.0 through 2.8.15, except what the journal already says
-- The 2.8.6 zip named in the 2026-10-08 note
-- A directory called `cube file`. It was not in the repository after the claim that it had been copied to `main`.
+- A file named `2.2.8`
+- Anything before `2.0.4`
+- A separate `2.8.16` or `2.8.17` source zip. Those two are the trees already in this repository.
+
+`analysis_original/` is inside the 2.1.x zips. The 2.8.6 zip is `archive/zips/FGMDCharge_FD_ROUND_V2_2.8.6.zip`.

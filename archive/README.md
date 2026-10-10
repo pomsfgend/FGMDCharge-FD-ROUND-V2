@@ -17,4 +17,4 @@ Not here, and not found in any folder named cube files on the machine that publi
 
 The factory chip read is [original/](../original/), not in this folder. It is not MIT.
 
-First batch of the historical zips is in [zips/](zips/CATALOG.md). It is not complete.
+The historical zips from the PC are in [zips/](zips/CATALOG.md). Exact copies are stored once. `2.2.8` was not among them. `2.8.16` and `2.8.17` are the trees already in this repository, not another zip from that folder.
