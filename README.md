@@ -27,7 +27,7 @@ Screen code `1234` is checked in firmware and is not printed on the display.
 
 Public repository: <https://github.com/pomsfgend/FGMDCharge-FD-ROUND-V2>
 
-Prebuilt app image for OTA or for `write_flash` at `0x1A0000`: [release v2.8.17](https://github.com/pomsfgend/FGMDCharge-FD-ROUND-V2/releases/tag/v2.8.17). File `FGMDCharge_FD_ROUND_V2.bin`. Do not flash the whole chip if the factory image in `ota_0` must stay.
+Prebuilt app image (1 143 440 bytes, SHA256 `7a6ca69a24e2f7c1fb3f312d40313c5862d78a20a244591a26b8cd08b8d263ac`): [`release/FGMDCharge_FD_ROUND_V2.bin`](https://github.com/pomsfgend/FGMDCharge-FD-ROUND-V2/raw/main/release/FGMDCharge_FD_ROUND_V2.bin). Flash it to `ota_1` at `0x1A0000`. Do not erase the whole chip if the factory image in `ota_0` must stay.
 
 ## Build
 
