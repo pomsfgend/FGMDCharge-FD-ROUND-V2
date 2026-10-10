@@ -1,0 +1,2 @@
+version: "1.0.2"
+description: "Local vendored Espressif ILI9341 LCD component for ESP-IDF 5.0.x"

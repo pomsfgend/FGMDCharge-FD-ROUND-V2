@@ -1,7 +1,7 @@
-# Чего нет в git
+# What is not in git
 
-Заводские bin из original/ не залиты: это чужой дамп, около 12 МБ, и этот канал GitHub принимает только текст.
+`original/*.bin` is a backup of the cube as it shipped. That image is not source code of this project and is not under the MIT license. It is not published here.
 
-Полный исходник 2.7.4, включая display.c, web.c и шрифт, лежит в архиве FGMDCharge_FD_ROUND_V2_2.7.4.zip. В репозитории — документы, хук слота, GO.bat, разделы и config.h.
+The firmware this repository builds is published as a release asset, `FGMDCharge_FD_ROUND_V2.bin`, on the GitHub release. `build/`, `managed_components/` and `sdkconfig` are generated locally by ESP-IDF 5.0.9.
 
-Историю коммитов 2.3.0–2.7.4 пофайлово восстановить нельзя: промежуточные деревья не сохранялись, есть zip версий и текст CHANGELOG.
+Cable flash of both slots (`GO.bat`) needs the factory slices on your own machine. OTA of the release bin does not.

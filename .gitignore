@@ -1,6 +1,15 @@
 build/
-managed_components/
 sdkconfig
 sdkconfig.old
-original/*.bin
+managed_components/
+dependencies.lock
+__pycache__/
+*.pyc
+.cache/
+.vscode/
 *.elf
+*.map
+release/*.bin
+release/*.elf
+# Factory chip image. Not this project's source and not MIT.
+original/*.bin

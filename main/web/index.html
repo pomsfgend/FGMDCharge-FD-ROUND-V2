@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html lang="ru"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Cube</title>
+<link rel="stylesheet" href="style.css?v=2815">
+</head><body>
+<aside>
+  <div class="brand">Cube<small>2.8.17</small></div>
+  <button class="nav on" type="button" data-tab="home">Домой</button>
+  <button class="nav" type="button" data-tab="session">Сессия</button>
+  <button class="nav" type="button" data-tab="pile">Станция</button>
+  <button class="nav" type="button" data-tab="network">Сеть</button>
+  <button class="nav" type="button" data-tab="logs">Логи</button>
+  <button class="nav" type="button" data-tab="system">Система</button>
+  <button class="nav dim" type="button" disabled>Serial</button>
+  <button class="nav dim" type="button" disabled>Modbus</button>
+</aside>
+<main>
+<section id="home">
+  <h1>Домой</h1>
+  <p class="lead" id="st">нет сессии</p>
+  <p>При включении выберите НОВАЯ. Передача CAN уже включена. В режиме «авто» куб сам узнаёт станцию: кадр версии — 2023-B, CHM — 2015, CRM без CHM — 2011.</p>
+  <p class="ip">Веб в вашей сети: <b id="sip">--</b></p>
+  <div class="metrics">
+    <article class="metric-card"><span>Напряжение</span><b id="v">--</b></article>
+    <article class="metric-card"><span>Ток</span><b id="a">--</b></article>
+    <article class="metric-card"><span>Мощность</span><b id="p">--</b></article>
+    <article class="metric-card"><span>SOC</span><b id="soc">--</b></article>
+    <article class="metric-card"><span>Залито</span><b id="kwh">--</b></article>
+  </div>
+  <table>
+    <tr><th>VIN</th><td id="vin">--</td></tr>
+    <tr><th>Протокол</th><td id="proto">--</td></tr>
+    <tr><th>Станция может</th><td id="lim">ждём CML</td></tr>
+    <tr><th>Запрос</th><td id="req">240 В / 50 А</td></tr>
+    <tr><th>Обмен</th><td id="xchg">тишина</td></tr>
+    <tr><th>Реле</th><td id="rel">0 / 0</td></tr>
+  </table>
+  <button id="hold" type="button" class="danger">Удерживайте для стопа</button>
+</section>
+<section id="session" class="hide">
+  <h1>Сессия</h1>
+  <p>Кнопки старта нет. Подключились к станции — куб отвечает сам и пишет протокол на экран. СТАРАЯ прошивка этот сайт не открывает: логи и автопротокол только у НОВОЙ.</p>
+  <table>
+    <tr><th>Этап</th><td id="stage">--</td></tr>
+    <tr><th>Время</th><td id="mins">--</td></tr>
+    <tr><th>кВт·ч залито</th><td id="kwh2">--</td></tr>
+    <tr><th>Ёмкость АКБ</th><td id="capv">7.5 кВт·ч</td></tr>
+    <tr><th>Оценка SOC</th><td id="soc2">--</td></tr>
+  </table>
+</section>
+<section id="pile" class="hide">
+  <h1>Станция</h1>
+  <p>Куб отвечает как батарея. Активен один протокол — тот, который станция сама начала. Остальные молчат, пока она не заговорит иначе.</p>
+  <table>
+    <tr><th>GB/T 27930-2011</th><td id="p2011">--</td></tr>
+    <tr><th>GB/T 2015 и 2023 класс A</th><td id="p2015">--</td></tr>
+    <tr><th>GB/T 2023 класс B</th><td id="p2023">--</td></tr>
+    <tr><th>Выбор</th><td id="plock">--</td></tr>
+  </table>
+  <h2>Кадры, которых нет на главной</h2>
+  <table>
+    <tr><th>CRM, опознание</th><td id="crmv">--</td></tr>
+    <tr><th>CRO, готова ли станция</th><td id="crov">--</td></tr>
+    <tr><th>CCS, можно ли ток</th><td id="ccsv">--</td></tr>
+    <tr><th>CML, что станция умеет</th><td id="cmlv">--</td></tr>
+    <tr><th>CST, почему остановилась</th><td id="cstv">--</td></tr>
+    <tr><th>CSD, итог станции</th><td id="csdv">--</td></tr>
+    <tr><th>CEM, ошибка станции</th><td id="cemv">--</td></tr>
+    <tr><th>Наш запрос BCL</th><td id="bclv">--</td></tr>
+  </table>
+  <h2>Что это делает</h2>
+  <ul class="help">
+    <li><b>2011</b> — старые стойки. Нет CHM. Куб узнаёт их по CRM и отвечает коротким BRM.</li>
+    <li><b>2015 / 2023-A</b> — обычный провод. Станция шлёт CHM, куб отвечает BHM, затем полный набор.</li>
+    <li><b>2023-B</b> — ChaoJi, другой адрес на том же CAN. Не путать с 2015.</li>
+    <li><b>CRM 0x00</b> — станция ещё не узнала батарею. Куб повторяет BRM.</li>
+    <li><b>CRM 0xAA</b> — узнала. Дальше параметры BCP и возможности CML.</li>
+    <li><b>CRO 0x00 / 0xAA</b> — контакторы станции ещё не готовы или уже готовы.</li>
+    <li><b>CCS «пауза»</b> — станция временно не даёт ток. Это не конец сессии. Конец — это CST, CEM или CSD.</li>
+    <li><b>CML</b> — потолок и пол напряжения и тока стойки. Запрос выше потолка куб сам режет.</li>
+    <li><b>Ток со знаком минус</b> — так стандарт пишет заряд. Плюс стойка считает разрядом и обрывает сессию.</li>
+    <li><b>CST</b> — станция сама остановила заряд, байт причины.</li>
+    <li><b>CSD</b> — её собственные минуты и энергия, не наш счётчик.</li>
+    <li><b>CEM</b> — какой наш кадр она не дождалась.</li>
+  </ul>
+</section>
+<section id="charging" class="hide">
+  <h1>Зарядка</h1>
+  <form id="set">
+    <label>VIN<input id="vinin" maxlength="17" placeholder="17 символов"></label>
+    <label>Напряжение, В<input id="vv" type="number" min="50" max="500" value="240"></label>
+    <label>Ток, А<input id="ii" type="number" min="5" max="250" value="50"></label>
+    <label>Ёмкость АКБ, кВт·ч<input id="cap" type="number" min="1" max="200" step="0.1" value="7.5"></label>
+    <label>Стартовый SOC, %<input id="ss" type="number" min="0" max="100" value="20"></label>
+    <label>Протокол
+      <select id="protosel">
+        <option value="0">Авто по станции</option>
+        <option value="1">GB/T 2015 / 2023-A</option>
+        <option value="2">GB/T 2011</option>
+        <option value="3">GB/T 2023-B</option>
+      </select>
+    </label>
+    <button type="submit">Применить</button>
+  </form>
+</section>
+<section id="network" class="hide">
+  <h1>Сеть</h1>
+  <p>Точка кубика: Cube / 12345678 · канал <b id="ch">--</b> · клиенты <b id="sta">0</b></p>
+  <button id="scan" type="button">Обновить сети</button>
+  <ul id="nets"></ul>
+  <div id="sheet" class="sheet hide">
+    <p>Подключить <b id="chosen"></b></p>
+    <label>Пароль<input id="pw" type="text" inputmode="numeric"></label>
+    <button id="join" type="button">Подключить</button>
+    <button id="cancel" type="button" class="ghost">Отмена</button>
+  </div>
+</section>
+<section id="logs" class="hide">
+  <h1>Логи</h1>
+  <p>Файл пишется, как только станция начала обмен по CAN: кадры и ошибки. Пока обмена нет — список пустой. Пока обмен идёт, тот же файл обновляется раз в 10 секунд и ещё раз, когда сессия кончилась.</p>
+  <p id="logn">откройте раздел, чтобы увидеть файлы</p>
+  <ul id="logfiles"></ul>
+  <button id="allzip" type="button" class="hide">Скачать все файлы одним архивом</button>
+  <h2>Сейчас в памяти, это не сохранённый файл</h2>
+  <pre id="esplog">нет</pre>
+  <pre id="canlog">нет</pre>
+  <button id="getlog" type="button">Показать текущий обмен</button>
+</section>
+<section id="system" class="hide">
+  <h1>Система</h1>
+  <p>Локально: наша прошивка в ota_1, оригинал в ota_0.</p>
+  <button id="orig" type="button">Загрузить оригинал</button>
+  <button id="relay" type="button">Нагрузка вкл/выкл</button>
+  <h2>Файл из сети</h2>
+  <p>Windows-шару кубик читает как HTTP. Укажи адрес файла и логин, если папка закрыта.</p>
+  <label>URL файла<input id="url" placeholder="http://192.168.1.10/share/cube.bin"></label>
+  <label>Логин Windows<input id="wu"></label>
+  <label>Пароль Windows<input id="wp" type="password"></label>
+  <button id="netfw" type="button">Скачать и прошить</button>
+  <h2>Файл с телефона</h2>
+  <p>Только release\FGMDCharge_FD_ROUND_V2.bin. Zip не прошивается. Питание не снимать, пока куб сам не перезагрузится.</p>
+  <input id="bin" type="file" accept=".bin,application/octet-stream">
+  <button id="ota" type="button">Залить</button>
+  <p>Полоса идёт и здесь, и на дисплее куба.</p>
+</section>
+</main>
+<div id="otamodal" class="otamodal">
+  <div class="otacard">
+    <b>Прошивка куба</b>
+    <div class="otaani"><i id="bar"></i></div>
+    <p id="otatxt">ожидание</p>
+  </div>
+</div>
+<script src="app.js?v=2815"></script>
+</body></html>
