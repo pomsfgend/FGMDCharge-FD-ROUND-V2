@@ -1,5 +1,7 @@
 # Branches
 
+ESP32-S3 is not a branch of this repository anymore. The port is [FGMDCharge-S3](https://github.com/pomsfgend/FGMDCharge-S3). `hw/esp32-s3` remains only so older links open. It was cut from 2.8.15 and is not `main`.
+
 `main` is the current firmware, 2.8.17. Releases and the prebuilt image come from here.
 
 `develop` is the branch for the next change. Open a pull request into `develop`. Do not commit experiments straight to `main`.
@@ -11,6 +13,8 @@ Do not add a tag `v2.8.10` on `main`. That would offer today's source under an o
 There is no branch per folder. CAN, the site, the display and the bootloader are one firmware.
 
 # Ветки
+
+ESP32-S3 больше не ветка этого репозитория. Порт: [FGMDCharge-S3](https://github.com/pomsfgend/FGMDCharge-S3). `hw/esp32-s3` оставлена, чтобы старые ссылки открывались. Она снята с 2.8.15 и это не `main`.
 
 `main` — текущая прошивка, 2.8.17. Релизы и готовый bin идут отсюда.
 

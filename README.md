@@ -6,7 +6,7 @@ Issues and pull requests are welcome in any of those languages.
 
 Public firmware for the round ESP32-C3 cube that answers a DC charging station on CAN as the vehicle BMS.
 
-Release **2.8.17**. Journal: [CHANGELOG.md](CHANGELOG.md). What changed in each old archive: [docs/ARCHIVE_CHANGES.md](docs/ARCHIVE_CHANGES.md). Old source, not this tree: branch [`history`](https://github.com/pomsfgend/FGMDCharge-FD-ROUND-V2/tree/history) and `src/X.Y.Z`. Packages: [archive/](archive/). Branch rules: [docs/BRANCHES.md](docs/BRANCHES.md).
+Release **2.8.17**. ESP32-S3 is a separate project: [FGMDCharge-S3](https://github.com/pomsfgend/FGMDCharge-S3) (3.0.0, from this release). The sketch [hw/esp32-s3](https://github.com/pomsfgend/FGMDCharge-FD-ROUND-V2/tree/hw/esp32-s3) is not the line to build. Journal: [CHANGELOG.md](CHANGELOG.md). What changed in each old archive: [docs/ARCHIVE_CHANGES.md](docs/ARCHIVE_CHANGES.md). Old source, not this tree: branch [`history`](https://github.com/pomsfgend/FGMDCharge-FD-ROUND-V2/tree/history) and `src/X.Y.Z`. Packages: [archive/](archive/). Branch rules: [docs/BRANCHES.md](docs/BRANCHES.md).
 
 This tree was vibe-coded over a long time from the factory dump in `original/` and from trying the cube on real stations. There is no single author. The factory image itself was not written in this repository. The board was not designed here.
 
@@ -126,36 +126,13 @@ esptool.py --chip esp32c3 -p COMx -b 460800 write_flash 0x1A0000 release/FGMDCha
 
 `BUILD_RELEASE.bat` builds. `GO.bat` builds and writes bootloader, partition table, factory image and this app. It asks for the COM port.
 
-## ESP32-S3 later
+## ESP32-S3
 
-This tree **does not build for ESP32-S3**. `sdkconfig` is `esp32c3`. Nothing here was run on an S3.
+This tree stays ESP32-C3. It does not build for ESP32-S3.
 
-When the cube board is replaced by a plain ESP32-S3 module, keep the same parts (ST7789, CST816S, CAN transceiver, two relay drivers) and change the chip target:
+The S3 port is a separate repository: [FGMDCharge-S3](https://github.com/pomsfgend/FGMDCharge-S3), version 3.0.0, name `FD_ROUND_S3`, taken from this release 2.8.17. Pins, the buy list and bring-up are there, in `docs/s3/PORT_RU.md` and `main/boards/esp32s3_devkit.h`.
 
-```
-idf.py set-target esp32s3
-```
-
-Then set flash size to the module you bought (4 MB is enough) and point the console at USB Serial/JTAG if you do not fit a second USB-UART.
-
-**GPIO19 on ESP32-S3 is USB D−.** This cube uses GPIO19 as LCD SCLK, so that one wire must move. GPIO20 is USB D+ and is UART RX on the C3, so do not reuse it as a button or a display pin if you want USB. Suggested S3 wiring if you redraw the board (not tested):
-
-| Function | C3 now | S3 suggestion |
-|---|---|---|
-| LCD MOSI | 5 | 11 |
-| LCD SCLK | 19 | 12 |
-| LCD CS | 4 | 10 |
-| LCD DC | 18 | 13 |
-| Backlight | 2 | 14 |
-| Touch SDA | 1 | 8 |
-| Touch SCL | 8 | 9 |
-| CAN TX | 10 | 17 |
-| CAN RX | 9 | 18 |
-| Relay A | 6 | 15 |
-| Relay B | 7 | 16 |
-| Console | UART0 GPIO21/20 | native USB GPIO19/20, leave them free |
-
-Avoid S3 strap pins GPIO0, GPIO3, GPIO45 and GPIO46. Edit only `main/config.h` for the new numbers, then build. CAN, the GB/T state machine and the website do not care which GPIO is which, as long as `config.h` matches the wires.
+An earlier sketch is branch [`hw/esp32-s3`](https://github.com/pomsfgend/FGMDCharge-FD-ROUND-V2/tree/hw/esp32-s3), cut from 2.8.15. It is not the line to build. The pin table that used to sit in this section (backlight 14, touch 8/9, relays 15/16) was an untested guess and does not match the port. Do not flash the S3 tree, or `GO.bat` from it, into the cube.
 
 ## Layout
 
@@ -169,7 +146,7 @@ Avoid S3 strap pins GPIO0, GPIO3, GPIO45 and GPIO46. Edit only `main/config.h` f
 
 Публичная прошивка круглого куба на ESP32-C3. На CAN станции постоянного тока куб отвечает как BMS автомобиля, а не как зарядная станция.
 
-Release **2.8.17**. Журнал: [CHANGELOG.md](CHANGELOG.md). Что менялось в каждом старом архиве: [docs/ARCHIVE_CHANGES.md](docs/ARCHIVE_CHANGES.md). Старый исходник, не это дерево: ветка [`history`](https://github.com/pomsfgend/FGMDCharge-FD-ROUND-V2/tree/history) и `src/X.Y.Z`. Пакеты: [archive/](archive/). Ветки: [docs/BRANCHES.md](docs/BRANCHES.md).
+Release **2.8.17**. ESP32-S3 — отдельный проект: [FGMDCharge-S3](https://github.com/pomsfgend/FGMDCharge-S3) (3.0.0, от этого релиза). Ветка [hw/esp32-s3](https://github.com/pomsfgend/FGMDCharge-FD-ROUND-V2/tree/hw/esp32-s3) — не та линия, которую собирают. Журнал: [CHANGELOG.md](CHANGELOG.md). Что менялось в каждом старом архиве: [docs/ARCHIVE_CHANGES.md](docs/ARCHIVE_CHANGES.md). Старый исходник, не это дерево: ветка [`history`](https://github.com/pomsfgend/FGMDCharge-FD-ROUND-V2/tree/history) и `src/X.Y.Z`. Пакеты: [archive/](archive/). Ветки: [docs/BRANCHES.md](docs/BRANCHES.md).
 
 Это дерево собрано вайбкодингом, долго, от заводского дампа в `original/` и от поездок к живым станциям. Одного автора нет. Заводской образ написан не здесь. Плату здесь не разрабатывали.
 
@@ -289,36 +266,13 @@ esptool.py --chip esp32c3 -p COMx -b 460800 write_flash 0x1A0000 release/FGMDCha
 
 `BUILD_RELEASE.bat` собирает. `GO.bat` собирает и пишет загрузчик, таблицу, заводской образ и это приложение. Порт скрипт спрашивает сам.
 
-### Позже на ESP32-S3
+### ESP32-S3
 
-Это дерево **под ESP32-S3 не собирается**. `sdkconfig` — `esp32c3`. На S3 ничего отсюда не запускалось.
+Это дерево остаётся ESP32-C3. Под S3 оно не собирается.
 
-Когда вместо платы куба будет обычный модуль ESP32-S3, детали те же (ST7789, CST816S, трансивер CAN, два драйвера реле). Меняется чип:
+Порт S3 — отдельный репозиторий: [FGMDCharge-S3](https://github.com/pomsfgend/FGMDCharge-S3), версия 3.0.0, имя `FD_ROUND_S3`, снят с этого релиза 2.8.17. Ноги, покупки и стенд там, в `docs/s3/PORT_RU.md` и `main/boards/esp32s3_devkit.h`.
 
-```
-idf.py set-target esp32s3
-```
-
-Дальше размер flash под купленный модуль (4 МБ хватает) и консоль на USB Serial/JTAG, если отдельный USB-UART не ставите.
-
-**GPIO19 на ESP32-S3 — это USB D−.** На кубе GPIO19 — это такт экрана, этот провод придётся перенести. GPIO20 — USB D+, на C3 это ещё и RX консоли. Не занимайте его кнопкой или экраном, если нужен USB. Разводка S3, если плата рисуется заново (не проверялась):
-
-| Функция | Сейчас C3 | Вариант S3 |
-|---|---|---|
-| LCD MOSI | 5 | 11 |
-| LCD SCLK | 19 | 12 |
-| LCD CS | 4 | 10 |
-| LCD DC | 18 | 13 |
-| Подсветка | 2 | 14 |
-| Тач SDA | 1 | 8 |
-| Тач SCL | 8 | 9 |
-| CAN TX | 10 | 17 |
-| CAN RX | 9 | 18 |
-| Реле A | 6 | 15 |
-| Реле B | 7 | 16 |
-| Консоль | UART0 GPIO21/20 | родной USB GPIO19/20, не занимать |
-
-Не трогайте strap-пины S3: GPIO0, GPIO3, GPIO45, GPIO46. Новые номера пишутся только в `main/config.h`, затем сборка. CAN, автомат GB/T и сайт не зависят от номеров, если `config.h` совпадает с проводами.
+Ранний набросок — ветка [`hw/esp32-s3`](https://github.com/pomsfgend/FGMDCharge-FD-ROUND-V2/tree/hw/esp32-s3), от 2.8.15. Собирать её не нужно. Таблица ног, которая раньше стояла в этом разделе (подсветка 14, тач 8/9, реле 15/16), была непроверенной догадкой и с портом не совпадает. Дерево S3 и его `GO.bat` в куб не прошивать.
 
 ### Состав дерева
 
