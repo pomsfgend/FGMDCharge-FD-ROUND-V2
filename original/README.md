@@ -9,7 +9,7 @@ Strings inside the app image:
 - BLE name: `FGMDCharge`
 - Chip: ESP32-C3
 
-No company name, copyright line or website was found in the readable strings. These files are a backup of that one device. They are not source code and the MIT license does not apply. The firmware in the rest of this repository was written by Grok (xAI) and does not claim authorship of these binaries.
+No company name, copyright line or website was found in the readable strings. These files are a backup of that one device. They are not source code and the MIT license does not apply. The rest of this repository was vibe-coded from this dump. It does not claim authorship of these binaries.
 
 `dump1.bin` is the 4 MB chip read. The other files are slices (bootloader, partition table, NVS, OTA data, PHY, both app slots). NVS may still contain that cube's old settings.
 
@@ -24,6 +24,6 @@ No company name, copyright line or website was found in the readable strings. Th
 - имя BLE: `FGMDCharge`
 - чип: ESP32-C3
 
-Названия фирмы, copyright и сайта в читаемых строках нет. Это копия одного устройства, не исходный код, лицензия MIT на неё не распространяется. Прошивку остального репозитория написал Grok (xAI); к этим файлам это авторство не относится.
+Названия фирмы, copyright и сайта в читаемых строках нет. Это копия одного устройства, не исходный код, лицензия MIT на неё не распространяется. Остальной репозиторий собран вайбкодингом по этому дампу и к этим файлам авторства не предъявляет.
 
 `dump1.bin` — чтение чипа, 4 МБ. Остальные файлы — куски: загрузчик, таблица разделов, NVS, данные OTA, PHY, оба слота приложения. В NVS могут остаться старые настройки того куба.

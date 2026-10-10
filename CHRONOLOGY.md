@@ -10,10 +10,11 @@ Dates are the days the notes were written, not a lab log. Personal paths and the
 |---|---|
 | `main` | Source and factory dump as of 2.8.17. Prebuilt `release/FGMDCharge_FD_ROUND_V2.bin`. |
 | `notes/x.y.z` | Text only. Those tags are not old source. |
-| Local copy from 9 Oct 2026, not in git | `FGMDCharge_2.8.16_src.zip` (version string 2.8.16) and its bin. `FGMDCharge_2.8.17_src.zip` matches the tree that became `main`. |
+| `archive/2.8.16/` | Source zip and app image of 2.8.16. `config.h` inside the zip says 2.8.16. |
+| `archive/2.8.17/` | Source zip from the build that produced the bin now in `release/`. |
 | Listed in `RELEASE_MANIFEST_SHA256.txt` and `FILE_INDEX.txt` (release 2.1.1 / 2.1.4) and **absent** now | Whole directory `analysis_original/`: disassembly of CAN, BLE, LCD, ADC/PWM, `FIRMWARE_REPORT_RU.md`, `KANONICAL_VALUES.md`, `RECOVERED_HARDWARE.md`. |
 
-A folder named `cube file` is not on this machine and not in the GitHub repository. Nothing from an unseen folder was copied onto `main`.
+A folder named `cube file` was looked for again after it was said to have been copied onto `main`. No such commit and no such directory arrived. `analysis_original/` is still absent. What could be published from the build machine is now in `archive/`.
 
 ## Line
 
@@ -38,7 +39,7 @@ A folder named `cube file` is not on this machine and not in the GitHub reposito
 19. 2.8.13. Site send error 11 reduced by smaller buffers. The phone still left Cube because names were not answered.
 20. 2.8.14. No separate note. Later treated as the last build where Cube stayed visible.
 21. 2.8.15. DHCP keeps the gateway. Captive probes get a short answer. Password and screen code removed from the display. Charge current encoded negative. CML clamp. CCS pause does not end the session. 2011 priority and version. Web section «Станция».
-22. 2.8.16. AP only, long press for the factory image. Log said softAP started, the phone did not list Cube. Source zip of this exact tree is the local file above.
+22. 2.8.16. AP only, long press for the factory image. Log said softAP started, the phone did not list Cube. Source zip and bin are in `archive/2.8.16/`.
 23. 2.8.17. Country and mode set before `esp_wifi_start`. PMF off. This is `main`.
 24. After 2.8.17. Repository made public. Factory dump added, with the unknown-manufacturer note. Bilingual README, pin table, ESP32-S3 not built. Journal tags. Closed issues for the bugs above. RX shorted to TX on the module; that is a dead chip, not a firmware version.
 
@@ -47,6 +48,4 @@ A folder named `cube file` is not on this machine and not in the GitHub reposito
 - `analysis_original/` from 2.1.x
 - Source of 2.3.0 through 2.8.15, except what the journal already says
 - The 2.8.6 zip named in the 2026-10-08 note
-- Whatever sits in a folder called `cube file`
-
-Those stay out of `main` until that folder is actually visible and you say to copy it.
+- A directory called `cube file`. It was not in the repository after the claim that it had been copied to `main`.

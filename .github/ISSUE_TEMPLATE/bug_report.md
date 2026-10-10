@@ -5,12 +5,13 @@ title: "[bug] "
 labels: bug
 ---
 
-## What happened / Что произошло
+You can write this in English, Русский, 中文, Español, Português, Deutsch, Français, 日本語, or 한국어.
 
-## Firmware version / Версия
+## What happened
 
-The line `READY` from the serial log. Do not paste the Wi-Fi password, the screen code, a MAC address, or a home path.
+## Firmware version
 
-Строка `READY` из монитора. Не вставляйте пароль сети, код экрана, MAC и домашний путь.
+The `READY` line from the serial log. Do not paste a MAC address, a home path, or anything private. The Cube AP password is fine to mention.
 
-## What you expected / Как должно быть
+## What you expected
+

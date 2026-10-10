@@ -1,10 +1,14 @@
 # FGMDCharge / FD_ROUND V2
 
+[English](README.md) · [Русский](#русский) · [中文](docs/i18n/README.zh-CN.md) · [Español](docs/i18n/README.es.md) · [Português](docs/i18n/README.pt-BR.md) · [Deutsch](docs/i18n/README.de.md) · [Français](docs/i18n/README.fr.md) · [日本語](docs/i18n/README.ja.md) · [한국어](docs/i18n/README.ko.md)
+
+Issues and pull requests are welcome in any of those languages.
+
 Public firmware for the round ESP32-C3 cube that answers a DC charging station on CAN as the vehicle BMS.
 
-Release **2.8.17**. Journal of every earlier build: [CHANGELOG.md](CHANGELOG.md). Order of the work: [CHRONOLOGY.md](CHRONOLOGY.md). Branch rules: [docs/BRANCHES.md](docs/BRANCHES.md). This repository's firmware, build scripts and documentation were written by **Grok (xAI)**. The round board and the factory image were already on the device. Grok did not design that PCB and did not write the factory firmware.
+Release **2.8.17**. Journal: [CHANGELOG.md](CHANGELOG.md). Order of the work: [CHRONOLOGY.md](CHRONOLOGY.md). Version packages: [archive/](archive/). Branch rules: [docs/BRANCHES.md](docs/BRANCHES.md).
 
-[Русский](#русский) is below.
+This tree was vibe-coded over a long time from the factory dump in `original/` and from trying the cube on real stations. There is no single author. The factory image itself was not written in this repository. The board was not designed here.
 
 ## Who made the hardware
 
@@ -165,7 +169,9 @@ Avoid S3 strap pins GPIO0, GPIO3, GPIO45 and GPIO46. Edit only `main/config.h` f
 
 Публичная прошивка круглого куба на ESP32-C3. На CAN станции постоянного тока куб отвечает как BMS автомобиля, а не как зарядная станция.
 
-Релиз **2.8.17**. Прошивку, скрипты сборки и эту документацию написал **Grok (xAI)**. Плата и заводской образ уже были в кубе. Плату Grok не разрабатывал и заводскую прошивку не писал.
+Release **2.8.17**. Журнал: [CHANGELOG.md](CHANGELOG.md). Порядок работ: [CHRONOLOGY.md](CHRONOLOGY.md). Пакеты версий: [archive/](archive/). Ветки: [docs/BRANCHES.md](docs/BRANCHES.md).
+
+Это дерево собрано вайбкодингом, долго, от заводского дампа в `original/` и от поездок к живым станциям. Одного автора нет. Заводской образ написан не здесь. Плату здесь не разрабатывали.
 
 ### Кто производитель
 
