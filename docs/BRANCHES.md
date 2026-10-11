@@ -1,3 +1,11 @@
+# Где смотреть живую линию
+
+Конструктор: <https://apple-raven-kite-lunar.grok.me>
+
+Группа Telegram, темы Основное / Карта / ESP32-C3 / ESP32-S3 / Не шить: <https://t.me/+Z7iS1mfgtphiMDhi>
+
+Новость о ветке пишется в тему своего чипа. Архивные `src/*` в группе отдельными темами не заводятся.
+
 # Branches
 
 ESP32-S3 is not a branch of this repository anymore. The port is [FGMDCharge-S3](https://github.com/pomsfgend/FGMDCharge-S3). `hw/esp32-s3` remains only so older links open. It was cut from 2.8.15 and is not `main`.

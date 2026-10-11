@@ -10,6 +10,19 @@ Release **2.8.17**. ESP32-S3 is a separate project: [FGMDCharge-S3](https://gith
 
 This tree was vibe-coded over a long time from the factory dump in `original/` and from trying the cube on real stations. There is no single author. The factory image itself was not written in this repository. The board was not designed here.
 
+## Site and the Telegram group
+
+Configurator, virtual session, wiring, cart, bring-up steps and the flash button:
+
+<https://apple-raven-kite-lunar.grok.me>
+
+Telegram group for both lines. Topics: Основное, Карта, ESP32-C3, ESP32-S3, Не шить.
+
+<https://t.me/+Z7iS1mfgtphiMDhi>
+
+The site draws the session. The real protocol is still chosen by CAN in this firmware, not by the slider on the page. The cube button downloads release 2.8.17 from this repository, checks the size and SHA256, and writes only `0x1A0000` plus otadata at `0xD000`. It refuses any chip that is not an ESP32-C3 and it never erases the whole chip. The port dialog needs Chrome or Edge; an embedded preview may not offer one, so open the site in a normal tab. The S3 button does not ship a binary. News about a branch belongs in that chip's topic. The group does not replace this README.
+
+
 ## Who made the hardware
 
 The manufacturer is **not known**.
@@ -149,6 +162,16 @@ An earlier sketch is branch [`hw/esp32-s3`](https://github.com/pomsfgend/FGMDCha
 Release **2.8.17**. ESP32-S3 — отдельный проект: [FGMDCharge-S3](https://github.com/pomsfgend/FGMDCharge-S3) (3.0.0, от этого релиза). Ветка [hw/esp32-s3](https://github.com/pomsfgend/FGMDCharge-FD-ROUND-V2/tree/hw/esp32-s3) — не та линия, которую собирают. Журнал: [CHANGELOG.md](CHANGELOG.md). Что менялось в каждом старом архиве: [docs/ARCHIVE_CHANGES.md](docs/ARCHIVE_CHANGES.md). Старый исходник, не это дерево: ветка [`history`](https://github.com/pomsfgend/FGMDCharge-FD-ROUND-V2/tree/history) и `src/X.Y.Z`. Пакеты: [archive/](archive/). Ветки: [docs/BRANCHES.md](docs/BRANCHES.md).
 
 Это дерево собрано вайбкодингом, долго, от заводского дампа в `original/` и от поездок к живым станциям. Одного автора нет. Заводской образ написан не здесь. Плату здесь не разрабатывали.
+
+
+### Сайт и группа
+
+Конструктор, виртуальный сеанс, провода, корзина, шаги и кнопка прошивки: <https://apple-raven-kite-lunar.grok.me>
+
+Группа веток в Telegram. Темы: Основное, Карта, ESP32-C3, ESP32-S3, Не шить. <https://t.me/+Z7iS1mfgtphiMDhi>
+
+Сайт рисует сеанс. Протокол на кубе по-прежнему выбирает CAN, не ползунок. Кнопка «Прошить куб» берёт файл 2.8.17 из этого репозитория, сверяет размер и SHA256, пишет только `0x1A0000` и выбор слота `0xD000`, от чужого чипа отказывается и весь чип не стирает. Нужны Chrome или Edge. Если окно порт не даёт, откройте сайт обычной вкладкой. Кнопка S3 готовый bin не отдаёт. Новость о ветке пишется в тему своего чипа. Группа этот README не заменяет.
+
 
 ### Кто производитель
 
