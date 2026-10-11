@@ -20,7 +20,7 @@ Telegram group for both lines. Topics: Основное, Карта, ESP32-C3, E
 
 <https://t.me/+Z7iS1mfgtphiMDhi>
 
-The site draws the session. The real protocol is still chosen by CAN in this firmware, not by the slider on the page. The cube button downloads release 2.8.17 from this repository, checks the size and SHA256, and writes only `0x1A0000` plus otadata at `0xD000`. It refuses any chip that is not an ESP32-C3 and it never erases the whole chip. The port dialog needs Chrome or Edge; an embedded preview may not offer one, so open the site in a normal tab. The S3 button does not ship a binary. News about a branch belongs in that chip's topic. The group does not replace this README.
+The site draws the session. The real protocol is still chosen by CAN in this firmware, not by the slider on the page. The cube button downloads release 2.8.17 from this repository, checks the size and SHA256, and writes only `0x1A0000` plus otadata at `0xD000`. It refuses any chip that is not an ESP32-C3 and it never erases the whole chip. The port dialog needs Chrome or Edge; an embedded preview may not offer one, so open the site in a normal tab. The S3 button does not ship a binary. News about a branch belongs in that chip's topic. The group does not replace this README. Topic texts: [docs/telegram/](docs/telegram/00-OSNOVNOE.txt).
 
 
 ## Who made the hardware
@@ -170,7 +170,7 @@ Release **2.8.17**. ESP32-S3 — отдельный проект: [FGMDCharge-S3
 
 Группа веток в Telegram. Темы: Основное, Карта, ESP32-C3, ESP32-S3, Не шить. <https://t.me/+Z7iS1mfgtphiMDhi>
 
-Сайт рисует сеанс. Протокол на кубе по-прежнему выбирает CAN, не ползунок. Кнопка «Прошить куб» берёт файл 2.8.17 из этого репозитория, сверяет размер и SHA256, пишет только `0x1A0000` и выбор слота `0xD000`, от чужого чипа отказывается и весь чип не стирает. Нужны Chrome или Edge. Если окно порт не даёт, откройте сайт обычной вкладкой. Кнопка S3 готовый bin не отдаёт. Новость о ветке пишется в тему своего чипа. Группа этот README не заменяет.
+Сайт рисует сеанс. Протокол на кубе по-прежнему выбирает CAN, не ползунок. Кнопка «Прошить куб» берёт файл 2.8.17 из этого репозитория, сверяет размер и SHA256, пишет только `0x1A0000` и выбор слота `0xD000`, от чужого чипа отказывается и весь чип не стирает. Нужны Chrome или Edge. Если окно порт не даёт, откройте сайт обычной вкладкой. Кнопка S3 готовый bin не отдаёт. Новость о ветке пишется в тему своего чипа. Группа этот README не заменяет. Тексты для тем Telegram: [docs/telegram/](docs/telegram/00-OSNOVNOE.txt).
 
 
 ### Кто производитель
