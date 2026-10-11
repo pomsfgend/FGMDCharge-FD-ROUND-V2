@@ -1,7 +1,7 @@
 #pragma once
 
 #define CUBE_FW_NAME                 "FD_ROUND_V2"
-#define CUBE_FW_VERSION              "2.8.17"
+#define CUBE_FW_VERSION              "2.8.18-beta"
 
 /* SoftAP */
 #define CUBE_WEB_KEY                 ""
@@ -10,12 +10,17 @@
 #define CUBE_WIFI_CHANNEL            6
 #define CUBE_WIFI_MAX_CONNECTIONS    4
 #define CUBE_WIFI_OPEN               0
+/* Max Wi-Fi TX power in 0.25 dBm (80 = 20 dBm = chip maximum, ~350 mA peaks).
+   60 = 15 dBm: plenty for a phone next to the bike and far easier on the
+   3.3 V rail of the cube. Raise only if the AP is visible but weak. */
+#define CUBE_WIFI_TX_POWER_QDBM      60
 
 #define CUBE_TX_COMPILED_ENABLE      1
 #define CUBE_TX_DEFAULT_ENABLED      1
-/* Saved session logs sit in the erased tail after ota_1 (ota_1 ends at 0x330000).
-   This is not a partition, so the table and the factory slot stay untouched. */
-#define CUBE_LOG_FLASH_BASE          0x330000
+/* Saved session logs: last 32 KB of the 4 MB flash, not a partition.
+   0x330000.. is the LZSS factory backup of safe_ota.c (SPARE_BASE); the logs
+   used to sit there too and overwrote the backup's header and data. */
+#define CUBE_LOG_FLASH_BASE          0x3F8000
 #define CUBE_LOG_SLOTS               8
 #define CUBE_LOG_SLOT_SIZE           4096
 #define CUBE_HTTP_MAX_UPLOAD       (0x190000)

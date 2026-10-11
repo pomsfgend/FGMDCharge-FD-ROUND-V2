@@ -909,7 +909,7 @@ static void build_ui(void)
     lv_obj_set_height(s_can_lbl, 110);
     s_scr_sys = lv_obj_create(NULL);
     style_screen(s_scr_sys);
-    line(s_scr_sys, "СИСТЕМА 2.8.17", 4);
+    line(s_scr_sys, "СИСТЕМА 2.8.18-beta", 4);
     s_sys_temp = line(s_scr_sys, "CPU -- C", 28);
     s_sys_cpu = line(s_scr_sys, "F 160 MHz", 48);
     s_sys_load = line(s_scr_sys, "Load -- %", 68);
@@ -1141,7 +1141,8 @@ esp_err_t display_init(void)
     }
 
     lv_init();
-    size_t buf_px = CUBE_LCD_H_RES * 40;
+    /* 2 x 240x20 px = 19 KB of DMA heap instead of 38 KB; Wi-Fi needs the headroom. */
+    size_t buf_px = CUBE_LCD_H_RES * 20;
     s_buf1 = heap_caps_malloc(buf_px * sizeof(lv_color_t), MALLOC_CAP_DMA);
     s_buf2 = heap_caps_malloc(buf_px * sizeof(lv_color_t), MALLOC_CAP_DMA);
     if (!s_buf1 || !s_buf2) return ESP_ERR_NO_MEM;

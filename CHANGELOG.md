@@ -6,6 +6,24 @@ Older numbers below are the journal of what changed. Their trees were not kept. 
 
 Журнал. Единственные исходники и готовый bin — **2.8.17**. Более ранние деревья не сохранились. Метка `notes/x.y.z` ведёт на этот же коммит с текстом, а не на старую прошивку. Архив с такой метки прошивать нельзя.
 
+## 2.8.18-beta
+
+Beta, not tested on hardware. Branch `review-fixes`, tag `v2.8.18-beta`. `main` and `release/` stay on 2.8.17.
+Бета, на железе не проверена. Ветка `review-fixes`, метка `v2.8.18-beta`. `main` и `release/` остаются на 2.8.17.
+
+Fixed / исправлено:
+
+- `sdkconfig.defaults` used `CONFIG_ESP_WIFI_*` names, which IDF 5.0.9 does not have (there they are `CONFIG_ESP32_WIFI_*`). WPA3-SAE stayed on and the buffer/AMPDU lines were ignored. Likely part of the Wi-Fi problem. / Имена опций Wi-Fi в `sdkconfig.defaults` не существуют в IDF 5.0.9, строки молча игнорировались, WPA3-SAE оставался включён.
+- Wi-Fi: protocol b/g/n and HT20 set after `set_mode(AP)` and before start; TX power 15 dBm (`CUBE_WIFI_TX_POWER_QDBM`); no PSRAM TX cache; AP_START/AP_STOP and heap in the log. / Протокол и полоса до старта, мощность 15 дБм, в логе AP_START/AP_STOP и свободная память.
+- esp_timer task stack 2048 -> 3584. LVGL draw buffers 40 -> 20 lines (+19 KB heap). / Стек esp_timer 3584, буферы LVGL вдвое меньше (+19 КБ кучи).
+- Session logs moved from 0x330000 to 0x3F8000. They overwrote the compressed factory backup used by OTA. / Логи сеансов больше не затирают сжатую копию заводской прошивки.
+- Stop under load: BST is repeated every 10 ms and the load relay (GPIO7) opens at <= 5 A or after 1 s, not in the same tick. CAN silence (unplug) still opens at once. / Стоп: BST каждые 10 мс, реле нагрузки размыкается при токе <= 5 А или через 1 с.
+- Manual load latch is cleared when the session ends. GPIO7 state is tracked in a variable (`gpio_get_level` on an output-only pin always read 0). / Ручная фиксация реле сбрасывается в конце сеанса; состояние GPIO7 хранится в переменной.
+- BCL voltage clamped to the CML min..max window. / Напряжение BCL ограничено окном CML.
+- Web: status buffer 2048, overflow in `/api/can/recent`, auth on `/api/boot/original`, zeroed raw CAN buffer. / Веб: мелкие исправления буферов и проверка ключа.
+
+Unchanged / без изменений: spoof behaviour (setpoints reported as measured), default request 240 V / 50 A, load relay closes after the station voltage is >= 50 V and stable for 3 s.
+
 ## 2.8.17
 
 Fixed / исправлено:

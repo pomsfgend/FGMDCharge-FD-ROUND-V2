@@ -45,6 +45,13 @@ static uint16_t s_v_anchor = 0;
 /* -1: load follows station voltage. 0/1: long-hold latched the load relay until the opposite hold. */
 static int s_load_manual = -1;
 static uint32_t s_last_opt_ms = 0;
+/* Graceful stop: keep the load relay closed and send BST until the station
+   has ramped the current down, so GPIO7 never breaks the chargers' DC current
+   at ~240 V (a DC arc does not self-extinguish like AC). */
+static uint32_t s_stop_since = 0;
+static int s_b_level = 0;   /* GPIO7 is output-only: gpio_get_level() on it always reads 0 */
+#define CUBE_STOP_I_SAFE_0P1A   50      /* 5 A: low enough to open GPIO7 without a DC arc */
+#define CUBE_STOP_WAIT_MS       1000    /* give up waiting and open anyway          */
 
 static uint32_t now_ms(void)
 {
@@ -53,6 +60,7 @@ static uint32_t now_ms(void)
 
 static void relays_set(int a, int b)
 {
+    s_b_level = b ? 1 : 0;
     gpio_set_level(CUBE_RELAY_A_GPIO, a ? 1 : 0);
     gpio_set_level(CUBE_RELAY_B_GPIO, b ? 1 : 0);
     app_state_set_relays((uint8_t)(a ? 1 : 0), (uint8_t)(b ? 1 : 0));
@@ -97,6 +105,8 @@ static void set_state(uint8_t s)
 
 static void end_session(void)
 {
+    s_stop_since = 0;
+    s_load_manual = -1;   /* a manual load latch never outlives the session */
     session_log_request(1, SESSION_LOG_STOP);
     app_state_release_auto_protocol();
     if (s_main == ST_IDLE) return;
@@ -266,6 +276,11 @@ static void tx_bcl(void)
         int32_t lim = -(int32_t)st.cml_max_current_0p1a;
         if (i_abs > lim) i_abs = lim;
     }
+    /* A request outside the CML window is a parameter error for many piles. */
+    if (st.last_cml_ms != 0) {
+        if (st.cml_min_voltage_raw && v < st.cml_min_voltage_raw) v = st.cml_min_voltage_raw;
+        if (st.cml_max_voltage_raw && v > st.cml_max_voltage_raw) v = st.cml_max_voltage_raw;
+    }
     i_enc = 4000 - i_abs;
     if (i_enc < 0) i_enc = 0;
     if (i_enc > 65535) i_enc = 65535;
@@ -402,7 +417,8 @@ void sm_request_relay_test(void)
     app_state_log(nb ? "нагрузка ВКЛ, держится" : "нагрузка ВЫКЛ, держится");
 }
 
-void sm_stop_session(void)
+/* Immediate stop: station gone (CAN silent) or nothing is flowing. */
+static void stop_now(void)
 {
     cube_state_snapshot_t st;
     app_state_snapshot(&st);
@@ -414,19 +430,35 @@ void sm_stop_session(void)
     end_session();
 }
 
+void sm_stop_session(void)
+{
+    cube_state_snapshot_t st;
+    app_state_snapshot(&st);
+    if (st.protocol != 3 && s_main == ST_CHARGING && st.relay_b) {
+        if (s_stop_since == 0) {
+            s_stop_since = now_ms();
+            if (s_stop_since == 0) s_stop_since = 1;
+            app_state_log("стоп: BST, жду спада тока");
+            tx_bst();
+        }
+        return;   /* sm_relay_tick finishes it */
+    }
+    stop_now();
+}
+
 void sm_ble_cmd_0x66(uint8_t val)
 {
     if (val == 0) {
         gpio_set_level(CUBE_RELAY_A_GPIO, 0);
         /* original: only GPIO6; leave B as-is */
-        int b = gpio_get_level(CUBE_RELAY_B_GPIO);
+        int b = s_b_level;
         app_state_set_relays(0, (uint8_t)(b ? 1 : 0));
         s_sub = 6;
         app_state_set_substate(6);
         ESP_LOGI(TAG, "BLE 0x66=0 -> GPIO6 OFF substate=6");
     } else if (val == 1) {
         gpio_set_level(CUBE_RELAY_A_GPIO, 1);
-        int b = gpio_get_level(CUBE_RELAY_B_GPIO);
+        int b = s_b_level;
         app_state_set_relays(1, (uint8_t)(b ? 1 : 0));
         s_sub = 3;
         app_state_set_substate(3);
@@ -485,6 +517,19 @@ void sm_relay_tick(void)
             if (s_main != ST_CHARGING) set_state(ST_CHARGING);
         }
         if (s_main != ST_CHARGING) skip_a = true;
+    }
+
+    if (s_stop_since != 0) {
+        int32_t ia = st.ccs_output_current_0p1a;
+        if (ia < 0) ia = -ia;
+        tx_bst();   /* BST period is 10 ms */
+        if (ia <= CUBE_STOP_I_SAFE_0P1A || (t - s_stop_since) >= CUBE_STOP_WAIT_MS ||
+            (s_last_chg_ms != 0 && (t - s_last_chg_ms) > 1000)) {
+            app_state_log(ia <= CUBE_STOP_I_SAFE_0P1A ? "стоп: ток спал, реле выкл" : "стоп: таймаут, реле выкл");
+            tx_bsd();
+            end_session();
+        }
+        return;
     }
 
     if (!skip_a) switch (s_main) {
@@ -619,9 +664,7 @@ void sm_relay_tick(void)
             if (st.charger_stage == CUBE_STAGE_COMPLETED ||
                 st.charger_stage == CUBE_STAGE_ERROR ||
                 st.charger_stage == CUBE_STAGE_SUSPENDED) {
-                tx_bst();
-                tx_bsd();
-                end_session();
+                sm_stop_session();   /* BST, wait for current to fall, then BSD + relays off */
             }
         }
         break;
@@ -637,6 +680,6 @@ void sm_relay_tick(void)
     if (s_main != ST_IDLE && s_last_chg_ms != 0 && (t - s_last_chg_ms) > 3000) {
         app_state_log("unplug: CAN silent, relays off");
         s_auto_hold_until = t + 8000;
-        sm_stop_session();
+        stop_now();
     }
 }

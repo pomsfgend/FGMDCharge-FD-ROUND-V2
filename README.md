@@ -129,7 +129,7 @@ SPI clock 40 MHz. CAN 250 kbit/s, extended frames, accept-all filter.
 | phy_init | `0xF000` | 4 KB |
 | ota_0 factory app | `0x10000` | 1600 KB |
 | ota_1 this firmware | `0x1A0000` | 1600 KB |
-| session logs | `0x330000` | 8 × 4 KB, not a partition |
+| session logs | `0x3F8000` | 8 × 4 KB, not a partition |
 
 Do not erase the whole chip if the factory app in `ota_0` must remain. To replace only this firmware:
 
@@ -279,7 +279,7 @@ SPI 40 МГц. CAN 250 кбит/с, расширенные кадры, филь�
 | phy_init | `0xF000` | 4 КБ |
 | ota_0 завод | `0x10000` | 1600 КБ |
 | ota_1 эта прошивка | `0x1A0000` | 1600 КБ |
-| журналы сессий | `0x330000` | 8 × 4 КБ, это не раздел |
+| журналы сессий | `0x3F8000` | 8 × 4 КБ, это не раздел |
 
 Весь чип не стирать, если заводское приложение в `ota_0` нужно оставить. Заменить только эту прошивку:
 

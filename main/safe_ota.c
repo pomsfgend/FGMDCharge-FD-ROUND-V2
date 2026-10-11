@@ -1,6 +1,7 @@
 #include "safe_ota.h"
 #include "display.h"
 #include "lzss.h"
+#include "config.h"
 #include "esp_log.h"
 #include "esp_ota_ops.h"
 #include "esp_partition.h"
@@ -14,9 +15,12 @@
 static const char *TAG = "SAFE_OTA";
 static volatile int s_ota_pct = -1;
 
-/* Spare flash above ota_1 (0x330000..0x400000). Header then LZSS of the factory image. */
+/* Spare flash above ota_1 (0x330000..0x3F8000). Header then LZSS of the factory image.
+   The top 32 KB (0x3F8000..) belong to the session logs (CUBE_LOG_FLASH_BASE).
+   original/factory_lzss.bin: comp 0xC4470 + 32 B header = 805008 B < 0xC8000 (819200 B). */
 #define SPARE_BASE  0x330000u
-#define SPARE_SIZE  0xD0000u
+#define SPARE_SIZE  0xC8000u
+_Static_assert(SPARE_BASE + SPARE_SIZE <= CUBE_LOG_FLASH_BASE, "factory backup overlaps session logs");
 #define BAK_MAGIC   0x314C5A46u /* FZL1 */
 #define BAK_HDR     32u
 

@@ -41,7 +41,15 @@ void adc_pwm_init(void);
 static void myTask_Timer(void *arg)
 {
     (void)arg;
+    unsigned sec = 0;
     for (;;) {
+        if ((sec++ % 30u) == 0u) {
+            /* Wi-Fi allocates beacon/RX buffers at run time; near-zero heap = AP silently dies. */
+            ESP_LOGW(TAG, "heap free=%u min=%u largest=%u",
+                     (unsigned)heap_caps_get_free_size(MALLOC_CAP_8BIT),
+                     (unsigned)heap_caps_get_minimum_free_size(MALLOC_CAP_8BIT),
+                     (unsigned)heap_caps_get_largest_free_block(MALLOC_CAP_8BIT));
+        }
         app_state_housekeeping();
         session_log_on_second();
         vTaskDelay(pdMS_TO_TICKS(1000));
@@ -108,6 +116,7 @@ void app_main(void) {
     err = web_init();
     if (err != ESP_OK) ESP_LOGE(TAG, "Web init failed: %s", esp_err_to_name(err));
     else ESP_LOGW(TAG, "stage: Web AP ok");
+    ESP_LOGW(TAG, "heap after Wi-Fi/web: %u", (unsigned)heap_caps_get_free_size(MALLOC_CAP_8BIT));
 
     err = display_init();
     if (err != ESP_OK) {
@@ -117,6 +126,7 @@ void app_main(void) {
     } else {
         ESP_LOGW(TAG, "stage: LCD/LVGL ok");
     }
+    ESP_LOGW(TAG, "heap after LCD: %u", (unsigned)heap_caps_get_free_size(MALLOC_CAP_8BIT));
 
     /* Web AP already started before the display. */
     #if CUBE_BLE_ENABLE
