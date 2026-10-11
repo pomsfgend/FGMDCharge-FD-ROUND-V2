@@ -6,6 +6,7 @@ Packages that still exist as files. A version that is not listed here was not ke
 
 | Version | What is in the folder | Flash? |
 |---|---|---|
+| 2.8.18-beta | App image built from branch `review-fixes` (tag `v2.8.18-beta`) and its SHA256. Source is that branch. Beta, not tested on hardware. | Only to test the beta. `ota_1` at `0x1A0000`. |
 | 2.8.17 | Also at [release/FGMDCharge_FD_ROUND_V2.bin](../release/FGMDCharge_FD_ROUND_V2.bin). This folder has the source zip from the build that produced that bin. | Yes. `ota_1` at `0x1A0000`. This is `main`. |
 | 2.8.16 | Source zip and app image. `config.h` in the zip says 2.8.16. The log said softAP started and phones often did not list Cube. Fixed in 2.8.17. | Only if you mean to run 2.8.16. |
 
