@@ -2,6 +2,10 @@
 
 Поддерживаемая линия — отдельный репозиторий [FGMDCharge-S3](https://github.com/pomsfgend/FGMDCharge-S3), версия 3.0.0. Она снята с куба **2.8.17** ([FGMDCharge-FD-ROUND-V2](https://github.com/pomsfgend/FGMDCharge-FD-ROUND-V2)), не с 2.8.15. Ноги те же, что уже записаны в `main/boards/esp32s3_devkit.h` на этой ветке. Старую таблицу из README куба (подсветка 14, тач 8/9, реле 15/16) не использовать. Текст ниже оставлен, чтобы ссылка на ветку не вела в пустоту.
 
+Сайт конструктора: https://apple-raven-kite-lunar.grok.me
+Группа: https://t.me/+Z7iS1mfgtphiMDhi
+В группе эта ветка числится старой. Живая плата S3 — репозиторий FGMDCharge-S3, тема ESP32-S3.
+
 # FD_ROUND S3 — ветка hw/esp32-s3
 
 Исходник `src/2.8.15` (ESP32-C3, куб) переложен на **ESP32-S3-DevKitC-1**.
