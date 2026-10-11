@@ -216,7 +216,7 @@ static esp_err_t status_get(httpd_req_t *req)
     cube_state_snapshot_t st;
     char data[20];
     char cem[12];
-    char body[1600];
+    char body[2048];
     uint32_t now = (uint32_t)(esp_timer_get_time() / 1000ULL);
     int online;
     long power;
@@ -324,6 +324,7 @@ static esp_err_t can_recent_get(httpd_req_t *req)
             i ? "," : "", (unsigned long)hist[i].id, (unsigned)hist[i].dlc,
             (unsigned long)hist[i].flags, (unsigned long)hist[i].timestamp_ms, hex);
     }
+    if (used > sizeof(body) - 3) used = sizeof(body) - 3;   /* snprintf returns the untruncated length */
     snprintf(body + used, sizeof(body) - used, "]}");
     set_security_headers(req);
     set_no_cache(req);
@@ -409,7 +410,7 @@ static esp_err_t can_raw_post(httpd_req_t *req)
     char idb[16] = {0};
     char data[40] = {0};
     unsigned long id = 0;
-    uint8_t raw[8];
+    uint8_t raw[8] = {0};
     int n = 0;
     set_security_headers(req);
     if (!auth(req)) return forbidden(req);
@@ -614,6 +615,11 @@ static void wifi_ap_event_handler(void *arg, esp_event_base_t base, int32_t id, 
         ESP_LOGI(TAG, "STA connected %02X:%02X:%02X:%02X:%02X:%02X AID=%u heap=%u",
                  ev->mac[0], ev->mac[1], ev->mac[2], ev->mac[3], ev->mac[4], ev->mac[5],
                  (unsigned)ev->aid, (unsigned)esp_get_free_heap_size());
+    } else if (id == WIFI_EVENT_AP_START) {
+        ESP_LOGW(TAG, "AP_START event: radio is beaconing, heap=%u min=%u",
+                 (unsigned)esp_get_free_heap_size(), (unsigned)esp_get_minimum_free_heap_size());
+    } else if (id == WIFI_EVENT_AP_STOP) {
+        ESP_LOGW(TAG, "AP_STOP event");
     } else if (id == WIFI_EVENT_AP_STADISCONNECTED && data) {
         wifi_event_ap_stadisconnected_t *ev = data;
         if (s_ap_clients > 0) s_ap_clients--;
@@ -662,8 +668,13 @@ static void ap_radio_before_start(void)
     wifi_country_t country = {
         .cc = "CN", .schan = 1, .nchan = 13, .policy = WIFI_COUNTRY_POLICY_MANUAL
     };
-    (void)esp_wifi_set_ps(WIFI_PS_NONE);
-    (void)esp_wifi_set_country(&country);
+    esp_err_t e1 = esp_wifi_set_ps(WIFI_PS_NONE);
+    esp_err_t e2 = esp_wifi_set_country(&country);
+    /* Before esp_wifi_start only. Overrides whatever esp_wifi_init loaded. */
+    esp_err_t e3 = esp_wifi_set_protocol(WIFI_IF_AP, WIFI_PROTOCOL_11B | WIFI_PROTOCOL_11G | WIFI_PROTOCOL_11N);
+    esp_err_t e4 = esp_wifi_set_bandwidth(WIFI_IF_AP, WIFI_BW_HT20);
+    ESP_LOGW(TAG, "radio pre-start ps=%s country=%s proto=%s bw=%s",
+             esp_err_to_name(e1), esp_err_to_name(e2), esp_err_to_name(e3), esp_err_to_name(e4));
 }
 
 static esp_err_t ap_apply_config(void)
@@ -737,12 +748,12 @@ esp_err_t web_wifi_restart(void)
     ESP_LOGW(TAG, "WiFi restart requested");
     (void)esp_wifi_stop();
     vTaskDelay(pdMS_TO_TICKS(200));
-    ap_radio_before_start();
     (void)esp_wifi_set_mode(WIFI_MODE_AP);
+    ap_radio_before_start();   /* after set_mode: set_protocol(WIFI_IF_AP) needs the AP interface */
     err = ap_apply_config();
     if (err == ESP_OK) err = esp_wifi_start();
     if (err == ESP_OK || err == ESP_ERR_INVALID_STATE) {
-        (void)esp_wifi_set_max_tx_power(80);
+        (void)esp_wifi_set_max_tx_power(CUBE_WIFI_TX_POWER_QDBM);
         err = ESP_OK;
         ESP_LOGW(TAG, "WiFi restarted SSID=%s", CUBE_WIFI_SSID);
     } else {
@@ -872,6 +883,7 @@ void web_boot_original(void)
 static esp_err_t boot_original_post(httpd_req_t *req)
 {
     set_security_headers(req);
+    if (!auth(req)) return forbidden(req);
     httpd_resp_sendstr(req, "{\"ok\":true,\"rebooting\":true}");
     vTaskDelay(pdMS_TO_TICKS(400));
     web_boot_original();
@@ -886,6 +898,10 @@ esp_err_t web_init(void)
     if (err != ESP_OK && err != ESP_ERR_INVALID_STATE) return err;
     (void)esp_event_handler_register(WIFI_EVENT, WIFI_EVENT_AP_STACONNECTED, &wifi_ap_event_handler, NULL);
     (void)esp_event_handler_register(WIFI_EVENT, WIFI_EVENT_AP_STADISCONNECTED, &wifi_ap_event_handler, NULL);
+    (void)esp_event_handler_register(WIFI_EVENT, WIFI_EVENT_AP_START, &wifi_ap_event_handler, NULL);
+    (void)esp_event_handler_register(WIFI_EVENT, WIFI_EVENT_AP_STOP, &wifi_ap_event_handler, NULL);
+    ESP_LOGW(TAG, "wifi init: heap=%u largest=%u", (unsigned)esp_get_free_heap_size(),
+             (unsigned)heap_caps_get_largest_free_block(MALLOC_CAP_8BIT));
     (void)esp_event_handler_register(IP_EVENT, IP_EVENT_STA_GOT_IP, &wifi_ip_handler, NULL);
     if (!s_ap_netif) s_ap_netif = esp_netif_create_default_wifi_ap();
     if (!s_ap_netif) return ESP_ERR_NO_MEM;
@@ -894,7 +910,7 @@ esp_err_t web_init(void)
     cfg.static_rx_buf_num = 6;
     cfg.dynamic_rx_buf_num = 8;
     cfg.dynamic_tx_buf_num = 8;
-    cfg.cache_tx_buf_num = 16;
+    cfg.cache_tx_buf_num = 0;   /* PSRAM-only feature; the cube has no PSRAM */
     cfg.ampdu_rx_enable = 0;
     cfg.ampdu_tx_enable = 0;
     cfg.amsdu_tx_enable = 0;
@@ -913,11 +929,26 @@ esp_err_t web_init(void)
              cfg.ampdu_rx_enable);
     err = esp_wifi_set_storage(WIFI_STORAGE_RAM);
     ESP_LOGW(TAG, "wifi storage RAM -> %s", esp_err_to_name(err));
-    ap_radio_before_start();
-    if ((err = esp_wifi_set_mode(WIFI_MODE_AP)) != ESP_OK) return err;
-    if ((err = ap_apply_config()) != ESP_OK) return err;
-    if ((err = esp_wifi_start()) != ESP_OK && err != ESP_ERR_INVALID_STATE) return err;
-    (void)esp_wifi_set_max_tx_power(80);
+    if ((err = esp_wifi_set_mode(WIFI_MODE_AP)) != ESP_OK) {
+        ESP_LOGE(TAG, "set_mode AP failed: %s", esp_err_to_name(err));
+        return err;
+    }
+    ap_radio_before_start();   /* after set_mode: set_protocol(WIFI_IF_AP) needs the AP interface */
+    if ((err = ap_apply_config()) != ESP_OK) {
+        ESP_LOGE(TAG, "set_config AP failed: %s", esp_err_to_name(err));
+        return err;
+    }
+    if ((err = esp_wifi_start()) != ESP_OK && err != ESP_ERR_INVALID_STATE) {
+        ESP_LOGE(TAG, "esp_wifi_start failed: %s", esp_err_to_name(err));
+        return err;
+    }
+    {
+        esp_err_t pe = esp_wifi_set_max_tx_power(CUBE_WIFI_TX_POWER_QDBM);
+        int8_t pw = 0;
+        (void)esp_wifi_get_max_tx_power(&pw);
+        ESP_LOGW(TAG, "tx power req=%d got=%d (0.25 dBm) -> %s heap=%u",
+                 CUBE_WIFI_TX_POWER_QDBM, (int)pw, esp_err_to_name(pe), (unsigned)esp_get_free_heap_size());
+    }
     {
         wifi_config_t chk = {0};
         if (esp_wifi_get_config(WIFI_IF_AP, &chk) == ESP_OK) {
